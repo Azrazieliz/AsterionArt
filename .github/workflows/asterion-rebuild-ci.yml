@@ -2,9 +2,13 @@ name: Asterion Compiler Android CI
 
 on:
   push:
-    branches: [main, asterion-rebuild-model-aware-prompts-lora-20261023]
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: asterion-compiler-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
