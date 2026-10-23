@@ -39,7 +39,7 @@ class AndroidLoRaLibraryStore(context: Context) {
         }
     }.getOrElse { throw IllegalStateException("LoRA catalog is damaged; existing entries were not changed.", it) }
 
-    suspend fun import(
+    suspend fun importAsset(
         uri: Uri,
         name: String,
         triggerWords: List<String>,
