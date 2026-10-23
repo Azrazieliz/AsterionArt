@@ -22,6 +22,7 @@ import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.availableUpscalers
 import com.asterion.art.engine.upscaleImage
+import com.asterion.art.learning.PreferenceLearning
 import com.asterion.art.engine.SheetTextReader
 import com.asterion.art.engine.TechnicalImageScorer
 import com.asterion.art.model.RenderMode
@@ -99,6 +100,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             for (candidate in 1..count) {
                 if (isStopped) throw CancellationException("Job stopped")
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
+                val candidateSettings = PreferenceLearning.candidate(job.settings,candidate - 1)
                 var current: ByteArray? = null
                 for (stage in recipe.passes) {
                     if (isStopped) throw CancellationException()
@@ -112,7 +114,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     foreground("Candidate " + candidate + "/" + count +
                         " · pass " + stage.number + "/5")
                     val result = engine.generate(
-                        stage, job.settings, resolution.first, resolution.second,
+                        stage, candidateSettings, resolution.first, resolution.second,
                         current, seed, { isStopped }, { _, _ -> })
                     current = result.png
                     GeneratedImagePublisher.atomicWrite(path, result.png)
@@ -138,6 +140,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     put("clip_ratio", technical.clipped)
                     put("sha256", GeneratedImagePublisher.sha256(image))
                     put("seed", seed)
+                    put("cfg", candidateSettings.cfg.toDouble())
+                    put("steps", candidateSettings.steps)
+                    put("denoise", candidateSettings.denoise.toDouble())
                 }
             }
             var enhancementStatus = "NOT_REQUESTED"

@@ -89,6 +89,7 @@ import com.asterion.art.model.TaskStatus
 import com.asterion.art.render.SheetRenderer
 import com.asterion.art.work.SheetRenderWorker
 import com.asterion.art.work.GenerationWorker
+import com.asterion.art.learning.UserPreferenceStore
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
@@ -511,8 +512,12 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                         enabled = ready && mode != RenderMode.ANIMATION &&
                             repo.sheets.filter { it.id in selected }.all { it.outputUri != null },
                         onClick = {
+                            val preferred = if (repo.settings.automatic)
+                                UserPreferenceStore(context).suggestion(
+                                    mode,repo.settings,repo.assets)?.settings ?: repo.settings
+                            else repo.settings
                             val job = GenerationJobStore(context).create(
-                                mode, selected.toList(), repo.settings)
+                                mode, selected.toList(), preferred)
                             val task = repo.recordTask(job.id, TaskKind.STILL_IMAGE)
                             GenerationWorker.enqueue(context, job.id, task.id)
                             navigate(Page.JOBS)
