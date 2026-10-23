@@ -101,6 +101,54 @@ object GenerationPlanner {
         return GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings)
     }
 
+    /**
+     * Real multimodal alternative for Qwen/FLUX reference-editing engines.
+     * Blank OCR does not imply blank reference images. No characteristics are
+     * invented by this prompt: the native model must inspect source pixels.
+     */
+    fun compileVisual(
+        sources: List<SourceEvidence>,
+        mode: RenderMode,
+        settings: GeneratorSettings,
+    ): GenerationRecipe {
+        require(sources.any { it.role == SheetRole.CHARACTER })
+        require(sources.any { it.role == SheetRole.ART_STYLE })
+        require(sources.any { it.role == SheetRole.THEME })
+        val groups=sources.groupBy { it.role }
+        val roleLabels=listOf(
+            SheetRole.CHARACTER to "character identity and physical form",
+            SheetRole.ART_STYLE to "visual rendering style",
+            SheetRole.THEME to "scene arrangement, pose and interaction",
+            SheetRole.ELEMENT to "visual elements and their placement"
+        ).filter { (role,_) -> groups[role].orEmpty().isNotEmpty() }
+        val numbered=roleLabels.mapIndexed { i,(_,label) ->
+            "Reference group "+(i+1)+" establishes "+label+"."
+        }.joinToString(" ")
+        val look=when(mode) {
+            RenderMode.ANIME,RenderMode.ANIMATION ->
+                "Create an anime illustration."
+            RenderMode.REALISTIC ->
+                "Create a photographically realistic fantasy illustration; preserve any nonhuman traits."
+            RenderMode.COSPLAY ->
+                "Create a photoreal cosplay interpretation; preserve the canonical wings, horns, ears, tails and marks."
+        }
+        val base=look+" Use ONLY actual reference images for character identity, style, scene and mandatory details. "+
+            numbered+" Render one coherent artwork, not a labeled reference-sheet infographic. "+
+            "Never invent a missing canonical trait or omit an established one."
+        val modifiers=listOf(
+            "",
+            "Preserve established character identity, facial features, outfit geometry and body interactions.",
+            "Refine material response, lighting, surface reflections and environmental coherence.",
+            "Refine existing fine details, ornaments, hair, accessories and element microstructure.",
+            "Final rendering coherence without altering the original composition or established subjects."
+        )
+        val denoise=listOf(1f,.45f,.32f,.22f,.13f)
+        val passes=(1..5).map { index ->
+            GenerationPass(index,base+" "+modifiers[index-1],"",denoise[index-1])
+        }
+        return GenerationRecipe(mode,passes,sources.map { it.sheetId },settings)
+    }
+
     fun selectModelId(models: List<Pair<String, String>>, mode: RenderMode): String? {
         // One automatic route shown to the user; the ranking operates internally.
         // This is NOT a claim of checkpoint weight fusion.
