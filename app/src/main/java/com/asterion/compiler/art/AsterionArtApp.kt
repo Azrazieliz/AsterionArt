@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState as rememberHorizontalScrollState
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -56,6 +58,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
     var running by remember { mutableStateOf(false) }
     var latest by remember { mutableStateOf<NightmareResult?>(null) }
     var humanRating by remember { mutableStateOf(8f) }
+    var technical by remember { mutableStateOf<Evidence?>(null) }
     var approximate by remember { mutableStateOf(false) }
 
     val sheetPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -79,7 +82,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
     val project = ArtProject("draft", mode, sheets.toList(), frames.toList())
 
     AsterionTheme {
-        Scaffold { contentPadding ->
+        Scaffold { _ ->
             Column(
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -114,7 +117,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                 Card {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Text("02 / Output mode", style = MaterialTheme.typography.titleLarge)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.horizontalScroll(rememberHorizontalScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ArtMode.entries.forEach { choice ->
                                 FilterChip(selected = choice == mode, onClick = { mode = choice },
                                     label = { Text(choice.name.lowercase().replaceFirstChar { it.uppercase() }) })
@@ -157,8 +160,27 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                         OutlinedTextField(value = token, onValueChange = { token = it }, modifier = Modifier.fillMaxWidth(),
                             label = { Text("Nightmare API token") }, singleLine = true)
                         if (mode != ArtMode.ANIMATION) {
-                            Text("Reference-conditioned automatic still generation is not connected yet. " +
-                                "Open advanced compiler to inspect existing prompt passes.")
+                            Text("Initial text-derived sheet generation. Dense visual references are not yet passed to the image model directly.")
+                            Button(
+                                enabled = !running && token.isNotBlank() && project.problems().isEmpty(),
+                                onClick = {
+                                    running = true
+                                    status = "Extracting the reference-sheet descriptions..."
+                                    scope.launch {
+                                        try {
+                                            val draft = ArtSheetCompiler(context).compile(project)
+                                            status = draft.warnings.joinToString("; ").ifBlank { "Generating..." }
+                                            val bridge = NightmareBridge(context.contentResolver, context.filesDir, token.trim())
+                                            latest = bridge.render(draft.positive, seed = 0, mode = mode)
+                                            technical = ImageTechnicalScore.inspect(latest!!.file)
+                                            status = "Still image generated. Review the technical suggestion and rate the result."
+                                        } catch (e: Exception) {
+                                            status = "Generation failed: ${e.message}"
+                                        } finally { running = false }
+                                    }
+                                }
+                            ) { Text(if (running) "Generating..." else "Generate image from sheets") }
+                            project.problems().forEach { Text(it, color = MaterialTheme.colorScheme.error) }
                         } else {
                             Button(
                                 enabled = !running && token.isNotBlank() && frames.isNotEmpty(),
@@ -205,9 +227,19 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                             Text("Saved: ${video.file.name} (${video.width}×${video.height})")
                             Text("SHA-256: ${NightmareBridge.sha256(video.file)}",
                                 style = MaterialTheme.typography.bodySmall)
+                            technical?.let { evidence ->
+                                Text("Automated technical suggestion: ${(evidence.score * 100).toInt()}/100 " +
+                                    "(confidence ${(evidence.confidence * 100).toInt()}%).")
+                                Text(evidence.detail, style = MaterialTheme.typography.bodySmall)
+                            }
                             Text("Your rating: ${humanRating.toInt()}/10")
                             Slider(value = humanRating, onValueChange = { humanRating = it }, valueRange = 0f..10f, steps = 9)
-                            Text("Preference updates for this rating are not persisted yet.")
+                            OutlinedButton(onClick = {
+                                try {
+                                    ArtRatingStore(context).save(video, humanRating.toInt(), mode)
+                                    status = "Human rating saved in append-only Art feedback history."
+                                } catch (e: Exception) { status = "Could not save rating: ${e.message}" }
+                            }) { Text("Save rating") }
                         }
                     }
                 }
