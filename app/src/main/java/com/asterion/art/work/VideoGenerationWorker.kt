@@ -47,15 +47,6 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
         }
     }
 
-    override fun onStopped() {
-        super.onStopped()
-        Thread {
-            runCatching {
-                val token=VideoApiCredentials(applicationContext).read()
-                if(token!=null) NightmareVideoBridge(applicationContext,token).cancel()
-            }
-        }.apply { isDaemon=true; name="asterion-cancel-video" }.start()
-    }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val id=inputData.getString("job") ?: return@withContext Result.failure()

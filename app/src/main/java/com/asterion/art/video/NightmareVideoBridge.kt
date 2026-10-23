@@ -78,7 +78,20 @@ class NightmareVideoBridge(private val ctx: Context, private val token: String) 
             put("params",JSONObject().put("video",JSONObject()
                 .put("seconds",seconds.toString())))
         }
-        val completed=json("/run",request)
+        val active = java.util.concurrent.atomic.AtomicBoolean(true)
+        val watcher = Thread {
+            try {
+                while (active.get()) {
+                    if (cancelled()) {
+                        runCatching { cancel() }
+                        break
+                    }
+                    Thread.sleep(700L)
+                }
+            } catch (_: InterruptedException) { }
+        }.apply { isDaemon = true; name = "asterion-video-cancellation"; start() }
+        val completed = try { json("/run",request) }
+            finally { active.set(false); watcher.interrupt() }
         if(cancelled()) throw CancellationException()
         val items=completed.optJSONArray("results") ?: JSONArray()
         val video=(0 until items.length()).mapNotNull { items.optJSONObject(it) }
