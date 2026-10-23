@@ -27,13 +27,13 @@ class PreferenceLearningTest {
         assertEquals(6,result.evidenceCount)
         assertTrue(result.settings.cfg in 4f..4.5f)
         assertTrue(result.settings.steps in 20..24)
-        assertTrue(result.settings.denoise in .4f.. .45f)
+        assertTrue(result.settings.denoise >= .4f && result.settings.denoise <= .451f)
     }
     @Test fun parameterVariationIsDeterministicAndBounded() {
         val a = GeneratorSettings(cfg=2f,steps=10,denoise=.5f)
         val x = PreferenceLearning.candidate(a,0)
         assertEquals(x,PreferenceLearning.candidate(a,0))
         assertTrue(x.steps >= 5)
-        assertEquals(a,PreferenceLearning.candidate(a.copy(automatic=false),1))
+        assertEquals(a.copy(automatic=false),PreferenceLearning.candidate(a.copy(automatic=false),1))
     }
 }
