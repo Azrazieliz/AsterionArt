@@ -15,6 +15,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.asterion.art.data.ArtRepository
+import com.asterion.art.core.CoreResultUploader
 import com.asterion.art.data.EditJobStore
 import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.data.GenerationJobStore
@@ -100,6 +101,11 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
                 val technical = TechnicalImageScorer.score(blended)
                 repo.registerAsset(published.toString(),autoScore=technical.score,
                     sourceJobId=job.sourceJobId)
+                runCatching {
+                    CoreResultUploader(applicationContext).upload(
+                        published,job.sourceJobId,source.mode,
+                        GeneratedImagePublisher.sha256(blended))
+                }
                 repo.updateTask(taskId,TaskStatus.COMPLETED)
                 Result.success()
             } finally {

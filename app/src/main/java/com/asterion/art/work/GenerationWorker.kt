@@ -17,6 +17,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GeneratedImagePublisher
+import com.asterion.art.core.CoreResultUploader
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.LocalDreamBridge
@@ -162,6 +163,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     applicationContext, job.id, candidate, image)
                 repo.registerAsset(uri.toString(), sourceSheetId = null,
                     autoScore = technical.score, sourceJobId = job.id)
+                val coreSync = runCatching {
+                    CoreResultUploader(applicationContext).upload(
+                        uri, job.id,job.mode,GeneratedImagePublisher.sha256(image))
+                }
                 out += JSONObject().apply {
                     put("candidate", candidate)
                     put("uri", uri.toString())
@@ -170,6 +175,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     put("detail", technical.detail)
                     put("clip_ratio", technical.clipped)
                     put("sha256", GeneratedImagePublisher.sha256(image))
+                    put("core_saved_uri",coreSync.getOrNull()?.toString() ?: JSONObject.NULL)
+                    put("core_sync_error",coreSync.exceptionOrNull()?.message ?: JSONObject.NULL)
                     put("seed", seed)
                     put("cfg", candidateSettings.cfg.toDouble())
                     put("steps", candidateSettings.steps)
@@ -191,6 +198,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         val score = TechnicalImageScorer.score(jpeg)
                         repo.registerAsset(uri.toString(), autoScore = score.score,
                             sourceJobId = job.id)
+                        runCatching {
+                            CoreResultUploader(applicationContext).upload(
+                                uri,job.id,job.mode,GeneratedImagePublisher.sha256(jpeg))
+                        }.onFailure { error ->
+                            enhancementStatus = "UPSCALING_OK_CORE_SYNC_FAILED: "+error.message
+                        }
                         enhancedUri = uri.toString()
                         enhancementStatus = "UPSCALED_WITH_" + chosen.id
                     }.onFailure {

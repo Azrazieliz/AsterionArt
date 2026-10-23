@@ -6,8 +6,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="com.ailm.android.permission.READ_ART_SHEETS"/>
+    <uses-permission android:name="com.ailm.android.permission.WRITE_ART_RESULTS"/>
     <queries>
         <provider android:authorities="com.ailm.android.asterionart.sheets"/>
+        <provider android:authorities="com.ailm.android.asterionart.results"/>
     </queries>
     <application
         android:label="Asterion Art"
