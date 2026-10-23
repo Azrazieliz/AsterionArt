@@ -227,3 +227,99 @@ class LocalDreamBridge : StillImageEngine {
         } finally { conn.disconnect() }
     }
 }
+
+
+data class InstalledUpscaler(val id: String, val absolutePath: String)
+
+/** Standalone upscaler models reported by Local Dream's own installed catalog. */
+fun LocalDreamBridge.availableUpscalers(): List<InstalledUpscaler> =
+    installedUpscalerCatalog()
+
+private fun LocalDreamBridge.installedUpscalerCatalog(): List<InstalledUpscaler> {
+    val controlField = "http://127.0.0.1:8808/models"
+    val connection = URL(controlField).openConnection() as HttpURLConnection
+    try {
+        connection.connectTimeout = 5_000
+        connection.readTimeout = 15_000
+        require(connection.responseCode == 200) { "Upscaler catalog unavailable" }
+        val data = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+        val list = data.optJSONArray("upscalers") ?: JSONArray()
+        return (0 until list.length()).mapNotNull { i ->
+            val item = list.optJSONObject(i) ?: return@mapNotNull null
+            val id = item.optString("id")
+            val path = item.optString("path")
+            if (id.isBlank() || path.isBlank()) null else InstalledUpscaler(id,path)
+        }
+    } finally { connection.disconnect() }
+}
+
+/** A real fourfold ESRGAN-style upscale via Local Dream's dedicated native endpoint. */
+fun LocalDreamBridge.upscaleImage(
+    png: ByteArray, model: InstalledUpscaler,
+    cancelled: () -> Boolean
+): ByteArray {
+    val image = android.graphics.BitmapFactory.decodeByteArray(png,0,png.size)
+        ?: error("Upscale input is not an image")
+    val width = image.width
+    val height = image.height
+    try {
+        val pixels = IntArray(width*height)
+        image.getPixels(pixels,0,width,0,0,width,height)
+        val bytes = ByteArray(width*height*3)
+        for (i in pixels.indices) {
+            bytes[i*3] = (pixels[i] shr 16).toByte()
+            bytes[i*3+1] = (pixels[i] shr 8).toByte()
+            bytes[i*3+2] = pixels[i].toByte()
+        }
+        val select = URL("http://127.0.0.1:8808/select").openConnection() as HttpURLConnection
+        try {
+            select.requestMethod = "POST"
+            select.connectTimeout = 5_000
+            select.readTimeout = 20_000
+            select.setRequestProperty("Content-Type","application/json")
+            select.doOutput = true
+            select.outputStream.use {
+                it.write(JSONObject().put("model_id","__upscaler__")
+                    .put("width",width).put("height",height).toString().toByteArray())
+            }
+            require(select.responseCode in 200..299) { "Could not activate native upscaler mode" }
+        } finally { select.disconnect() }
+        val deadline = System.nanoTime() + 150_000_000_000L
+        while (System.nanoTime() < deadline) {
+            if (cancelled()) throw java.util.concurrent.CancellationException()
+            val statusUrl = URL("http://127.0.0.1:8808/status")
+                .openConnection() as HttpURLConnection
+            val ready = try {
+                statusUrl.connectTimeout = 5_000
+                statusUrl.readTimeout = 5_000
+                val state = JSONObject(statusUrl.inputStream.bufferedReader().use { it.readText() })
+                if (state.optString("state") == "error")
+                    error(state.optString("message","Upscaler backend failed"))
+                state.optString("state") == "running" &&
+                    state.optString("serving_model_id") == "__upscaler__"
+            } finally { statusUrl.disconnect() }
+            if (ready) break
+            Thread.sleep(1_000)
+        }
+        if (cancelled()) throw java.util.concurrent.CancellationException()
+        val conn = URL("http://127.0.0.1:8081/upscale").openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 6_000
+            conn.readTimeout = 600_000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type","application/octet-stream")
+            conn.setRequestProperty("X-Image-Width",width.toString())
+            conn.setRequestProperty("X-Image-Height",height.toString())
+            conn.setRequestProperty("X-Upscaler-Path",model.absolutePath)
+            conn.outputStream.buffered().use { it.write(bytes) }
+            if (conn.responseCode != 200) {
+                val error = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw BackendUnavailable("Native upscaler failed: " + error.take(400))
+            }
+            if (conn.contentType?.substringBefore(';') != "image/jpeg")
+                throw BackendUnavailable("Upscaler produced unexpected content")
+            return conn.inputStream.use { it.readBytes() }
+        } finally { conn.disconnect() }
+    } finally { image.recycle() }
+}
