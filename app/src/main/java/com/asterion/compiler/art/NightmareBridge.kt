@@ -89,6 +89,7 @@ class NightmareBridge(
         seed: Long,
         image: Uri? = null,
         requireVideo: Boolean = false,
+        mode: ArtMode = ArtMode.ANIME,
     ): NightmareResult = withContext(Dispatchers.IO) {
         require(prompt.isNotBlank())
         val info = request("GET", "/info")
@@ -106,6 +107,20 @@ class NightmareBridge(
         }
         val flow = flowId ?: error("Nightmare has no supported $targetLabel recipe for this device")
         val payload = JSONObject().put("flow", flow)
+        if (!requireVideo) {
+            val models = request("GET", "/models").getJSONArray("models")
+            val candidates = (0 until models.length()).map { models.getJSONObject(it) }
+            val selected = candidates.firstOrNull { model ->
+                val label = (model.optString("label") + " " + model.optString("id")).lowercase()
+                when (mode) {
+                    ArtMode.ANIME -> listOf("anima", "anime", "flanime", "illustr").any(label::contains)
+                    ArtMode.REALISTIC, ArtMode.COSPLAY ->
+                        listOf("realistic", "realism", "cyber", "photo").any(label::contains)
+                    ArtMode.ANIMATION -> false
+                }
+            } ?: error("No installed Nightmare checkpoint clearly suited to $mode; install a compatible one.")
+            payload.put("model", selected.getString("id"))
+        }
             .put("prompt", prompt)
             .put("seed", seed.toString())
             .put("stream", false)
@@ -119,7 +134,14 @@ class NightmareBridge(
             check(nodes.size == 1) { "Image-to-video flow must have exactly one image input, found ${nodes.size}" }
             val bytes = resolver.openInputStream(image)?.use { source ->
                 // Bound the base64 upload: a full-resolution worksheet is not a video frame.
-                source.readNBytes(20 * 1024 * 1024 + 1)
+                val buffer = java.io.ByteArrayOutputStream()
+                val chunk = ByteArray(128 * 1024)
+                while (buffer.size() <= 20 * 1024 * 1024) {
+                    val count = source.read(chunk)
+                    if (count < 0) break
+                    buffer.write(chunk, 0, count)
+                }
+                buffer.toByteArray()
             } ?: error("Cannot read selected frame")
             require(bytes.size <= 20 * 1024 * 1024) { "Animation frame exceeds 20 MB; reduce its size" }
             payload.put("images", JSONObject().put(nodes.single(), Base64.encodeToString(bytes, Base64.NO_WRAP)))
