@@ -22,6 +22,7 @@ interface StillImageEngine {
         seed: Long,
         cancelled: () -> Boolean,
         progress: (Int, Int) -> Unit,
+        maskPng: ByteArray? = null,
     ): GeneratedImage
 }
 
@@ -145,6 +146,7 @@ class LocalDreamBridge : StillImageEngine {
         seed: Long,
         cancelled: () -> Boolean,
         progress: (Int, Int) -> Unit,
+        maskPng: ByteArray?,
     ): GeneratedImage {
         if (cancelled()) throw CancellationException()
         val json = JSONObject().apply {
@@ -164,9 +166,15 @@ class LocalDreamBridge : StillImageEngine {
             put("aspect_ratio", settings.ratio)
             put("output_format", "png")
             put("show_diffusion_process", false)
+            if (maskPng != null && previousPng == null) {
+                error("An inpainting mask requires the original image")
+            }
             if (previousPng != null) {
                 put("image", Base64.encodeToString(previousPng, Base64.NO_WRAP))
                 put("denoise_strength", pass.denoise.toDouble())
+                if (maskPng != null) {
+                    put("mask", Base64.encodeToString(maskPng, Base64.NO_WRAP))
+                }
             }
         }
         val conn = URL(generation + "/generate").openConnection() as HttpURLConnection
