@@ -153,14 +153,15 @@ class LocalDreamBridge : StillImageEngine {
             put("steps", settings.steps)
             put("cfg", settings.cfg.toDouble())
             put("scheduler", when (settings.scheduler) {
-                "DPM++ 2M SDE" -> "dpm_sde"
-                "Euler" -> "euler"
-                "Euler a" -> "euler_a"
-                else -> "dpm"
+                "DPM++ 2M SDE" -> if (settings.karras) "dpm_sde_karras" else "dpm_sde"
+                "Euler" -> if (settings.karras) "euler_karras" else "euler"
+                "Euler a" -> if (settings.karras) "euler_a_karras" else "euler_a"
+                else -> if (settings.karras) "dpm_karras" else "dpm"
             })
             put("seed", seed)
             put("width", width)
             put("height", height)
+            put("aspect_ratio", settings.ratio)
             put("output_format", "png")
             put("show_diffusion_process", false)
             if (previousPng != null) {
