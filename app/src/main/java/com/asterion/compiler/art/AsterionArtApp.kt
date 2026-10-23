@@ -1,0 +1,223 @@
+package com.asterion.compiler.art
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.asterion.compiler.ui.theme.AsterionTheme
+import kotlinx.coroutines.launch
+import java.util.UUID
+
+/** First integrated Art screen: working reference selection, manual review,
+ * Nightmare API image/video execution. Reference-aware four-sheet inference,
+ * model embedding, Core bridge and automatic image analysis are NOT yet wired.
+ */
+@Composable
+fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sheets = remember { mutableStateListOf<ReferenceSheet>() }
+    val frames = remember { mutableStateListOf<StoryboardFrame>() }
+    var selectedKind by remember { mutableStateOf(SheetKind.CHARACTER) }
+    var mode by remember { mutableStateOf(ArtMode.ANIME) }
+    var token by remember { mutableStateOf("") }
+    var motion by remember { mutableStateOf("Character moves naturally with expressive body motion; maintain appearance and details.") }
+    var status by remember { mutableStateOf("No job submitted") }
+    var running by remember { mutableStateOf(false) }
+    var latest by remember { mutableStateOf<NightmareResult?>(null) }
+    var humanRating by remember { mutableStateOf(8f) }
+    var approximate by remember { mutableStateOf(false) }
+
+    val sheetPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        uris.forEach { uri ->
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            val item = ReferenceSheet(
+                id = UUID.randomUUID().toString(),
+                kind = selectedKind, uri = uri.toString(),
+                title = uri.lastPathSegment?.substringAfterLast('/') ?: "Reference",
+            )
+            if (selectedKind != SheetKind.CHARACTER) sheets.removeAll { it.kind == selectedKind }
+            sheets += item
+        }
+    }
+    val framePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        uris.forEach { uri ->
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            frames += StoryboardFrame(UUID.randomUUID().toString(), uri.toString(), motion, 2)
+        }
+    }
+    val project = ArtProject("draft", mode, sheets.toList(), frames.toList())
+
+    AsterionTheme {
+        Scaffold { contentPadding ->
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Spacer(Modifier.height(16.dp))
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("ASTERION ART", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text("References · Creation · Animation · Grading", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Card {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text("01 / Reference sheets", style = MaterialTheme.typography.titleLarge)
+                        Text("Character sheets are stored in Asterion Core when its integration is enabled.")
+                        SheetKind.entries.forEach { kind ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(onClick = {
+                                    selectedKind = kind
+                                    sheetPicker.launch(arrayOf("image/*"))
+                                }) { Text(if (kind == SheetKind.CHARACTER) "+ Characters" else "+ ${kind.name.replace('_', ' ')}") }
+                                Text("${sheets.count { it.kind == kind }} selected")
+                            }
+                        }
+                        sheets.forEach { sheet ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("${sheet.kind.name}: ${sheet.title}", modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodySmall)
+                                OutlinedButton(onClick = { sheets.remove(sheet) }) { Text("Remove") }
+                            }
+                        }
+                    }
+                }
+                Card {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text("02 / Output mode", style = MaterialTheme.typography.titleLarge)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ArtMode.entries.forEach { choice ->
+                                FilterChip(selected = choice == mode, onClick = { mode = choice },
+                                    label = { Text(choice.name.lowercase().replaceFirstChar { it.uppercase() }) })
+                            }
+                        }
+                        if (mode == ArtMode.COSPLAY) {
+                            Text("Fantasy anatomy is preserved: horns, wings, tails and supernatural identity features.")
+                        }
+                    }
+                }
+                if (mode == ArtMode.ANIMATION) Card {
+                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("03 / Storyboard keyframes", style = MaterialTheme.typography.titleLarge)
+                        Text("Nightmare's Wan video model animates each starting image. " +
+                            "Exact interpolation between two different endpoint images is not available in its public API.")
+                        OutlinedTextField(value = motion, onValueChange = { motion = it }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Motion direction") }, minLines = 2)
+                        Button(onClick = { framePicker.launch(arrayOf("image/*")) }) { Text("+ Add ordered still images") }
+                        frames.forEachIndexed { index, frame ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("${index + 1}. ${Uri.parse(frame.imageUri).lastPathSegment?.takeLast(25)}",
+                                    modifier = Modifier.weight(1f))
+                                OutlinedButton(onClick = { frames.remove(frame) }) { Text("Remove") }
+                            }
+                        }
+                        if (frames.size > 1) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(selected = approximate, onClick = { approximate = !approximate },
+                                    label = { Text("Allow approximate segments") })
+                            }
+                            Text("Approximate segments do not guarantee exact arrival at the next reference frame.")
+                        }
+                    }
+                }
+                HorizontalDivider()
+                Card {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("04 / Generation backend", style = MaterialTheme.typography.titleLarge)
+                        Text("Nightmare Mobile local API · 127.0.0.1:8820. API must be enabled in Nightmare settings.")
+                        OutlinedTextField(value = token, onValueChange = { token = it }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Nightmare API token") }, singleLine = true)
+                        if (mode != ArtMode.ANIMATION) {
+                            Text("Reference-conditioned automatic still generation is not connected yet. " +
+                                "Open advanced compiler to inspect existing prompt passes.")
+                        } else {
+                            Button(
+                                enabled = !running && token.isNotBlank() && frames.isNotEmpty(),
+                                onClick = {
+                                    val planned = VideoPlanner.plan(
+                                        frames.toList(),
+                                        VideoCapabilities(true, false, 5),
+                                        allowApproximateSequence = approximate,
+                                    )
+                                    when (planned) {
+                                        is VideoPlanResult.Blocked -> status = planned.reason
+                                        is VideoPlanResult.Ready -> {
+                                            running = true
+                                            status = planned.warning ?: "Running video generation..."
+                                            scope.launch {
+                                                try {
+                                                    val bridge = NightmareBridge(
+                                                        context.contentResolver, context.filesDir, token.trim(),
+                                                    )
+                                                    var successes = 0
+                                                    for (shot in planned.shots) {
+                                                        status = "Generating segment ${successes + 1}/${planned.shots.size}"
+                                                        latest = bridge.render(
+                                                            prompt = shot.start.motionToNext.ifBlank { motion },
+                                                            seed = 0,
+                                                            image = Uri.parse(shot.start.imageUri),
+                                                            requireVideo = true,
+                                                        )
+                                                        successes += 1
+                                                    }
+                                                    status = "${successes} MP4 segment(s) generated and saved privately. " +
+                                                        "Segments are not yet joined or imported into Core."
+                                                } catch (e: Exception) {
+                                                    status = "Generation failed: ${e.message}"
+                                                } finally { running = false }
+                                            }
+                                        }
+                                    }
+                                },
+                            ) { Text(if (running) "Generating..." else "Generate animation") }
+                        }
+                        Text(status)
+                        latest?.let { video ->
+                            Text("Saved: ${video.file.name} (${video.width}×${video.height})")
+                            Text("SHA-256: ${NightmareBridge.sha256(video.file)}",
+                                style = MaterialTheme.typography.bodySmall)
+                            Text("Your rating: ${humanRating.toInt()}/10")
+                            Slider(value = humanRating, onValueChange = { humanRating = it }, valueRange = 0f..10f, steps = 9)
+                            Text("Preference updates for this rating are not persisted yet.")
+                        }
+                    }
+                }
+                OutlinedButton(onClick = onOpenLegacyCompiler) { Text("Open legacy compiler (advanced)") }
+                Text("Implementation branch: generation uses Nightmare's external API for now. " +
+                    "Full native engine fusion, Core bridge, graded image generation and video " +
+                    "continuity are still under development.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(32.dp))
+            }
+        }
+    }
+}
