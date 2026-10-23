@@ -20,6 +20,8 @@ import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.LocalDreamBridge
+import com.asterion.art.engine.availableUpscalers
+import com.asterion.art.engine.upscaleImage
 import com.asterion.art.engine.SheetTextReader
 import com.asterion.art.engine.TechnicalImageScorer
 import com.asterion.art.model.RenderMode
@@ -91,6 +93,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             val intermediate = File(applicationContext.filesDir,
                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
             val out = mutableListOf<JSONObject>()
+            var technicalLeaderScore = Double.NEGATIVE_INFINITY
+            var technicalLeader: ByteArray? = null
             val count = job.settings.batch.coerceIn(1, 8)
             for (candidate in 1..count) {
                 if (isStopped) throw CancellationException("Job stopped")
@@ -117,6 +121,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 }
                 val image = current ?: error("No image produced")
                 val technical = TechnicalImageScorer.score(image)
+                if (technical.score > technicalLeaderScore) {
+                    technicalLeaderScore = technical.score
+                    technicalLeader = image
+                }
                 val uri = GeneratedImagePublisher.publish(
                     applicationContext, job.id, candidate, image)
                 repo.registerAsset(uri.toString(), sourceSheetId = null,
@@ -132,6 +140,28 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     put("seed", seed)
                 }
             }
+            var enhancementStatus = "NOT_REQUESTED"
+            var enhancedUri: String? = null
+            if (job.settings.automatic && technicalLeader != null) {
+                enhancementStatus = "NO_NATIVE_UPSCALER_INSTALLED"
+                val upscalers = runCatching { engine.availableUpscalers() }.getOrDefault(emptyList())
+                val chosen = upscalers.firstOrNull()
+                if (chosen != null) {
+                    foreground("Enhancing top technical candidate")
+                    runCatching {
+                        val jpeg = engine.upscaleImage(requireNotNull(technicalLeader), chosen) { isStopped }
+                        val uri = GeneratedImagePublisher.publishEnhancedJpeg(
+                            applicationContext, job.id, jpeg)
+                        val score = TechnicalImageScorer.score(jpeg)
+                        repo.registerAsset(uri.toString(), autoScore = score.score,
+                            sourceJobId = job.id)
+                        enhancedUri = uri.toString()
+                        enhancementStatus = "UPSCALED_WITH_" + chosen.id
+                    }.onFailure {
+                        enhancementStatus = "FAILED: " + (it.message ?: it.javaClass.simpleName)
+                    }
+                }
+            }
             foreground("Saving generation provenance")
             val provenance = JSONObject().apply {
                 put("schema", "asterion.generation.v1")
@@ -141,6 +171,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("reference_sheet_ids", JSONArray(job.sheetIds))
                 put("results", JSONArray(out))
                 put("automated_scoring", "technical-only; sheet fidelity not evaluated")
+                put("enhancement_status", enhancementStatus)
+                put("enhanced_uri", enhancedUri ?: JSONObject.NULL)
             }
             GeneratedImagePublisher.atomicWrite(
                 File(applicationContext.filesDir,
