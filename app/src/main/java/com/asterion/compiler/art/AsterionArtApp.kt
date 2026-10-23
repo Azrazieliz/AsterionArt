@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState as rememberHorizontalScrollState
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -82,9 +83,9 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
     val project = ArtProject("draft", mode, sheets.toList(), frames.toList())
 
     AsterionTheme {
-        Scaffold { _ ->
+        Scaffold { insets ->
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Spacer(Modifier.height(16.dp))
@@ -93,7 +94,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                     Text("References · Creation · Animation · Grading", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Text("01 / Reference sheets", style = MaterialTheme.typography.titleLarge)
                         Text("Character sheets are stored in Asterion Core when its integration is enabled.")
                         SheetKind.entries.forEach { kind ->
@@ -115,7 +116,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                     }
                 }
                 Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Text("02 / Output mode", style = MaterialTheme.typography.titleLarge)
                         Row(modifier = Modifier.horizontalScroll(rememberHorizontalScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ArtMode.entries.forEach { choice ->
@@ -129,7 +130,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                     }
                 }
                 if (mode == ArtMode.ANIMATION) Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(16.dp)) {
                         Text("03 / Storyboard keyframes", style = MaterialTheme.typography.titleLarge)
                         Text("Nightmare's Wan video model animates each starting image. " +
                             "Exact interpolation between two different endpoint images is not available in its public API.")
@@ -154,7 +155,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                 }
                 HorizontalDivider()
                 Card {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
                         Text("04 / Generation backend", style = MaterialTheme.typography.titleLarge)
                         Text("Nightmare Mobile local API · 127.0.0.1:8820. API must be enabled in Nightmare settings.")
                         OutlinedTextField(value = token, onValueChange = { token = it }, modifier = Modifier.fillMaxWidth(),
