@@ -91,7 +91,7 @@ import com.asterion.art.work.GenerationWorker
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), CORE("Core sheets"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
 }
 
@@ -146,6 +146,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.HOME -> HomeScreen(repo) { current = it }
                     Page.CREATE -> CreationScreen(repo) { current = it }
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
+                    Page.CORE -> CoreSheetBrowser(repo) { current = Page.JOBS }
                     Page.LIBRARY -> SheetLibraryScreen(repo)
                     Page.JOBS -> QueueScreen(repo)
                     Page.GRADING -> GradingScreen(repo)
@@ -281,6 +282,9 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 "Sheet builder",
                 "Choose a sheet type and real reference images. The renderer creates a standard sheet without inventing visual details."
             )
+        }
+        item {
+            OutlinedButton(onClick = { navigate(Page.CORE) }) { Text("Browse Asterion Core character sheets") }
         }
         item {
             Text("SHEET TYPE", color = Gold, style = MaterialTheme.typography.labelLarge)
@@ -433,6 +437,9 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             Header("Automated creation", "Image and video",
                 "Choose your existing sheets. The generation engine will compile them through five controlled stages when available.")
+        }
+        item {
+            OutlinedButton(onClick = { navigate(Page.CORE) }) { Text("Find character sheets in Asterion Core") }
         }
         item {
             Text("OUTPUT MODE", color = Gold, style = MaterialTheme.typography.labelLarge)
