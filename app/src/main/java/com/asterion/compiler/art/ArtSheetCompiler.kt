@@ -25,7 +25,13 @@ class ArtSheetCompiler(private val context: Context) {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val problems = mutableListOf<String>()
         try {
+            val authoring = SheetStudio(context)
             val sections = project.references.map { sheet ->
+                val structured = authoring.load(Uri.parse(sheet.uri))
+                if (structured != null) {
+                    // Verified user-entered fields always outrank OCR guesses.
+                    return@map structured.promptFacts()
+                }
                 val bitmap = thumbnailForOcr(Uri.parse(sheet.uri))
                 val recognized = try {
                     Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)),
@@ -36,12 +42,10 @@ class ArtSheetCompiler(private val context: Context) {
                 if (extracted.isEmpty()) {
                     problems += "Could not read text from ${sheet.title}; no attributes were inferred"
                 }
-                // Bound prompt authoring conservatively until a real model-specific
-                // tokenize endpoint is integrated. An overflow is reported.
                 val selected = extracted.joinToString(", ")
-                val trimmed = selected.take(850)
-                if (trimmed.length != selected.length) problems += "${sheet.title}: OCR description clipped at 850 characters"
-                "${sheet.kind.name.replace('_', ' ')}: $trimmed"
+                // Lossless authoring: runtime model token checks must handle overflow,
+                // never silently erase a mandatory identity or composition property.
+                "${sheet.kind.name.replace('_', ' ')}: $selected"
             }
             check(problems.none { it.startsWith("Could not read") }) {
                 problems.joinToString("; ")
@@ -55,7 +59,7 @@ class ArtSheetCompiler(private val context: Context) {
             ArtPromptDraft(
                 positive = (listOf(render) + sections + project.additionalDirection)
                     .filter(String::isNotBlank).joinToString(", "),
-                warnings = problems + "Text-only OCR compilation: reference-image conditioning is not yet supported in this flow."
+                warnings = problems + "User-authored sheets preserve structured facts. Reference-image conditioning is not yet implemented; non-authored sheets still rely on OCR."
             )
         } finally { recognizer.close() }
     }
