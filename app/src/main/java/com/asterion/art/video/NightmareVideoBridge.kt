@@ -47,6 +47,10 @@ class NightmareVideoBridge(private val ctx: Context, private val token: String) 
             error("Nightmare local video API is unavailable; start it on the phone.")
         } finally { c.disconnect() }
     }
+    fun cancel() {
+        json("/cancel",JSONObject())
+    }
+
     fun available(): Boolean {
         json("/info")
         val content=json("/models").toString()
