@@ -25,6 +25,7 @@ import com.asterion.art.engine.upscaleImage
 import com.asterion.art.learning.PreferenceLearning
 import com.asterion.art.engine.SheetTextReader
 import com.asterion.art.engine.TechnicalImageScorer
+import com.asterion.art.engine.SourceReferenceEncoder
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.TaskStatus
 import kotlinx.coroutines.Dispatchers
@@ -75,21 +76,50 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             repo.updateTask(taskId, TaskStatus.RUNNING)
             foreground("Reading source sheet evidence")
             val evidence = sheets.map { SheetTextReader.read(applicationContext, it) }
-            val recipe = GenerationPlanner.compile(evidence, job.mode, job.settings)
+            val compilerAttempt = runCatching {
+                GenerationPlanner.compile(evidence, job.mode, job.settings)
+            }
             val engine = LocalDreamBridge()
             val models = engine.installedModels()
-            val selectedId = GenerationPlanner.selectModelId(
+            val preferredId = GenerationPlanner.selectModelId(
                 models.map { it.id to it.name }, job.mode)
-                ?: error("No installed compatible image-generation checkpoint")
-            val model = models.first { it.id == selectedId }
-            val size = model.generationSize.coerceIn(512, 1536)
-            val resolution = model.resolutions.firstOrNull() ?: (size to size)
+            val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
+                ?: models.firstOrNull { it.ditKind == "klein" }
+            var model = models.firstOrNull { it.id == preferredId }
+            var recipe = compilerAttempt.getOrNull()
+            if (model == null || recipe == null) {
+                model = visualModel ?: error(
+                    "Text-only preferred model or authoritative text is unavailable and " +
+                        "no reference-aware Qwen/Klein model is installed.")
+                recipe = GenerationPlanner.compileVisual(evidence, job.mode, job.settings)
+            }
+            var size = model.generationSize.coerceIn(512, 1536)
+            var resolution = model.resolutions.firstOrNull() ?: (size to size)
             foreground("Loading " + model.name)
             engine.prepare(model, resolution.first, resolution.second) { isStopped }
-            recipe.passes.forEach { pass ->
-                engine.verifyText(pass.positive)
-                if (pass.negative.isNotBlank()) engine.verifyText(pass.negative)
+            val capacityCheck = runCatching {
+                recipe.passes.forEach { pass ->
+                    engine.verifyText(pass.positive)
+                    if (pass.negative.isNotBlank()) engine.verifyText(pass.negative)
+                }
             }
+            if (capacityCheck.isFailure && model.ditKind != "qwen21" &&
+                model.ditKind != "klein" && visualModel != null) {
+                // Don't truncate authoritative prompt text. Switch to a genuine
+                // reference-conditioned engine instead of dropping source facts.
+                model = visualModel
+                recipe = GenerationPlanner.compileVisual(evidence, job.mode, job.settings)
+                size = model.generationSize.coerceIn(512, 1536)
+                resolution = model.resolutions.firstOrNull() ?: (size to size)
+                foreground("Prompt exceeded text context; using " + model.name + " visual conditioning")
+                engine.prepare(model, resolution.first, resolution.second) { isStopped }
+                recipe.passes.forEach { pass -> engine.verifyText(pass.positive) }
+            } else {
+                capacityCheck.getOrThrow()
+            }
+            val referenceInputs = if (model.ditKind == "qwen21" ||
+                model.ditKind == "klein") SourceReferenceEncoder.encode(applicationContext,sheets)
+                else emptyList()
 
             val intermediate = File(applicationContext.filesDir,
                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
@@ -115,7 +145,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         " · pass " + stage.number + "/5")
                     val result = engine.generate(
                         stage, candidateSettings, resolution.first, resolution.second,
-                        current, seed, { isStopped }, { _, _ -> })
+                        current, seed, { isStopped }, { _, _ -> },
+                        referencePngs = referenceInputs)
                     current = result.png
                     GeneratedImagePublisher.atomicWrite(path, result.png)
                     setProgress(Data.Builder().putInt("candidate", candidate)
@@ -176,6 +207,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("reference_sheet_ids", JSONArray(job.sheetIds))
                 put("results", JSONArray(out))
                 put("automated_scoring", "technical-only; sheet fidelity not evaluated")
+                put("native_reference_images", referenceInputs.size)
+                put("reference_model_kind", model.ditKind)
                 put("enhancement_status", enhancementStatus)
                 put("enhanced_uri", enhancedUri ?: JSONObject.NULL)
             }
