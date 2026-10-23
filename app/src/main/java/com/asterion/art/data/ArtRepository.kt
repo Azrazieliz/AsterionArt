@@ -41,6 +41,7 @@ class ArtRepository(context: Context) {
                 role = SheetRole.valueOf(obj.getString("role")),
                 label = obj.getString("label"),
                 sourceUris = obj.getJSONArray("sources").toStringList(),
+                referenceSlots = obj.optJSONArray("slots")?.toStringList().orEmpty(),
                 createdAt = obj.getLong("createdAt"),
                 outputUri = obj.optNullable("outputUri"),
                 characterId = obj.optNullable("characterId"),
@@ -84,10 +85,15 @@ class ArtRepository(context: Context) {
         }.getOrDefault(GeneratorSettings())
     }
 
-    @Synchronized fun addSheet(role: SheetRole, sourceUris: List<String>): SheetRecord {
+    @Synchronized fun addSheet(role: SheetRole, sourceUris: List<String>, referenceSlots: List<String>): SheetRecord {
         require(sourceUris.isNotEmpty()) { "A sheet needs at least one actual reference." }
+        require(sourceUris.size == referenceSlots.size) { "Every reference must have an explicit panel assignment." }
+        require(referenceSlots.contains("PRIMARY")) { "A primary reference is required." }
+        require(referenceSlots.all { slot -> com.asterion.art.model.SheetLayouts.isValid(role, slot) }) {
+            "Reference panel not permitted for selected sheet kind." }
         val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
-        val sheet = SheetRecord(role = role, label = role.display + " · " + date, sourceUris = sourceUris.distinct())
+        val sheet = SheetRecord(role = role, label = role.display + " · " + date,
+            sourceUris = sourceUris, referenceSlots = referenceSlots)
         val updated = sheets + sheet
         check(prefs.edit().putString("sheets", encodeSheets(updated)).commit())
         sheets = updated
@@ -149,7 +155,7 @@ class ArtRepository(context: Context) {
     private fun encodeSheets(items: List<SheetRecord>) = JSONArray().apply {
         items.forEach { sheet -> put(JSONObject().apply {
             put("id", sheet.id); put("role", sheet.role.name); put("label", sheet.label)
-            put("sources", JSONArray(sheet.sourceUris)); put("createdAt", sheet.createdAt)
+            put("sources", JSONArray(sheet.sourceUris)); put("slots", JSONArray(sheet.referenceSlots)); put("createdAt", sheet.createdAt)
             put("outputUri", sheet.outputUri); put("characterId", sheet.characterId)
             put("formId", sheet.formId); put("revision", sheet.structuredDataVersion)
         }) }

@@ -61,7 +61,9 @@ object SheetRenderer {
         }
         sheet.sourceUris.forEachIndexed { index, stringUri ->
             val rect = slots[index]
-            drawTile(context, canvas, stringUri, rect, index == 0, index + 1)
+            val slot = sheet.referenceSlots.getOrNull(index) ?: "REFERENCE"
+            val label = com.asterion.art.model.SheetLayouts.label(sheet.role, slot)
+            drawTile(context, canvas, stringUri, rect, index == 0, index + 1, label)
         }
 
         paint.apply { color = navy; textSize = 22f; typeface = android.graphics.Typeface.DEFAULT }
@@ -75,7 +77,7 @@ object SheetRenderer {
     }
 
     private fun drawTile(context: Context, canvas: Canvas, uri: String,
-                         rect: RectF, primary: Boolean, index: Int) {
+                         rect: RectF, primary: Boolean, index: Int, label: String) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         paint.color = Color.WHITE
         canvas.drawRoundRect(rect, 12f, 12f, paint)
@@ -104,7 +106,7 @@ object SheetRenderer {
         paint.typeface = android.graphics.Typeface.create(
             android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
         canvas.drawText(
-            (if (primary) "PRIMARY REFERENCE" else "REFERENCE " + index.toString().padStart(2, '0')),
+            (if (primary) "PRIMARY · " else index.toString().padStart(2, '0') + " · ") + label.uppercase(Locale.ROOT).take(29),
             rect.left + 18f, rect.bottom - 15f, paint
         )
     }

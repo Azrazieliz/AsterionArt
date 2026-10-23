@@ -25,6 +25,7 @@ data class SheetRecord(
     val role: SheetRole,
     val label: String,
     val sourceUris: List<String>,
+    val referenceSlots: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val outputUri: String? = null,
     val characterId: String? = null,

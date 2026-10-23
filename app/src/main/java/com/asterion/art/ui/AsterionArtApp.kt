@@ -80,6 +80,7 @@ import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.SheetRecord
 import com.asterion.art.model.SheetRole
+import com.asterion.art.model.SheetLayouts
 import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.render.SheetRenderer
@@ -238,29 +239,33 @@ private fun SummaryCard(label: String, count: String, modifier: Modifier) {
 private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     val context = LocalContext.current
     var kind by remember { mutableStateOf(SheetRole.CHARACTER) }
-    var sources by remember { mutableStateOf<List<String>>(emptyList()) }
+    var sources by remember { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
+    var activeSlot by remember { mutableStateOf("PRIMARY") }
     var note by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
-            val selected = uris.map { it.toString() }.distinct()
-            if (selected.size > SheetRenderer.MAX_REFS) {
-                note = "Select at most " + SheetRenderer.MAX_REFS + " references per sheet. No source has been discarded."
+            val remaining = SheetRenderer.MAX_REFS - sources.size
+            if (uris.size > remaining) {
+                note = "No images omitted: only " + remaining + " reference slots remain. Select fewer files."
             } else {
-                val allAllowed = uris.all { uri ->
+                val approved = uris.all { uri ->
                     runCatching {
                         context.contentResolver.takePersistableUriPermission(
                             uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }.isSuccess
                 }
-                if (allAllowed) {
-                    sources = selected
+                if (approved) {
+                    val existingUris = sources.map { it.first }.toSet()
+                    sources = sources + uris.filter { it.toString() !in existingUris }
+                        .map { it.toString() to activeSlot }
                     note = null
                 } else {
-                    note = "A reference permission could not be retained. Choose files through the Android document provider."
+                    note = "Unable to retain reference URI permission through the document picker."
                 }
             }
         }
     }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
@@ -278,11 +283,28 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(SheetRole.entries.toList()) { role ->
                     FilterChip(
-                        selected = kind == role, onClick = { kind = role },
+                        selected = kind == role, onClick = {
+                            kind = role; activeSlot = "PRIMARY"; sources = emptyList()
+                        },
                         label = { Text(role.display) }
                     )
                 }
             }
+        }
+        item {
+            Text("ASSIGN REFERENCE TO PANEL", color = Gold, style = MaterialTheme.typography.labelLarge)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(SheetLayouts.forRole(kind)) { slot ->
+                    FilterChip(
+                        selected = activeSlot == slot.id,
+                        onClick = { activeSlot = slot.id },
+                        label = { Text(slot.label) }
+                    )
+                }
+            }
+            Text("Selected images are assigned to " + SheetLayouts.label(kind, activeSlot) +
+                ". Primary is mandatory; optional panels only appear when you supply images.",
+                color = Mist, style = MaterialTheme.typography.bodySmall)
         }
         item {
             OutlinedCard(
@@ -310,11 +332,20 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                             colors = CardDefaults.cardColors(containerColor = Raised)
                         ) {
                             AsyncImage(
-                                model = Uri.parse(uri), contentDescription = "Reference image",
+                                model = Uri.parse(uri.first), contentDescription = "Reference: " + uri.second,
                                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
                             )
                         }
                     }
+                }
+            }
+        }
+        if (sources.isNotEmpty()) {
+            item {
+                Text("Assignments", color = Gold)
+                sources.forEach { assignment ->
+                    Text(SheetLayouts.label(kind, assignment.second), color = Mist,
+                        style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -324,10 +355,10 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = sources.isNotEmpty(),
+                enabled = sources.any { it.second == "PRIMARY" },
                 onClick = {
                     runCatching {
-                        val sheet = repo.addSheet(kind, sources)
+                        val sheet = repo.addSheet(kind, sources.map { it.first }, sources.map { it.second })
                         val task = repo.recordTask(sheet.id, TaskKind.SHEET_RENDER)
                         SheetRenderWorker.enqueue(context, sheet.id, task.id)
                     }.onSuccess {
