@@ -68,6 +68,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
     var technical by remember { mutableStateOf<Evidence?>(null) }
     var approximate by remember { mutableStateOf(false) }
     var candidateCount by remember { mutableStateOf(2f) }
+    var autoEnhance by remember { mutableStateOf(true) }
     val candidates = remember { mutableStateListOf<NightmareResult>() }
     var suggestedResult by remember { mutableStateOf<NightmareResult?>(null) }
     var scoredCandidates by remember { mutableStateOf<Map<String, Evidence>>(emptyMap()) }
@@ -177,6 +178,8 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                             label = { Text("Nightmare API token") }, singleLine = true)
                         if (mode != ArtMode.ANIMATION) {
                             Text("Initial text-derived sheet generation. Dense visual references are not yet passed to the image model directly.")
+                            FilterChip(selected = autoEnhance, onClick = { autoEnhance = !autoEnhance },
+                                label = { Text(if (autoEnhance) "Automatic upscaling ON" else "Automatic upscaling OFF") })
                             Text("Candidates per batch: ${candidateCount.toInt()}")
                             Slider(value = candidateCount, onValueChange = { candidateCount = it }, valueRange = 1f..4f, steps = 2)
                             Button(
@@ -197,12 +200,24 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                                             }
                                             candidates.clear()
                                             candidates.addAll(graded.map { it.first })
+                                            scoredCandidates = graded.associate { it.first.runId to it.second }
                                             val suggested = graded.maxByOrNull { it.second.score }
                                                 ?: error("No candidate generated")
                                             latest = suggested.first
+                                            suggestedResult = suggested.first
                                             technical = suggested.second
                                             status = "${graded.size} candidates generated. Highest technical-quality candidate proposed; " +
                                                 "identity/style conformity has NOT been evaluated. You may select another."
+                                            if (autoEnhance) {
+                                                status = "Enhancing best candidate using Nightmare Upscale..."
+                                                runCatching { bridge.upscale(suggested.first.file) }
+                                                    .onSuccess {
+                                                        latest = it
+                                                        technical = ImageTechnicalScore.inspect(it.file)
+                                                        status = "Enhanced winner saved; originals remain available for comparison."
+                                                    }
+                                                    .onFailure { status = "Winner kept without upscale: " + it.message }
+                                            }
                                         } catch (e: Exception) {
                                             status = "Generation failed: ${e.message}"
                                         } finally { running = false }
