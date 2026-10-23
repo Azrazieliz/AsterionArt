@@ -1,14 +1,14 @@
 name: Asterion Art Android CI
 on:
   push:
-    branches: [asterion-art-unified-20261023]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: art-${{ github.ref }}
+  group: art-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   android:
