@@ -69,6 +69,8 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
     var approximate by remember { mutableStateOf(false) }
     var candidateCount by remember { mutableStateOf(2f) }
     val candidates = remember { mutableStateListOf<NightmareResult>() }
+    var suggestedResult by remember { mutableStateOf<NightmareResult?>(null) }
+    var scoredCandidates by remember { mutableStateOf<Map<String, Evidence>>(emptyMap()) }
 
     val sheetPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
@@ -310,7 +312,19 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                             OutlinedButton(onClick = {
                                 try {
                                     ArtRatingStore(context).save(video, humanRating.toInt(), mode)
-                                    status = "Human rating saved in append-only Art feedback history."
+                                    val proposed = suggestedResult
+                                    val chosenEvidence = scoredCandidates[video.runId]
+                                    val proposedEvidence = proposed?.let { scoredCandidates[it.runId] }
+                                    if (video.kind == "image" && humanRating >= 6f &&
+                                        proposed != null && proposed.file != video.file &&
+                                        chosenEvidence != null && proposedEvidence != null) {
+                                        ArtPreferenceStore(context).learnFromChoice(
+                                            mode, video, proposed, chosenEvidence, proposedEvidence,
+                                        )
+                                        status = "Rating saved. Your preferred alternative updated local ranking weights."
+                                    } else {
+                                        status = "Rating saved. Preference weights stay unchanged without comparison evidence."
+                                    }
                                 } catch (e: Exception) { status = "Could not save rating: ${e.message}" }
                             }) { Text("Save rating") }
                             if (video.kind == "video") {
