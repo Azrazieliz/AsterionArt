@@ -2,6 +2,7 @@ package com.asterion.art.data
 
 import android.content.Context
 import com.asterion.art.model.GeneratorSettings
+import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,15 +15,18 @@ data class GenerationJob(
     val sheetIds: List<String>,
     val settings: GeneratorSettings,
     val createdAt: Long,
+    val creationMode: CreationMode? = null,
+    val sourceImageUri: String? = null,
 )
 
 class GenerationJobStore(context: Context) {
     private val folder = File(context.applicationContext.filesDir, "generation-plans")
         .also { it.mkdirs() }
 
-    fun create(mode: RenderMode, sheets: List<String>, settings: GeneratorSettings): GenerationJob {
+    fun create(mode: RenderMode, sheets: List<String>, settings: GeneratorSettings,
+               creationMode: CreationMode? = null, sourceImageUri: String? = null): GenerationJob {
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
-            settings, System.currentTimeMillis())
+            settings, System.currentTimeMillis(),creationMode,sourceImageUri)
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -40,6 +44,8 @@ class GenerationJobStore(context: Context) {
             put("mode", mode.name)
             put("sheets", JSONArray(job.sheetIds))
             put("created", job.createdAt)
+            put("creation_mode", creationMode?.name ?: JSONObject.NULL)
+            put("source_image",sourceImageUri ?: JSONObject.NULL)
             put("settings", s)
         }
         val tmp = File(folder, job.id + ".tmp")
@@ -68,7 +74,11 @@ class GenerationJobStore(context: Context) {
                 seed = if (s.isNull("seed")) null else s.getLong("seed"),
                 automatic = s.getBoolean("automatic")
             ),
-            root.getLong("created")
+            root.getLong("created"),
+            if (root.isNull("creation_mode") || !root.has("creation_mode")) null
+                else CreationMode.valueOf(root.getString("creation_mode")),
+            if (root.isNull("source_image") || !root.has("source_image")) null
+                else root.getString("source_image")
         )
     }
 }
