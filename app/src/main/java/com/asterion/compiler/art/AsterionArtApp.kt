@@ -209,6 +209,7 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                                                             seed = 0,
                                                             image = Uri.parse(shot.start.imageUri),
                                                             requireVideo = true,
+                                                            videoSeconds = shot.seconds,
                                                         )
                                                         segments += segment
                                                         successes += 1
