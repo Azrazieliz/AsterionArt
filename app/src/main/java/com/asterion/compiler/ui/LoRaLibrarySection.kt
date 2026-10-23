@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.asterion.compiler.profiles.AndroidLoRaLibraryStore
 import com.asterion.compiler.profiles.CheckpointProfile
 import com.asterion.compiler.profiles.LoRaKeywordRouter
+import com.asterion.compiler.service.LocalDreamTokenGateway
 import kotlinx.coroutines.launch
 
 /**
@@ -43,6 +44,7 @@ fun LoRaLibrarySection(checkpoint: CheckpointProfile, prompt: String) {
     var triggers by remember(checkpoint.id) { mutableStateOf("") }
     var weight by remember(checkpoint.id) { mutableFloatStateOf(1.0f) }
     var message by remember { mutableStateOf<String?>(null) }
+    var tokenStatus by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -111,6 +113,28 @@ fun LoRaLibrarySection(checkpoint: CheckpointProfile, prompt: String) {
                 Text("No configured LoRA keywords matched this prompt.")
             }
         }
+        HorizontalDivider()
+        Text("Real NPU token capacity")
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    tokenStatus = "Checking currently running Local Dream backend..."
+                    tokenStatus = runCatching { LocalDreamTokenGateway().inspect(prompt) }
+                        .fold(
+                            onSuccess = { result ->
+                                val max = if (result.maxLength == 0) "dynamic" else result.maxLength.toString()
+                                "Tokens: ${result.count} / $max. " +
+                                    if (result.fits) "Fits active backend." else
+                                        "EXCEEDS active backend; do not submit without extending context or splitting passes."
+                            },
+                            onFailure = { "Tokenizer unavailable: ${it.message}. Open and activate the target model in Local Dream." },
+                        )
+                }
+            },
+            enabled = prompt.isNotBlank(),
+        ) { Text("Check actual backend token limit") }
+        tokenStatus?.let { Text(it) }
+        Text("The token report checks the model currently running in Local Dream. It does not authenticate checkpoint identity.")
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
