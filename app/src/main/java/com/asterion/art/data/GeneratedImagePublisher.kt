@@ -36,6 +36,32 @@ object GeneratedImagePublisher {
         }
     }
 
+    fun publishEnhancedJpeg(context: Context, jobId: String, jpeg: ByteArray): Uri {
+        require(jpeg.size > 100)
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(jpeg,0,jpeg.size,options)
+        require(options.outWidth > 0 && options.outHeight > 0)
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "Asterion_" + jobId.take(12) + "_enhanced.jpg")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/AsterionArt/Enhanced")
+            put(MediaStore.Images.Media.IS_PENDING,1)
+        }
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values)
+            ?: error("Cannot reserve enhanced image")
+        try {
+            requireNotNull(resolver.openOutputStream(uri,"w")).use { it.write(jpeg) }
+            resolver.update(uri,ContentValues().apply {
+                put(MediaStore.Images.Media.IS_PENDING,0)
+            },null,null)
+            return uri
+        } catch (e: Throwable) {
+            resolver.delete(uri,null,null)
+            throw e
+        }
+    }
+
     fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { "%02x".format(it) }
 
