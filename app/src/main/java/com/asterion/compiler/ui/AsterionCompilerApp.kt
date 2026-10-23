@@ -926,6 +926,13 @@ private fun StudioScreen(
     Spacer(modifier = Modifier.height(20.dp))
     CheckpointSelectionSection(selectedCheckpointId = state.selectedCheckpointId, onSelectCheckpoint = onSelectCheckpoint)
     Spacer(modifier = Modifier.height(20.dp))
+    state.selectedStrategy?.checkpointProfile?.let { checkpoint ->
+        LoRaLibrarySection(
+            checkpoint = checkpoint,
+            prompt = state.promptPasses.joinToString(", ") { it.positivePrompt },
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+    }
     Button(onClick = onCompile, modifier = Modifier.fillMaxWidth(), contentPadding = ButtonDefaults.ContentPadding) {
         Icon(Icons.Filled.CheckCircle, contentDescription = null)
         Spacer(modifier = Modifier.size(8.dp))

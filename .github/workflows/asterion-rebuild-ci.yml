@@ -1,0 +1,46 @@
+name: Asterion Compiler Android CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: asterion-compiler-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Local Dream native adapter patch
+        run: python3 -m unittest discover -s integrations/localdream -p 'test_*.py'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - name: Permit Gradle wrapper
+        run: chmod +x ./gradlew
+      - name: Run JVM unit tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+      - name: Build Android APK
+        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Upload test outputs and debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asterion-compiler-android-rebuild
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/test-results/testDebugUnitTest/**/*.xml
+            app/build/reports/tests/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 14

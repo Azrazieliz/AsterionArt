@@ -18,6 +18,10 @@ data class CheckpointProfile(
     val baseModelFamily: String,
     val defaultParameters: GenerationParameters,
     val promptOptimization: CheckpointPromptOptimization = CheckpointPromptOptimization(),
+    /** Advisory only. Real NPU capacity must be read from Local Dream /tokenize. */
+    val inferenceContextHint: Int? = null,
+    val backend: String = "sdxl",
+    val dynamicLoRaSupported: Boolean = false,
 )
 
 data class CheckpointPromptOptimization(
@@ -39,7 +43,8 @@ data class CompilationStrategy(
     val checkpointProfile: CheckpointProfile,
     val passOrder: List<PromptPassType>,
     val rolePriority: List<WorksheetRole> = listOf(WorksheetRole.CHARACTER, WorksheetRole.THEME, WorksheetRole.ART_STYLE),
-    val maximumTokens: Int = 512,
+    /** Authoring budget in approximate word units, NOT actual model tokens. */
+    val maximumTokens: Int = 2048,
     val compactDescriptors: Boolean = false,
 )
 
@@ -57,11 +62,37 @@ object EmbeddedProfiles {
     private val rinFlanimeV1Turbo = supportedCheckpoint(
         id = "rin_flanime_v1_turbo",
         displayName = "rin_flanime_v1_turbo",
-        sampler = "DPM++ 2M Karras",
+        sampler = "FlowMatch",
+        family = "ANIMA",
     )
     private val waiAnimaV1Turbo = supportedCheckpoint(
         id = "wai_anima_v1_turbo",
         displayName = "wai_anima_v1_turbo",
+        sampler = "FlowMatch",
+        family = "ANIMA",
+    )
+    private val animaYumeV1Turbo = supportedCheckpoint(
+        id = "animayume_v1_turbo",
+        displayName = "animayume_v1_turbo",
+        sampler = "FlowMatch",
+        family = "ANIMA",
+    )
+    private val samAnimaRealistic = supportedCheckpoint(
+        id = "sam_anima_realistic_v23_turbo",
+        displayName = "sam_anima_realistic_v23_turbo",
+        sampler = "FlowMatch",
+        family = "ANIMA",
+    )
+    private val noobAiXl = supportedCheckpoint(
+        id = "NoobAI-XL-v11", displayName = "NoobAI-XL-v11",
+        sampler = "DPM++ 2M Karras",
+    )
+    private val realismSdxl = supportedCheckpoint(
+        id = "realismSDXLByStable_v80DMD", displayName = "realismSDXLByStable_v80DMD",
+        sampler = "DPM++ 2M Karras",
+    )
+    private val cyberRealistic = supportedCheckpoint(
+        id = "cyberrealistic_v3_turbo", displayName = "cyberrealistic_v3_turbo",
         sampler = "DPM++ 2M Karras",
     )
     private val novaanimeV3Turbo = supportedCheckpoint(
@@ -76,6 +107,11 @@ object EmbeddedProfiles {
         rinFlanimeV1Turbo,
         waiAnimaV1Turbo,
         novaanimeV3Turbo,
+        animaYumeV1Turbo,
+        samAnimaRealistic,
+        noobAiXl,
+        realismSdxl,
+        cyberRealistic,
     )
 
     val globalPreferences = GlobalPreferenceProfile(
@@ -115,18 +151,18 @@ object EmbeddedProfiles {
         ),
         CompilationStrategy(
             id = "compact-77",
-            displayName = "Compact (77 Tokens)",
+            displayName = "Detailed (384 Authoring Words)",
             checkpointProfile = prefectIllustriousV8,
             passOrder = PromptPassType.entries,
-            maximumTokens = 77,
+            maximumTokens = 384,
             compactDescriptors = true,
         ),
         CompilationStrategy(
             id = "expanded-512",
-            displayName = "Expanded (512 Tokens)",
+            displayName = "Extended (2048 Authoring Words)",
             checkpointProfile = prefectIllustriousV8,
             passOrder = PromptPassType.entries,
-            maximumTokens = 512,
+            maximumTokens = 2048,
         ),
     )
 
@@ -135,8 +171,8 @@ object EmbeddedProfiles {
     fun checkpointById(id: String): CheckpointProfile? = checkpoints.firstOrNull { it.id == id }
 
     fun defaultStrategyForCheckpoint(checkpointId: String): CompilationStrategy? = when (checkpointId) {
-        "prefect_illustrious_v8", "illustrious_v17" -> strategies.first { it.id == "compact-77" }
-        "rin_flanime_v1_turbo", "wai_anima_v1_turbo", "novaanime_v3_turbo" -> strategies.first { it.id == "expanded-512" }
+        "prefect_illustrious_v8", "illustrious_v17", "NoobAI-XL-v11", "realismSDXLByStable_v80DMD", "cyberrealistic_v3_turbo" -> strategies.first { it.id == "compact-77" }
+        "rin_flanime_v1_turbo", "wai_anima_v1_turbo", "novaanime_v3_turbo", "animayume_v1_turbo", "sam_anima_realistic_v23_turbo" -> strategies.first { it.id == "expanded-512" }
         else -> null
     }
 
@@ -154,11 +190,13 @@ object EmbeddedProfiles {
         ),
     )
 
-    private fun supportedCheckpoint(id: String, displayName: String, sampler: String): CheckpointProfile = CheckpointProfile(
+    private fun supportedCheckpoint(id: String, displayName: String, sampler: String, family: String = "SDXL"): CheckpointProfile = CheckpointProfile(
         id = id,
         displayName = displayName,
-        baseModelFamily = "SDXL",
-        defaultParameters = GenerationParameters(1024, 1024, 30, 6.5, sampler),
+        baseModelFamily = family,
+        backend = if (family == "ANIMA") "anima" else "sdxl",
+        inferenceContextHint = if (family == "ANIMA") 512 else 77,
+        defaultParameters = GenerationParameters(1024, 1024, 30, if (family == "ANIMA") 1.0 else 6.5, sampler),
         promptOptimization = checkpointOptimization(
             lexicalReplacements = emptyMap(),
             negativeTerms = listOf("lowres", "blurry", "watermark", "signature"),
