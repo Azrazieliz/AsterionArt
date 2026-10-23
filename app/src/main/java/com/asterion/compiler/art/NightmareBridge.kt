@@ -90,6 +90,7 @@ class NightmareBridge(
         image: Uri? = null,
         requireVideo: Boolean = false,
         mode: ArtMode = ArtMode.ANIME,
+        videoSeconds: Int = 2,
     ): NightmareResult = withContext(Dispatchers.IO) {
         require(prompt.isNotBlank())
         val info = request("GET", "/info")
@@ -107,6 +108,20 @@ class NightmareBridge(
         }
         val flow = flowId ?: error("Nightmare has no supported $targetLabel recipe for this device")
         val payload = JSONObject().put("flow", flow)
+        if (requireVideo) {
+            require(videoSeconds in 1..5)
+            val schema = request("GET", "/flows/$flow").getJSONArray("nodes")
+            val params = JSONObject()
+            for (index in 0 until schema.length()) {
+                val node = schema.getJSONObject(index)
+                val widgets = node.optJSONArray("widgets") ?: continue
+                if ((0 until widgets.length()).any { widgets.getJSONObject(it).optString("name") == "seconds" }) {
+                    params.put(node.getString("id"), JSONObject().put("seconds", videoSeconds.toString()))
+                }
+            }
+            require(params.length() == 1) { "Selected Nightmare video recipe does not expose Wan seconds parameter" }
+            payload.put("params", params)
+        }
         if (!requireVideo) {
             val models = request("GET", "/models").getJSONArray("models")
             val candidates = (0 until models.length()).map { models.getJSONObject(it) }
