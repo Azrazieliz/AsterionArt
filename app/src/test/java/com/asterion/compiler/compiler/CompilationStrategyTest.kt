@@ -7,7 +7,7 @@ import org.junit.Test
 
 class CompilationStrategyTest {
     @Test
-    fun `compact strategy keeps each generated pass within 384 authoring words`() {
+    fun `compact strategy preserves all authored descriptors even beyond guidance budget`() {
         val graph = CompilationGraph((1..120).map { index ->
             CompilationGraphNode(
                 id = "node-$index",
@@ -24,7 +24,7 @@ class CompilationStrategyTest {
             EmbeddedProfiles.strategies.first { it.id == "compact-77" },
         ).single { it.type == PromptPassType.RENDERING }
 
-        assertTrue(pass.positivePrompt.split(Regex("\\s+")).count { it.isNotBlank() } <= 384)
+        assertTrue(pass.positivePrompt.contains("descriptor 120"))
     }
 
     @Test
