@@ -2,6 +2,8 @@ package com.asterion.compiler.art
 
 import android.content.Intent
 import android.net.Uri
+import android.graphics.BitmapFactory
+import android.widget.VideoView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState as rememberHorizontalScrollState
 import androidx.compose.foundation.layout.height
@@ -34,6 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +67,8 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
     var humanRating by remember { mutableStateOf(8f) }
     var technical by remember { mutableStateOf<Evidence?>(null) }
     var approximate by remember { mutableStateOf(false) }
+    var candidateCount by remember { mutableStateOf(2f) }
+    val candidates = remember { mutableStateListOf<NightmareResult>() }
 
     val sheetPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
@@ -162,6 +170,8 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                             label = { Text("Nightmare API token") }, singleLine = true)
                         if (mode != ArtMode.ANIMATION) {
                             Text("Initial text-derived sheet generation. Dense visual references are not yet passed to the image model directly.")
+                            Text("Candidates per batch: ${candidateCount.toInt()}")
+                            Slider(value = candidateCount, onValueChange = { candidateCount = it }, valueRange = 1f..4f, steps = 2)
                             Button(
                                 enabled = !running && token.isNotBlank() && project.problems().isEmpty(),
                                 onClick = {
@@ -172,9 +182,20 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                                             val draft = ArtSheetCompiler(context).compile(project)
                                             status = draft.warnings.joinToString("; ").ifBlank { "Generating..." }
                                             val bridge = NightmareBridge(context.contentResolver, context.filesDir, token.trim())
-                                            latest = bridge.render(draft.positive, seed = 0, mode = mode)
-                                            technical = ImageTechnicalScore.inspect(latest!!.file)
-                                            status = "Still image generated. Review the technical suggestion and rate the result."
+                                            val graded = mutableListOf<Pair<NightmareResult, Evidence>>()
+                                            repeat(candidateCount.toInt()) { index ->
+                                                status = "Generating candidate ${index + 1}/${candidateCount.toInt()}"
+                                                val image = bridge.render(draft.positive, seed = 0, mode = mode)
+                                                graded += image to ImageTechnicalScore.inspect(image.file)
+                                            }
+                                            candidates.clear()
+                                            candidates.addAll(graded.map { it.first })
+                                            val suggested = graded.maxByOrNull { it.second.score }
+                                                ?: error("No candidate generated")
+                                            latest = suggested.first
+                                            technical = suggested.second
+                                            status = "${graded.size} candidates generated. Highest technical-quality candidate proposed; " +
+                                                "identity/style conformity has NOT been evaluated. You may select another."
                                         } catch (e: Exception) {
                                             status = "Generation failed: ${e.message}"
                                         } finally { running = false }
@@ -235,7 +256,42 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                             ) { Text(if (running) "Generating..." else "Generate animation") }
                         }
                         Text(status)
+                        if (candidates.size > 1 && mode != ArtMode.ANIMATION) {
+                            Text("Generated candidates (tap to select)")
+                            candidates.forEachIndexed { index, item ->
+                                OutlinedButton(onClick = {
+                                    latest = item
+                                    technical = ImageTechnicalScore.inspect(item.file)
+                                }) { Text("Candidate ${index + 1}${if (item.file == latest?.file) " — selected" else ""}") }
+                            }
+                        }
                         latest?.let { video ->
+                            if (video.kind == "image") {
+                                val bitmap = remember(video.file.absolutePath) {
+                                    BitmapFactory.decodeFile(video.file.absolutePath,
+                                        BitmapFactory.Options().apply { inSampleSize = 2 })
+                                }
+                                bitmap?.let { picture ->
+                                    Image(bitmap = picture.asImageBitmap(), contentDescription = "Generated candidate",
+                                        modifier = Modifier.fillMaxWidth().height(320.dp),
+                                        contentScale = ContentScale.Fit)
+                                }
+                            } else {
+                                AndroidView(
+                                    factory = { viewContext -> VideoView(viewContext).apply {
+                                        setVideoPath(video.file.absolutePath)
+                                        setOnPreparedListener { it.isLooping = true; start() }
+                                    } },
+                                    update = { player ->
+                                        if (player.tag != video.file.absolutePath) {
+                                            player.tag = video.file.absolutePath
+                                            player.setVideoPath(video.file.absolutePath)
+                                            player.start()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                                )
+                            }
                             Text("Saved: ${video.file.name} (${video.width}×${video.height})")
                             Text("SHA-256: ${NightmareBridge.sha256(video.file)}",
                                 style = MaterialTheme.typography.bodySmall)
