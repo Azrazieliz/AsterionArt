@@ -91,19 +91,17 @@ class DeterministicPromptGenerator {
             )
         }
 
-    private fun fitTokenBudget(descriptors: List<String>, strategy: CompilationStrategy): String {
-        val result = mutableListOf<String>()
-        var count = 0
-        descriptors.forEach { descriptor ->
-            val words = descriptor.trim().split(Regex("\\s+")).filter(String::isNotBlank)
-            if (words.isEmpty()) return@forEach
-            if (count + words.size <= strategy.maximumTokens) {
-                result += if (strategy.compactDescriptors) compactDescriptor(descriptor) else descriptor.trim()
-                count += words.size
-            }
-        }
-        return result.joinToString(", ")
-    }
+    /**
+     * Authoring is lossless. The strategy budget guides prompt presentation,
+     * not the compiled NPU text encoder. The Local Dream adapter must check
+     * the actual model tokenizer, then split into supported passes or block.
+     * Never silently drop worksheet descriptors at this stage.
+     */
+    private fun fitTokenBudget(descriptors: List<String>, strategy: CompilationStrategy): String =
+        descriptors
+            .map { if (strategy.compactDescriptors) compactDescriptor(it) else it.trim() }
+            .filter(String::isNotBlank)
+            .joinToString(", ")
 
     private fun compactDescriptor(value: String): String = value
         .replace(Regex("\\b(very|highly|extremely|visually|overall)\\b\\s*", RegexOption.IGNORE_CASE), "")
