@@ -90,6 +90,7 @@ import com.asterion.art.render.SheetRenderer
 import com.asterion.art.work.SheetRenderWorker
 import com.asterion.art.work.GenerationWorker
 import com.asterion.art.learning.UserPreferenceStore
+import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
@@ -434,10 +435,28 @@ private fun SheetGalleryCard(sheet: SheetRecord) {
 private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     val context = LocalContext.current
     var mode by remember { mutableStateOf(RenderMode.ANIME) }
+    var creationMode by remember { mutableStateOf<CreationMode?>(null) }
+    var sourceArtwork by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var sourceWarning by remember { mutableStateOf<String?>(null) }
+    val sourcePicker=rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }.onSuccess { sourceArtwork=uri.toString(); sourceWarning=null }
+                .onFailure { sourceWarning="Cannot keep source artwork access" }
+        }
+    }
     val grouped = repo.sheets.groupBy { it.role }
     val counts = repo.sheets.filter { it.id in selected }.groupingBy { it.role }.eachCount()
-    val ready = ArtPolicies.eligibleForAutomation(counts)
+    val roleFailures=if(creationMode==null) {
+        if(ArtPolicies.eligibleForAutomation(counts))emptyList()
+        else listOf("Character, Art Style and Theme sheets are required")
+    } else MethodologyRegistry.validate(requireNotNull(creationMode),counts)
+    val ready = roleFailures.isEmpty() &&
+        (creationMode!=CreationMode.STYLE_CORRECTION || sourceArtwork!=null)
     LazyColumn(
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -462,6 +481,31 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 }
             }
         }
+        item {
+            Text("CREATION METHODOLOGY", color=Gold,
+                style=MaterialTheme.typography.labelLarge)
+            LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                item {
+                    FilterChip(selected=creationMode==null,
+                        onClick={creationMode=null},label={Text("Standard artwork")})
+                }
+                items(CreationMode.entries.toList()) { workflow ->
+                    FilterChip(selected=creationMode==workflow,
+                        onClick={creationMode=workflow},
+                        label={Text(workflow.display)})
+                }
+            }
+        }
+        if(creationMode==CreationMode.STYLE_CORRECTION) {
+            item {
+                OutlinedButton(onClick={sourcePicker.launch(arrayOf("image/*"))}) {
+                    Text(if(sourceArtwork==null)
+                        "Choose source illustration to preserve"
+                        else "Change source illustration")
+                }
+            }
+        }
+        if(sourceWarning!=null) item { Text(sourceWarning.orEmpty(),color=Red) }
         SheetRole.entries.forEach { role ->
             item {
                 Text(role.display.uppercase(), color = Gold, style = MaterialTheme.typography.labelMedium)
@@ -508,7 +552,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (ready) "References selected" else "Missing required sheets", fontWeight = FontWeight.Bold)
                     Text(if (ready) "Five sequential inference passes use the on-device Local Dream compatibility backend until the native engine is embedded."
-                        else "Select character, art-style and theme sheets. Element sheets are optional.", color = Mist)
+                        else (roleFailures.joinToString("; ") + if (creationMode==CreationMode.STYLE_CORRECTION && sourceArtwork==null) "; Source illustration required" else ""), color = Mist)
                     FilledTonalButton(onClick = { navigate(Page.SETTINGS) }) {
                         Icon(Icons.Default.Tune, null)
                         Spacer(Modifier.width(8.dp))
@@ -523,7 +567,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                                     mode,repo.settings,repo.assets)?.settings ?: repo.settings
                             else repo.settings
                             val job = GenerationJobStore(context).create(
-                                mode, selected.toList(), preferred)
+                                mode, selected.toList(), preferred,creationMode,sourceArtwork)
                             val task = repo.recordTask(job.id, TaskKind.STILL_IMAGE)
                             GenerationWorker.enqueue(context, job.id, task.id)
                             navigate(Page.JOBS)
