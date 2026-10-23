@@ -123,6 +123,11 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                         }
                     }
                 }
+                SheetAuthoringCard(onCreated = { created ->
+                    if (created.kind != SheetKind.CHARACTER) sheets.removeAll { it.kind == created.kind }
+                    sheets += created
+                    status = "New structured " + created.kind.name.lowercase() + " sheet added."
+                })
                 Card {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Text("02 / Output mode", style = MaterialTheme.typography.titleLarge)
