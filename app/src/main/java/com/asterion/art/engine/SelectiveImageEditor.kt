@@ -65,8 +65,8 @@ object SelectiveImageEditor {
                 if (region !== maskCrop) region.recycle()
             }
         } finally {
-            imgCrop.recycle()
-            maskCrop.recycle()
+            if (imgCrop !== source) imgCrop.recycle()
+            if (maskCrop !== mask) maskCrop.recycle()
         }
     }
 
