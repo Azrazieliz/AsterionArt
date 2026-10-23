@@ -39,8 +39,8 @@ class NightmareVideoBridge(private val ctx: Context, private val token: String) 
                 c.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
             }
             if(c.responseCode !in 200..299) {
-                val error=c.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                error("Nightmare API "+path+": HTTP "+c.responseCode+" "+error.take(350))
+                val responseBody=c.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                error("Nightmare API "+path+": HTTP "+c.responseCode+" "+responseBody.take(350))
             }
             return JSONObject(c.inputStream.bufferedReader().use { it.readText() })
         } catch (e: java.net.ConnectException) {
