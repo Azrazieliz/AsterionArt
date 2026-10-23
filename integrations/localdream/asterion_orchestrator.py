@@ -54,13 +54,14 @@ def select_variant(job: dict) -> tuple[str, dict[str, float]]:
     items = sorted(
         (entry for entry in job.get("lora_library", [])
          if entry.get("enabled", True) and any(
-             contains_keyword(prompt, word) for word in entry.get("trigger_words", []))),
+             contains_keyword(prompt, word) for word in entry.get("trigger_words", entry.get("triggers", [])))),
         key=lambda entry: entry["id"],
     )
     incompatible = [
         item["id"] for item in items if
-        item.get("model_family", "").lower() != family.lower() or
-        (item.get("checkpoint_ids") and checkpoint not in item["checkpoint_ids"])
+        item.get("model_family", item.get("family", "")).lower() != family.lower() or
+        (item.get("checkpoint_ids", item.get("checkpoints")) and
+         checkpoint not in item.get("checkpoint_ids", item.get("checkpoints", [])))
     ]
     if incompatible:
         raise Blocked(f"Incompatible triggered LoRA(s): {', '.join(incompatible)}")
