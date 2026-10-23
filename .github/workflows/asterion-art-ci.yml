@@ -1,0 +1,40 @@
+name: Asterion Art Android CI
+on:
+  push:
+    branches: [asterion-art-unified-20261023]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: art-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - name: Tests
+        run: bash ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Build unsigned debug APK
+        run: bash ./gradlew --no-daemon :app:assembleDebug
+      - name: Publish compiled artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asterion-art-integration-build
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 14
