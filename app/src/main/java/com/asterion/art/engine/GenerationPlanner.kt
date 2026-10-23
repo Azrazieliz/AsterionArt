@@ -1,6 +1,8 @@
 package com.asterion.art.engine
 
 import com.asterion.art.model.GeneratorSettings
+import com.asterion.art.model.CreationMode
+import com.asterion.art.methodology.MethodologyRegistry
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.SheetRole
 
@@ -37,14 +39,27 @@ object GenerationPlanner {
 
     private fun join(words: List<String>) = clean(words).joinToString(", ")
 
+    private fun enforceRoles(sources: List<SourceEvidence>, creation: CreationMode?) {
+        val selected = sources.groupingBy { it.role }.eachCount()
+        val roles = if (creation == null)
+            setOf(SheetRole.CHARACTER,SheetRole.ART_STYLE,SheetRole.THEME)
+        else MethodologyRegistry.modes.getValue(creation).required
+        val missing = roles.filter { selected.getOrDefault(it,0)<1 }
+        require(missing.isEmpty()) {
+            "Missing required reference authorities: "+missing.joinToString { it.display }
+        }
+    }
+    private fun directive(creation: CreationMode?, sources: List<SourceEvidence>): String =
+        if (creation == null) "" else MethodologyRegistry.compileDirective(
+            creation,sources.groupingBy { it.role }.eachCount())
+
     fun compile(
         sources: List<SourceEvidence>,
         mode: RenderMode,
         settings: GeneratorSettings,
+        creation: CreationMode? = null,
     ): GenerationRecipe {
-        require(sources.any { it.role == SheetRole.CHARACTER }) { "Character sheet required" }
-        require(sources.any { it.role == SheetRole.ART_STYLE }) { "Art style sheet required" }
-        require(sources.any { it.role == SheetRole.THEME }) { "Theme sheet required" }
+        enforceRoles(sources,creation)
         require(sources.all { it.all().isNotEmpty() }) {
             "At least one selected sheet has no machine-readable visual specification. " +
             "Do not invent missing details."
@@ -73,7 +88,8 @@ object GenerationPlanner {
         val appearance = join(
             pieces(styles, "PRIMARY", "FINGERPRINT", "SHAPE", "COMPOSITION", "LIGHT", "COLOR")
         )
-        val core = listOf(character, outfitAndPose, theme, environmentAndElements, appearance)
+        val core = listOf(directive(creation,sources), character, outfitAndPose, theme,
+            environmentAndElements, appearance)
             .filter { it.isNotBlank() }.joinToString("\n\n")
         require(core.isNotBlank()) { "No interpretable prompt content in selected reference images." }
 
@@ -110,10 +126,9 @@ object GenerationPlanner {
         sources: List<SourceEvidence>,
         mode: RenderMode,
         settings: GeneratorSettings,
+        creation: CreationMode? = null,
     ): GenerationRecipe {
-        require(sources.any { it.role == SheetRole.CHARACTER })
-        require(sources.any { it.role == SheetRole.ART_STYLE })
-        require(sources.any { it.role == SheetRole.THEME })
+        enforceRoles(sources,creation)
         val groups=sources.groupBy { it.role }
         val roleLabels=listOf(
             SheetRole.CHARACTER to "character identity and physical form",
@@ -132,7 +147,7 @@ object GenerationPlanner {
             RenderMode.COSPLAY ->
                 "Create a photoreal cosplay interpretation; preserve the canonical wings, horns, ears, tails and marks."
         }
-        val base=look+" Use ONLY actual reference images for character identity, style, scene and mandatory details. "+
+        val base=look+" "+directive(creation,sources)+" Use ONLY actual reference images for character identity, style, scene and mandatory details. "+
             numbered+" Render one coherent artwork, not a labeled reference-sheet infographic. "+
             "Never invent a missing canonical trait or omit an established one."
         val modifiers=listOf(
@@ -142,7 +157,8 @@ object GenerationPlanner {
             "Refine existing fine details, ornaments, hair, accessories and element microstructure.",
             "Final rendering coherence without altering the original composition or established subjects."
         )
-        val denoise=listOf(1f,.45f,.32f,.22f,.13f)
+        val denoise=listOf(if (creation==CreationMode.STYLE_CORRECTION) .5f else 1f,
+            .45f,.32f,.22f,.13f)
         val passes=(1..5).map { index ->
             GenerationPass(index,base+" "+modifiers[index-1],"",denoise[index-1])
         }
