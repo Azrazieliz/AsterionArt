@@ -102,6 +102,31 @@ class ArtRepository(context: Context) {
         return sheet
     }
 
+    /** Reuses Core's finished reference unchanged; no nested sheet and no lossy recompression. */
+    @Synchronized fun importCoreCharacter(
+        characterId: String, sheetAssetId: String, name: String, mediaUri: String,
+        verifiedSha256: String
+    ): SheetRecord {
+        require(characterId.isNotBlank() && sheetAssetId.isNotBlank())
+        require(mediaUri.startsWith("content://com.ailm.android.asterionart.sheets/image/"))
+        val existing = sheets.firstOrNull { it.sourceUris.contains(mediaUri) }
+        if (existing != null) return existing
+        val record = SheetRecord(
+            role = SheetRole.CHARACTER,
+            label = name,
+            sourceUris = listOf(mediaUri),
+            referenceSlots = listOf("PRIMARY"),
+            outputUri = mediaUri,
+            characterId = characterId,
+            formId = characterId,
+            structuredDataVersion = 1
+        )
+        val updated = sheets + record
+        check(prefs.edit().putString("sheets",encodeSheets(updated)).commit())
+        sheets = updated
+        return record
+    }
+
     @Synchronized fun recordTask(targetId: String, kind: TaskKind): TaskRecord {
         val task = TaskRecord(targetId = targetId, kind = kind)
         val updated = tasks + task
