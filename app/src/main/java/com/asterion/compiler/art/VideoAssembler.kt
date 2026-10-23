@@ -83,9 +83,9 @@ object VideoAssembler {
     }
 
     private fun compatible(a: MediaFormat, b: MediaFormat): Boolean {
-        for (key in listOf(MediaFormat.KEY_MIME, MediaFormat.KEY_WIDTH, MediaFormat.KEY_HEIGHT)) {
-            if (a.getValue(key) != b.getValue(key)) return false
-        }
+        if (a.getString(MediaFormat.KEY_MIME) != b.getString(MediaFormat.KEY_MIME)) return false
+        if (a.getInteger(MediaFormat.KEY_WIDTH) != b.getInteger(MediaFormat.KEY_WIDTH)) return false
+        if (a.getInteger(MediaFormat.KEY_HEIGHT) != b.getInteger(MediaFormat.KEY_HEIGHT)) return false
         for (key in listOf("csd-0", "csd-1")) {
             val x = a.getByteBuffer(key)?.duplicate()
             val y = b.getByteBuffer(key)?.duplicate()
