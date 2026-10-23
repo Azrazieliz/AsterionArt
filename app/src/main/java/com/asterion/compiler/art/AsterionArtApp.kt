@@ -201,18 +201,28 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                                                         context.contentResolver, context.filesDir, token.trim(),
                                                     )
                                                     var successes = 0
+                                                    val segments = mutableListOf<NightmareResult>()
                                                     for (shot in planned.shots) {
                                                         status = "Generating segment ${successes + 1}/${planned.shots.size}"
-                                                        latest = bridge.render(
+                                                        val segment = bridge.render(
                                                             prompt = shot.start.motionToNext.ifBlank { motion },
                                                             seed = 0,
                                                             image = Uri.parse(shot.start.imageUri),
                                                             requireVideo = true,
                                                         )
+                                                        segments += segment
                                                         successes += 1
                                                     }
-                                                    status = "${successes} MP4 segment(s) generated and saved privately. " +
-                                                        "Segments are not yet joined or imported into Core."
+                                                    latest = if (segments.size == 1) segments.first() else {
+                                                        val joined = java.io.File(context.filesDir,
+                                                            "results/storyboard_${UUID.randomUUID()}.mp4")
+                                                        VideoAssembler.concat(segments.map { it.file }, joined)
+                                                        NightmareResult(UUID.randomUUID().toString().replace("-", ""),
+                                                            "video", joined, segments.first().width, segments.first().height)
+                                                    }
+                                                    technical = null
+                                                    status = "${successes} generated MP4 segment(s), " +
+                                                        "combined into one film. Strict endpoint conformity remains unverified."
                                                 } catch (e: Exception) {
                                                     status = "Generation failed: ${e.message}"
                                                 } finally { running = false }
@@ -240,6 +250,21 @@ fun AsterionArtApp(onOpenLegacyCompiler: () -> Unit) {
                                     status = "Human rating saved in append-only Art feedback history."
                                 } catch (e: Exception) { status = "Could not save rating: ${e.message}" }
                             }) { Text("Save rating") }
+                            if (video.kind == "video") {
+                                OutlinedButton(onClick = {
+                                    running = true
+                                    scope.launch {
+                                        try {
+                                            val urls = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                ArtExport.exportForNoWorld(context, video, sheets.map { it.id }, mode)
+                                            }
+                                            status = "NoWorld MP4 and unapproved asset manifest exported to Downloads/AsterionArt/NoWorld. " +
+                                                "Not yet imported into NoWorld. ${urls.size} files."
+                                        } catch (e: Exception) { status = "Export failed: ${e.message}" }
+                                        finally { running = false }
+                                    }
+                                }, enabled = !running) { Text("Export to NoWorld staging") }
+                            }
                         }
                     }
                 }
