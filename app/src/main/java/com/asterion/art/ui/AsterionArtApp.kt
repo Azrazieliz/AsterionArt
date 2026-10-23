@@ -1,0 +1,622 @@
+package com.asterion.art.ui
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WorkHistory
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.asterion.art.data.ArtRepository
+import com.asterion.art.model.ArtPolicies
+import com.asterion.art.model.CreationMode
+import com.asterion.art.model.RenderMode
+import com.asterion.art.model.SheetRecord
+import com.asterion.art.model.SheetRole
+import com.asterion.art.model.TaskKind
+import com.asterion.art.model.TaskStatus
+import com.asterion.art.render.SheetRenderer
+import com.asterion.art.work.SheetRenderWorker
+import kotlin.math.roundToInt
+
+private enum class Page(val label: String) {
+    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), LIBRARY("Library"),
+    JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
+}
+
+@Composable
+fun AsterionArtApp(repo: ArtRepository) {
+    AsterionArtTheme {
+        var current by rememberSaveable { mutableStateOf(Page.HOME) }
+        Scaffold(
+            containerColor = Ink,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("ASTERION", fontWeight = FontWeight.Bold, color = Gold)
+                            Text("ART STUDIO", style = MaterialTheme.typography.labelSmall, color = Mist)
+                        }
+                    },
+                    navigationIcon = {
+                        if (current != Page.HOME) IconButton(onClick = { current = Page.HOME }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Home")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { current = Page.SETTINGS }) {
+                            Icon(Icons.Default.Tune, contentDescription = "Parameters")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Ink)
+                )
+            },
+            bottomBar = {
+                NavigationBar(containerColor = Panel) {
+                    listOf(
+                        Triple(Page.HOME, Icons.Default.Home, "Home"),
+                        Triple(Page.CREATE, Icons.Default.AutoAwesome, "Create"),
+                        Triple(Page.LIBRARY, Icons.Default.Collections, "Sheets"),
+                        Triple(Page.JOBS, Icons.Default.WorkHistory, "Queue")
+                    ).forEach { (page, icon, text) ->
+                        NavigationBarItem(
+                            selected = current == page,
+                            onClick = { current = page },
+                            icon = { Icon(icon, contentDescription = text) },
+                            label = { Text(text) }
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            Box(Modifier.padding(padding).fillMaxSize()) {
+                when (current) {
+                    Page.HOME -> HomeScreen(repo) { current = it }
+                    Page.CREATE -> CreationScreen(repo) { current = it }
+                    Page.SHEET -> SheetBuilderScreen(repo) { current = it }
+                    Page.LIBRARY -> SheetLibraryScreen(repo)
+                    Page.JOBS -> QueueScreen(repo)
+                    Page.GRADING -> GradingScreen(repo)
+                    Page.SETTINGS -> ParametersScreen(repo)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Header(kicker: String, title: String, description: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(kicker.uppercase(), style = MaterialTheme.typography.labelMedium, color = Gold)
+        Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold, color = White)
+        Text(description, style = MaterialTheme.typography.bodyMedium, color = Mist)
+    }
+}
+
+@Composable
+private fun HomeScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        item {
+            Header(
+                "Local · Phone-first",
+                "Create from references",
+                "Select authoritative sheets, build them from your reference images, and review saved artwork."
+            )
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { navigate(Page.SHEET) },
+                colors = CardDefaults.cardColors(containerColor = Raised),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.AddPhotoAlternate, null, tint = Gold, modifier = Modifier.size(30.dp))
+                    Text("Build a master sheet", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Deterministic layouts from actual images: Character, Art Style, Theme, Element.",
+                        color = Mist
+                    )
+                    Text("OPEN SHEET BUILDER →", color = Gold, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SummaryCard("Sheets", repo.sheets.size.toString(), Modifier.weight(1f))
+                SummaryCard("Finished jobs",
+                    repo.tasks.count { it.status == TaskStatus.COMPLETED }.toString(), Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FilledTonalButton(
+                    onClick = { navigate(Page.CREATE) }, modifier = Modifier.weight(1f)
+                ) { Icon(Icons.Default.Image, null); Spacer(Modifier.width(7.dp)); Text("Artwork") }
+                OutlinedButton(onClick = { navigate(Page.GRADING) }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Star, null); Spacer(Modifier.width(7.dp)); Text("Grade")
+                }
+            }
+        }
+        item {
+            OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("ENGINE STATUS", color = Gold, style = MaterialTheme.typography.labelMedium)
+                    Text("Native generation not installed", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "This build renders real reference sheets and stores grading. " +
+                        "Diffusion, enhancement and video require their native engine integrations.",
+                        color = Mist
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryCard(label: String, count: String, modifier: Modifier) {
+    Card(modifier, colors = CardDefaults.cardColors(containerColor = Panel)) {
+        Column(Modifier.padding(15.dp)) {
+            Text(count, style = MaterialTheme.typography.headlineMedium, color = Gold)
+            Text(label, color = Mist, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+    val context = LocalContext.current
+    var kind by remember { mutableStateOf(SheetRole.CHARACTER) }
+    var sources by remember { mutableStateOf<List<String>>(emptyList()) }
+    var note by remember { mutableStateOf<String?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            val selected = uris.map { it.toString() }.distinct()
+            if (selected.size > SheetRenderer.MAX_REFS) {
+                note = "Select at most " + SheetRenderer.MAX_REFS + " references per sheet. No source has been discarded."
+            } else {
+                val allAllowed = uris.all { uri ->
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }.isSuccess
+                }
+                if (allAllowed) {
+                    sources = selected
+                    note = null
+                } else {
+                    note = "A reference permission could not be retained. Choose files through the Android document provider."
+                }
+            }
+        }
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Header(
+                "Normalized production",
+                "Sheet builder",
+                "Choose a sheet type and real reference images. The renderer creates a standard sheet without inventing visual details."
+            )
+        }
+        item {
+            Text("SHEET TYPE", color = Gold, style = MaterialTheme.typography.labelLarge)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(SheetRole.entries.toList()) { role ->
+                    FilterChip(
+                        selected = kind == role, onClick = { kind = role },
+                        label = { Text(role.display) }
+                    )
+                }
+            }
+        }
+        item {
+            OutlinedCard(
+                onClick = { picker.launch(arrayOf("image/*")) },
+                colors = CardDefaults.outlinedCardColors(containerColor = Panel),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.AddPhotoAlternate, null, tint = Gold, modifier = Modifier.size(30.dp))
+                    Column {
+                        Text("Choose reference images", fontWeight = FontWeight.Medium)
+                        Text(sources.size.toString() + " / " + SheetRenderer.MAX_REFS +
+                            " selected · Android files", color = Mist)
+                    }
+                }
+            }
+        }
+        if (sources.isNotEmpty()) {
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(sources) { uri ->
+                        Card(
+                            modifier = Modifier.size(126.dp, 160.dp),
+                            colors = CardDefaults.cardColors(containerColor = Raised)
+                        ) {
+                            AsyncImage(
+                                model = Uri.parse(uri), contentDescription = "Reference image",
+                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (note != null) {
+            item { Text(note.orEmpty(), color = Red) }
+        }
+        item {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = sources.isNotEmpty(),
+                onClick = {
+                    runCatching {
+                        val sheet = repo.addSheet(kind, sources)
+                        val task = repo.recordTask(sheet.id, TaskKind.SHEET_RENDER)
+                        SheetRenderWorker.enqueue(context, sheet.id, task.id)
+                    }.onSuccess {
+                        sources = emptyList()
+                        note = null
+                        navigate(Page.JOBS)
+                    }.onFailure { note = it.message }
+                }
+            ) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Build sheet in background") }
+        }
+        item {
+            Text(
+                "Source images are kept at their original URIs. No silent cropping, fake character traits or AI-generated annotations.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Mist
+            )
+        }
+    }
+}
+
+@Composable
+private fun SheetLibraryScreen(repo: ArtRepository) {
+    LazyColumn(
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { Header("Asterion Core bridge pending", "Sheet library",
+            "Local sheets stay on this device. Core-backed sheet search will use the dedicated permissioned bridge.") }
+        if (repo.sheets.isEmpty()) item { Text("No sheets built yet.", color = Mist) }
+        items(repo.sheets.sortedByDescending { it.createdAt }) { sheet ->
+            SheetGalleryCard(sheet)
+        }
+    }
+}
+
+@Composable
+private fun SheetGalleryCard(sheet: SheetRecord) {
+    Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            AsyncImage(
+                model = Uri.parse(sheet.outputUri ?: sheet.sourceUris.first()),
+                contentDescription = sheet.label,
+                modifier = Modifier.size(95.dp, 130.dp), contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(sheet.role.display.uppercase(), style = MaterialTheme.typography.labelSmall, color = Gold)
+                Text(sheet.label, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(sheet.sourceUris.size.toString() + " verified source images", color = Mist)
+                Text(if (sheet.outputUri != null) "Rendered" else "Rendering queued", color = if (sheet.outputUri != null) Green else Blue)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+    var mode by remember { mutableStateOf(RenderMode.ANIME) }
+    var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val grouped = repo.sheets.groupBy { it.role }
+    val counts = repo.sheets.filter { it.id in selected }.groupingBy { it.role }.eachCount()
+    val ready = ArtPolicies.eligibleForAutomation(counts)
+    LazyColumn(
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Header("Automated creation", "Image and video",
+                "Choose your existing sheets. The generation engine will compile them through five controlled stages when available.")
+        }
+        item {
+            Text("OUTPUT MODE", color = Gold, style = MaterialTheme.typography.labelLarge)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(RenderMode.entries.toList()) { item ->
+                    FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item.display) })
+                }
+            }
+        }
+        SheetRole.entries.forEach { role ->
+            item {
+                Text(role.display.uppercase(), color = Gold, style = MaterialTheme.typography.labelMedium)
+            }
+            val these = grouped[role].orEmpty()
+            if (these.isEmpty()) {
+                item {
+                    OutlinedButton(onClick = { navigate(Page.SHEET) }) {
+                        Icon(Icons.Default.AddPhotoAlternate, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create " + role.display.lowercase() + " sheet")
+                    }
+                }
+            } else {
+                items(these) { sheet ->
+                    val included = selected.contains(sheet.id)
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val withoutOther = if (role == SheetRole.ART_STYLE || role == SheetRole.THEME)
+                                selected - these.map { it.id }.toSet()
+                            else selected
+                            selected = if (included) selected - sheet.id else withoutOther + sheet.id
+                        },
+                        colors = CardDefaults.outlinedCardColors(containerColor = if (included) Raised else Panel),
+                        border = BorderStroke(1.dp, if (included) Gold else Raised)
+                    ) {
+                        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            AsyncImage(
+                                model = Uri.parse(sheet.outputUri ?: sheet.sourceUris.first()),
+                                contentDescription = null,
+                                modifier = Modifier.size(54.dp), contentScale = ContentScale.Fit
+                            )
+                            Spacer(Modifier.width(9.dp))
+                            Text(sheet.label, Modifier.weight(1f), maxLines = 2)
+                            Checkbox(checked = included, onCheckedChange = null)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (ready) "References selected" else "Missing required sheets", fontWeight = FontWeight.Bold)
+                    Text(
+                        if (ready) "The reference set is ready to compile, but native image/video inference is not installed in this build."
+                        else "Select character, art-style and theme sheets. Elements are optional.",
+                        color = Mist
+                    )
+                    FilledTonalButton(onClick = { navigate(Page.SETTINGS) }) {
+                        Icon(Icons.Default.Tune, null); Spacer(Modifier.width(8.dp)); Text("Configure parameters")
+                    }
+                }
+            }
+        }
+        item {
+            Text(
+                "No generation job will be submitted until a genuine supported native backend is wired. " +
+                    "Cosplay mode will preserve horns, wings, tails and other source-defined fantasy traits.",
+                color = Mist, style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun QueueScreen(repo: ArtRepository) {
+    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Header("Background processing", "Job history",
+            "Sheet rendering continues via Android WorkManager. Your results remain in the local catalog.") }
+        if (repo.tasks.isEmpty()) item { Text("No jobs submitted yet.", color = Mist) }
+        items(repo.tasks.sortedByDescending { it.createdAt }) { task ->
+            Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(task.kind.name.replace('_', ' '), fontWeight = FontWeight.SemiBold)
+                    Text(task.status.name, color = when (task.status) {
+                        TaskStatus.COMPLETED -> Green
+                        TaskStatus.FAILED -> Red
+                        else -> Blue
+                    })
+                    if (task.error != null) Text(task.error, color = Red)
+                    Text(task.id.take(13), style = MaterialTheme.typography.bodySmall, color = Mist)
+                }
+            }
+        }
+        item {
+            OutlinedButton(onClick = { repo.reload() }) { Text("Refresh job history") }
+        }
+    }
+}
+
+@Composable
+private fun GradingScreen(repo: ArtRepository) {
+    val context = LocalContext.current
+    var status by remember { mutableStateOf<String?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        uris.forEach { uri ->
+            val good = runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }.isSuccess
+            if (good) repo.registerAsset(uri.toString())
+            else status = "Could not retain access to an image."
+        }
+    }
+    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+        item {
+            Header("Manual feedback", "Grade results",
+                "Your scores persist locally. The automatic quality model is not yet integrated and will not invent a score.")
+        }
+        item {
+            Button(onClick = { picker.launch(arrayOf("image/*")) }) {
+                Icon(Icons.Default.AddPhotoAlternate, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Import images to grade")
+            }
+        }
+        if (status != null) item { Text(status.orEmpty(), color = Red) }
+        if (repo.assets.isEmpty()) item { Text("No images available to rate.", color = Mist) }
+        items(repo.assets.sortedByDescending { it.createdAt }) { asset ->
+            Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AsyncImage(
+                        model = Uri.parse(asset.uri), contentDescription = "Image for manual rating",
+                        modifier = Modifier.fillMaxWidth().height(235.dp), contentScale = ContentScale.Fit
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Your rating", Modifier.weight(1f), color = Mist)
+                        (1..5).forEach { score ->
+                            IconButton(onClick = { repo.setStars(asset.uri, score) }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    if (score <= asset.stars) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "$score stars",
+                                    tint = if (score <= asset.stars) Gold else Mist
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParametersScreen(repo: ArtRepository) {
+    var local by remember(repo.settings) { mutableStateOf(repo.settings) }
+    fun save(value: com.asterion.art.model.GeneratorSettings) {
+        local = value
+        repo.saveSettings(value)
+    }
+    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { Header("Advanced controls", "Generation parameters",
+            "Editable control profiles for the future generation engine. Values are not assumed to be ideal for every model.") }
+        item {
+            Text("ASPECT RATIO", color = Gold)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(ArtPolicies.selectableRatios) { ratio ->
+                    FilterChip(selected = local.ratio == ratio,
+                        onClick = { save(local.copy(ratio = ratio)) }, label = { Text(ratio) })
+                }
+            }
+        }
+        item {
+            Text("SAMPLER / SCHEDULER", color = Gold)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(ArtPolicies.schedulers) { method ->
+                    FilterChip(selected = local.scheduler == method,
+                        onClick = { save(local.copy(scheduler = method)) }, label = { Text(method) })
+                }
+            }
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Karras schedule", Modifier.weight(1f))
+                Switch(checked = local.karras, onCheckedChange = { save(local.copy(karras = it)) })
+            }
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Automatic optimization", Modifier.weight(1f))
+                Switch(checked = local.automatic, onCheckedChange = { save(local.copy(automatic = it)) })
+            }
+        }
+        item {
+            Text("Steps: " + local.steps, color = Gold)
+            Slider(value = local.steps.toFloat(), onValueChange = {
+                local = local.copy(steps = it.roundToInt())
+            }, valueRange = 1f..100f, onValueChangeFinished = { repo.saveSettings(local) })
+        }
+        item {
+            Text("CFG scale: " + "%.2f".format(local.cfg), color = Gold)
+            Slider(value = local.cfg, onValueChange = { local = local.copy(cfg = it) },
+                valueRange = 0f..20f, onValueChangeFinished = { repo.saveSettings(local) })
+        }
+        item {
+            Text("Batch count: " + local.batch, color = Gold)
+            Slider(value = local.batch.toFloat(), onValueChange = {
+                local = local.copy(batch = it.roundToInt())
+            }, valueRange = 1f..12f, onValueChangeFinished = { repo.saveSettings(local) })
+        }
+        item {
+            Text("Image-to-image denoise: " + "%.2f".format(local.denoise), color = Gold)
+            Slider(value = local.denoise, onValueChange = { local = local.copy(denoise = it) },
+                valueRange = 0f..1f, onValueChangeFinished = { repo.saveSettings(local) })
+        }
+        item {
+            Text("Seed: automatic for now", color = Mist)
+            Text("The native backend will expose model-specific parameters and seed locking after integration.",
+                color = Mist, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
