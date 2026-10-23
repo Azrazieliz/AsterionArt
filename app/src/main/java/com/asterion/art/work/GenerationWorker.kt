@@ -28,6 +28,9 @@ import com.asterion.art.engine.SheetTextReader
 import com.asterion.art.engine.TechnicalImageScorer
 import com.asterion.art.engine.SourceReferenceEncoder
 import com.asterion.art.model.RenderMode
+import com.asterion.art.model.CreationMode
+import com.asterion.art.model.SheetRecord
+import com.asterion.art.model.SheetRole
 import com.asterion.art.model.TaskStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -77,8 +80,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             repo.updateTask(taskId, TaskStatus.RUNNING)
             foreground("Reading source sheet evidence")
             val evidence = sheets.map { SheetTextReader.read(applicationContext, it) }
+            require(job.creationMode != CreationMode.STYLE_CORRECTION ||
+                job.sourceImageUri != null) {
+                "Style correction requires a source illustration, not just a style sheet."
+            }
             val compilerAttempt = runCatching {
-                GenerationPlanner.compile(evidence, job.mode, job.settings)
+                GenerationPlanner.compile(evidence, job.mode, job.settings,job.creationMode)
             }
             val engine = LocalDreamBridge()
             val models = engine.installedModels()
@@ -92,7 +99,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 model = visualModel ?: error(
                     "Text-only preferred model or authoritative text is unavailable and " +
                         "no reference-aware Qwen/Klein model is installed.")
-                recipe = GenerationPlanner.compileVisual(evidence, job.mode, job.settings)
+                recipe = GenerationPlanner.compileVisual(evidence, job.mode, job.settings,job.creationMode)
             }
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = model.resolutions.firstOrNull() ?: (size to size)
@@ -118,9 +125,16 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             } else {
                 capacityCheck.getOrThrow()
             }
+            val extraOriginal = job.sourceImageUri?.let { uri ->
+                SheetRecord(role=SheetRole.CHARACTER,label="Original source image",
+                    sourceUris=listOf(uri),referenceSlots=listOf("PRIMARY"))
+            }
             val referenceInputs = if (model.ditKind == "qwen21" ||
-                model.ditKind == "klein") SourceReferenceEncoder.encode(applicationContext,sheets)
+                model.ditKind == "klein") SourceReferenceEncoder.encode(
+                    applicationContext,if(extraOriginal!=null) sheets + extraOriginal else sheets)
                 else emptyList()
+            val originalImage = if(extraOriginal!=null) SourceReferenceEncoder.encode(
+                applicationContext,listOf(extraOriginal)).single() else null
 
             val intermediate = File(applicationContext.filesDir,
                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
@@ -132,7 +146,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 if (isStopped) throw CancellationException("Job stopped")
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
                 val candidateSettings = PreferenceLearning.candidate(job.settings,candidate - 1)
-                var current: ByteArray? = null
+                var current: ByteArray? = originalImage
                 for (stage in recipe.passes) {
                     if (isStopped) throw CancellationException()
                     val path = File(intermediate, "candidate_" + candidate +
@@ -222,6 +236,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("automated_scoring", "technical-only; sheet fidelity not evaluated")
                 put("native_reference_images", referenceInputs.size)
                 put("reference_model_kind", model.ditKind)
+                put("creation_methodology", job.creationMode?.name ?: JSONObject.NULL)
+                put("source_artwork", job.sourceImageUri ?: JSONObject.NULL)
                 put("enhancement_status", enhancementStatus)
                 put("enhanced_uri", enhancedUri ?: JSONObject.NULL)
             }
