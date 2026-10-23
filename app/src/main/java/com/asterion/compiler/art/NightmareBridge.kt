@@ -173,6 +173,34 @@ class NightmareBridge(
         NightmareResult(run, expectedKind, downloaded, entry.optInt("w"), entry.optInt("h"))
     }
 
+    /** Actual image-to-image upscale workflow in Nightmare; preserves the input if unavailable. */
+    suspend fun upscale(input: File): NightmareResult = withContext(Dispatchers.IO) {
+        require(input.isFile && input.length() > 0L) { "No image to enhance" }
+        val flows = request("GET", "/flows").getJSONArray("recipes")
+        val recipe = (0 until flows.length()).map { flows.getJSONObject(it) }
+            .firstOrNull { it.optString("id") == "upscale" && it.optBoolean("runs_here", false) }
+            ?: error("Upscaling is not available on this device or the required model is missing")
+        val schema = request("GET", "/flows/" + recipe.getString("id")).getJSONArray("nodes")
+        val inputs = (0 until schema.length()).map { schema.getJSONObject(it) }
+            .filter { it.optString("type") == "core.image" }
+        check(inputs.size == 1) { "Upscale recipe must have one source image" }
+        require(input.length() <= 32L * 1024 * 1024) { "Image exceeds current 32 MB upload limit" }
+        val encoded = input.inputStream().use { Base64.encodeToString(it.readBytes(), Base64.NO_WRAP) }
+        val payload = JSONObject()
+            .put("flow", "upscale")
+            .put("images", JSONObject().put(inputs.single().getString("id"), encoded))
+            .put("stream", false)
+        val result = request("POST", "/run", payload)
+        if (result.has("error")) error(result.getString("error"))
+        val run = result.getString("run")
+        val outputs = result.getJSONArray("results")
+        val enhanced = (0 until outputs.length()).map { outputs.getJSONObject(it) }
+            .firstOrNull { it.optString("kind") == "image" }
+            ?: error("Upscaler returned no output image")
+        val file = download(enhanced.getString("url"), run)
+        NightmareResult(run, "image", file, enhanced.optInt("w"), enhanced.optInt("h"))
+    }
+
     suspend fun cancel() = withContext(Dispatchers.IO) { request("POST", "/cancel", JSONObject()) }
 
     companion object {
