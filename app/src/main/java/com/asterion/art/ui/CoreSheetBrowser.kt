@@ -36,8 +36,6 @@ import com.asterion.art.core.CoreCharacterSheet
 import com.asterion.art.core.CoreSheetBridge
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.SheetRole
-import com.asterion.art.model.TaskKind
-import com.asterion.art.work.SheetRenderWorker
 import kotlinx.coroutines.delay
 
 /** Core sheet selection uses searching only; no trait descriptions are authored. */
@@ -97,16 +95,9 @@ fun CoreSheetBrowser(repo: ArtRepository, onQueued: () -> Unit) {
                             onClick = {
                                 selecting = sheet.sheetId
                                 runCatching {
-                                    val existing = repo.sheets.firstOrNull {
-                                        it.sourceUris.contains(sheet.uri.toString())
-                                    }
-                                    if (existing == null) {
-                                        val record = repo.addSheet(
-                                            SheetRole.CHARACTER,
-                                            listOf(sheet.uri.toString()), listOf("PRIMARY"))
-                                        val task = repo.recordTask(record.id, TaskKind.SHEET_RENDER)
-                                        SheetRenderWorker.enqueue(context, record.id, task.id)
-                                    }
+                                    repo.importCoreCharacter(
+                                        sheet.characterId, sheet.sheetId, sheet.characterName,
+                                        sheet.uri.toString(), sheet.sha256)
                                 }.onSuccess {
                                     selecting = null
                                     onQueued()
