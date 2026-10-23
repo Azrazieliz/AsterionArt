@@ -82,6 +82,7 @@ import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.SheetRecord
 import com.asterion.art.model.SheetRole
+import com.asterion.art.model.GradedAsset
 import com.asterion.art.model.SheetLayouts
 import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
@@ -91,7 +92,7 @@ import com.asterion.art.work.GenerationWorker
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), CORE("Core sheets"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
 }
 
@@ -100,6 +101,7 @@ private enum class Page(val label: String) {
 fun AsterionArtApp(repo: ArtRepository) {
     AsterionArtTheme {
         var current by rememberSaveable { mutableStateOf(Page.HOME) }
+        var editingAsset by remember { mutableStateOf<GradedAsset?>(null) }
         Scaffold(
             containerColor = Ink,
             topBar = {
@@ -149,7 +151,11 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.CORE -> CoreSheetBrowser(repo) { current = Page.JOBS }
                     Page.LIBRARY -> SheetLibraryScreen(repo)
                     Page.JOBS -> QueueScreen(repo)
-                    Page.GRADING -> GradingScreen(repo)
+                    Page.GRADING -> GradingScreen(repo) { asset ->
+                        editingAsset = asset
+                        current = Page.EDIT
+                    }
+                    Page.EDIT -> SelectiveEditScreen(editingAsset, repo) { current = Page.JOBS }
                     Page.SETTINGS -> ParametersScreen(repo)
                 }
             }
@@ -550,9 +556,11 @@ private fun QueueScreen(repo: ArtRepository) {
                     Text(task.id.take(13), style = MaterialTheme.typography.bodySmall, color = Mist)
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
                         OutlinedButton(onClick = {
-                            val name = if (task.kind == TaskKind.STILL_IMAGE)
-                                "asterion-generate-" + task.targetId
-                            else "asterion-sheet-" + task.targetId
+                            val name = when (task.kind) {
+                                TaskKind.STILL_IMAGE -> "asterion-generate-" + task.targetId
+                                TaskKind.IMAGE_EDIT -> "asterion-edit-" + task.targetId
+                                else -> "asterion-sheet-" + task.targetId
+                            }
                             androidx.work.WorkManager.getInstance(context).cancelUniqueWork(name)
                             repo.updateTask(task.id, TaskStatus.FAILED, "Cancelled by user")
                         }) { Text("Cancel") }
@@ -567,7 +575,7 @@ private fun QueueScreen(repo: ArtRepository) {
 }
 
 @Composable
-private fun GradingScreen(repo: ArtRepository) {
+private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit) {
     val context = LocalContext.current
     var status by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -604,6 +612,11 @@ private fun GradingScreen(repo: ArtRepository) {
                     if (asset.autoScore != null) {
                         Text("Technical screening: " + "%.0f".format(asset.autoScore) + "/100 " +
                             "(contrast/detail only, not character or style fidelity)", color = Mist)
+                    }
+                    if (asset.sourceJobId != null) {
+                        OutlinedButton(onClick = { onEdit(asset) }) {
+                            Text("Edit selected pixels")
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Your rating", Modifier.weight(1f), color = Mist)
