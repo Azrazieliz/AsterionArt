@@ -136,7 +136,7 @@ class NightmareBridge(
             } ?: error("No installed Nightmare checkpoint clearly suited to $mode; install a compatible one.")
             payload.put("model", selected.getString("id"))
         }
-            .put("prompt", prompt)
+        payload.put("prompt", prompt)
             .put("seed", seed.toString())
             .put("stream", false)
         if (image != null) {
