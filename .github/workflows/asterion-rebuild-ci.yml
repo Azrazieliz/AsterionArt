@@ -18,11 +18,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install Android platform and build tools
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
-          chmod +x ./gradlew
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - name: Permit Gradle wrapper
+        run: chmod +x ./gradlew
       - name: Run JVM unit tests
         run: ./gradlew --no-daemon :app:testDebugUnitTest
       - name: Build Android APK
