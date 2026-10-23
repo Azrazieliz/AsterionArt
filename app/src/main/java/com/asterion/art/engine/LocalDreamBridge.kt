@@ -23,6 +23,7 @@ interface StillImageEngine {
         cancelled: () -> Boolean,
         progress: (Int, Int) -> Unit,
         maskPng: ByteArray? = null,
+        referencePngs: List<ByteArray> = emptyList(),
     ): GeneratedImage
 }
 
@@ -33,6 +34,7 @@ data class DreamModel(
     val isAnima: Boolean,
     val isSdxl: Boolean,
     val isCustom: Boolean,
+    val ditKind: String,
     val resolutions: List<Pair<Int, Int>>,
 )
 data class TokenCapacity(val count: Int, val limit: Int, val overflowOffset: Int) {
@@ -91,6 +93,7 @@ class LocalDreamBridge : StillImageEngine {
                 isAnima = entry.optBoolean("is_anima", false),
                 isSdxl = entry.optBoolean("is_sdxl", false),
                 isCustom = entry.optBoolean("is_custom", false),
+                ditKind = entry.optString("dit_kind", ""),
                 resolutions = (0 until resolutions.length()).mapNotNull { i ->
                     val p = resolutions.optJSONArray(i) ?: return@mapNotNull null
                     if (p.optInt(0) > 0 && p.optInt(1) > 0)
@@ -147,6 +150,7 @@ class LocalDreamBridge : StillImageEngine {
         cancelled: () -> Boolean,
         progress: (Int, Int) -> Unit,
         maskPng: ByteArray?,
+        referencePngs: List<ByteArray>,
     ): GeneratedImage {
         if (cancelled()) throw CancellationException()
         val json = JSONObject().apply {
@@ -166,6 +170,15 @@ class LocalDreamBridge : StillImageEngine {
             put("aspect_ratio", settings.ratio)
             put("output_format", "png")
             put("show_diffusion_process", false)
+            if (referencePngs.isNotEmpty()) {
+                require(referencePngs.size <= 10) { "Too many native reference images" }
+                val refs = JSONArray()
+                referencePngs.forEach { image ->
+                    require(image.size in 128..8_000_000) { "Invalid/oversized reference image" }
+                    refs.put(Base64.encodeToString(image, Base64.NO_WRAP))
+                }
+                put("reference_images", refs)
+            }
             if (maskPng != null && previousPng == null) {
                 error("An inpainting mask requires the original image")
             }
