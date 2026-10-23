@@ -93,7 +93,7 @@ import com.asterion.art.learning.UserPreferenceStore
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), VIDEO("Video"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
 }
 
@@ -150,6 +150,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.CREATE -> CreationScreen(repo) { current = it }
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
                     Page.CORE -> CoreSheetBrowser(repo) { current = Page.JOBS }
+                    Page.VIDEO -> VideoWorkspace(repo) { current = Page.JOBS }
                     Page.LIBRARY -> SheetLibraryScreen(repo)
                     Page.JOBS -> QueueScreen(repo)
                     Page.GRADING -> GradingScreen(repo) { asset ->
@@ -449,6 +450,11 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             OutlinedButton(onClick = { navigate(Page.CORE) }) { Text("Find character sheets in Asterion Core") }
         }
         item {
+            OutlinedButton(onClick = { navigate(Page.VIDEO) }) {
+                Text("Open integrated video workspace")
+            }
+        }
+        item {
             Text("OUTPUT MODE", color = Gold, style = MaterialTheme.typography.labelLarge)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(RenderMode.entries.toList()) { item ->
@@ -564,6 +570,7 @@ private fun QueueScreen(repo: ArtRepository) {
                             val name = when (task.kind) {
                                 TaskKind.STILL_IMAGE -> "asterion-generate-" + task.targetId
                                 TaskKind.IMAGE_EDIT -> "asterion-edit-" + task.targetId
+                                TaskKind.VIDEO -> "asterion-video-" + task.targetId
                                 else -> "asterion-sheet-" + task.targetId
                             }
                             androidx.work.WorkManager.getInstance(context).cancelUniqueWork(name)
