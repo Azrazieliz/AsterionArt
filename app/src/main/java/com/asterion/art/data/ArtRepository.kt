@@ -64,6 +64,8 @@ class ArtRepository(context: Context) {
                 uri = obj.getString("uri"),
                 stars = obj.optInt("stars", 0),
                 sourceSheetId = obj.optNullable("sourceSheetId"),
+                autoScore = if (!obj.has("autoScore") || obj.isNull("autoScore")) null else obj.getDouble("autoScore"),
+                sourceJobId = obj.optNullable("sourceJobId"),
                 createdAt = obj.getLong("createdAt")
             )
         }
@@ -121,9 +123,11 @@ class ArtRepository(context: Context) {
         registerAsset(outputUri, id)
     }
 
-    @Synchronized fun registerAsset(uri: String, sourceSheetId: String? = null) {
+    @Synchronized fun registerAsset(uri: String, sourceSheetId: String? = null,
+        autoScore: Double? = null, sourceJobId: String? = null) {
         if (assets.any { it.uri == uri }) return
-        val updated = assets + GradedAsset(uri = uri, sourceSheetId = sourceSheetId)
+        val updated = assets + GradedAsset(uri = uri, sourceSheetId = sourceSheetId,
+            autoScore = autoScore, sourceJobId = sourceJobId)
         check(prefs.edit().putString("assets", encodeAssets(updated)).commit())
         assets = updated
     }
@@ -171,6 +175,8 @@ class ArtRepository(context: Context) {
     private fun encodeAssets(items: List<GradedAsset>) = JSONArray().apply {
         items.forEach { asset -> put(JSONObject().apply {
             put("uri", asset.uri); put("stars", asset.stars); put("sourceSheetId", asset.sourceSheetId)
+            put("sourceJobId", asset.sourceJobId)
+            put("autoScore", asset.autoScore ?: JSONObject.NULL)
             put("createdAt", asset.createdAt)
         }) }
     }.toString()

@@ -44,6 +44,8 @@ data class GradedAsset(
     val uri: String,
     val stars: Int = 0,
     val sourceSheetId: String? = null,
+    val autoScore: Double? = null,
+    val sourceJobId: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
 data class GeneratorSettings(

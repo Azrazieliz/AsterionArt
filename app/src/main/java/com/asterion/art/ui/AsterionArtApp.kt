@@ -76,6 +76,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.asterion.art.data.ArtRepository
+import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.model.ArtPolicies
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
@@ -86,6 +87,7 @@ import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.render.SheetRenderer
 import com.asterion.art.work.SheetRenderWorker
+import com.asterion.art.work.GenerationWorker
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
@@ -418,6 +420,7 @@ private fun SheetGalleryCard(sheet: SheetRecord) {
 
 @Composable
 private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+    val context = LocalContext.current
     var mode by remember { mutableStateOf(RenderMode.ANIME) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     val grouped = repo.sheets.groupBy { it.role }
@@ -484,29 +487,45 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (ready) "References selected" else "Missing required sheets", fontWeight = FontWeight.Bold)
-                    Text(
-                        if (ready) "The reference set is ready to compile, but native image/video inference is not installed in this build."
-                        else "Select character, art-style and theme sheets. Elements are optional.",
-                        color = Mist
-                    )
+                    Text(if (ready) "Five sequential inference passes use the on-device Local Dream compatibility backend until the native engine is embedded."
+                        else "Select character, art-style and theme sheets. Element sheets are optional.", color = Mist)
                     FilledTonalButton(onClick = { navigate(Page.SETTINGS) }) {
-                        Icon(Icons.Default.Tune, null); Spacer(Modifier.width(8.dp)); Text("Configure parameters")
+                        Icon(Icons.Default.Tune, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Configure parameters")
+                    }
+                    Button(
+                        enabled = ready && mode != RenderMode.ANIMATION &&
+                            repo.sheets.filter { it.id in selected }.all { it.outputUri != null },
+                        onClick = {
+                            val job = GenerationJobStore(context).create(
+                                mode, selected.toList(), repo.settings)
+                            val task = repo.recordTask(job.id, TaskKind.STILL_IMAGE)
+                            GenerationWorker.enqueue(context, job.id, task.id)
+                            navigate(Page.JOBS)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Queue five-pass generation")
                     }
                 }
             }
         }
         item {
-            Text(
-                "No generation job will be submitted until a genuine supported native backend is wired. " +
-                    "Cosplay mode will preserve horns, wings, tails and other source-defined fantasy traits.",
-                color = Mist, style = MaterialTheme.typography.bodySmall
-            )
+            Text("Native engine currently requires Local Dream's on-device host mode. " +
+                "A missing model or model context is reported as a failed job, never silently ignored. " +
+                "Full engine embedding and video are still under development. " +
+                "Cosplay preserves canonical horns, wings, tails and other fantasy features.",
+                color = Mist, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 
 @Composable
 private fun QueueScreen(repo: ArtRepository) {
+    val context = LocalContext.current
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("Background processing", "Job history",
             "Sheet rendering continues via Android WorkManager. Your results remain in the local catalog.") }
@@ -522,6 +541,15 @@ private fun QueueScreen(repo: ArtRepository) {
                     })
                     if (task.error != null) Text(task.error, color = Red)
                     Text(task.id.take(13), style = MaterialTheme.typography.bodySmall, color = Mist)
+                    if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
+                        OutlinedButton(onClick = {
+                            val name = if (task.kind == TaskKind.STILL_IMAGE)
+                                "asterion-generate-" + task.targetId
+                            else "asterion-sheet-" + task.targetId
+                            androidx.work.WorkManager.getInstance(context).cancelUniqueWork(name)
+                            repo.updateTask(task.id, TaskStatus.FAILED, "Cancelled by user")
+                        }) { Text("Cancel") }
+                    }
                 }
             }
         }
@@ -566,6 +594,10 @@ private fun GradingScreen(repo: ArtRepository) {
                         model = Uri.parse(asset.uri), contentDescription = "Image for manual rating",
                         modifier = Modifier.fillMaxWidth().height(235.dp), contentScale = ContentScale.Fit
                     )
+                    if (asset.autoScore != null) {
+                        Text("Technical screening: " + "%.0f".format(asset.autoScore) + "/100 " +
+                            "(contrast/detail only, not character or style fidelity)", color = Mist)
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Your rating", Modifier.weight(1f), color = Mist)
                         (1..5).forEach { score ->
@@ -647,9 +679,19 @@ private fun ParametersScreen(repo: ArtRepository) {
                 valueRange = 0f..1f, onValueChangeFinished = { repo.saveSettings(local) })
         }
         item {
-            Text("Seed: automatic for now", color = Mist)
-            Text("The native backend will expose model-specific parameters and seed locking after integration.",
-                color = Mist, style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Lock seed", Modifier.weight(1f), color = Mist)
+                Switch(checked = local.seed != null, onCheckedChange = {
+                    save(local.copy(seed = if (it) 12345L else null))
+                })
+            }
+            if (local.seed != null) {
+                Text("Seed: " + local.seed, color = Gold)
+                Slider(value = local.seed!!.toFloat(), onValueChange = {
+                    local = local.copy(seed = it.toLong())
+                }, valueRange = 0f..1000000f,
+                    onValueChangeFinished = { repo.saveSettings(local) })
+            }
         }
     }
 }
