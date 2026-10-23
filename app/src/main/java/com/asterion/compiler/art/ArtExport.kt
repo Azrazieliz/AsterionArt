@@ -36,14 +36,17 @@ object ArtExport {
             .put("reference_sheet_ids", JSONArray(sheetIds))
             .put("generation_mode", mode.name)
         val resultUris = mutableListOf<String>()
-        resultUris += put(context, "$name.mp4", "video/mp4", path, result.file.readBytes())
-        resultUris += put(context, "$name.nwasset.json", "application/json", path,
-            manifest.toString(2).toByteArray(Charsets.UTF_8))
+        resultUris += put(context, "$name.mp4", "video/mp4", path) { sink ->
+            result.file.inputStream().use { it.copyTo(sink, bufferSize = 256 * 1024) }
+        }
+        resultUris += put(context, "$name.nwasset.json", "application/json", path) { sink ->
+            sink.write(manifest.toString(2).toByteArray(Charsets.UTF_8))
+        }
         return resultUris
     }
 
     private fun put(context: Context, title: String, mime: String,
-                    relative: String, bytes: ByteArray): String {
+                    relative: String, write: (java.io.OutputStream) -> Unit): String {
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, title)
@@ -55,7 +58,7 @@ object ArtExport {
             "Could not create NoWorld export"
         }
         try {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+            context.contentResolver.openOutputStream(uri)?.use(write)
                 ?: error("Could not write export")
             context.contentResolver.update(uri, ContentValues().apply {
                 put(MediaStore.MediaColumns.IS_PENDING, 0)
