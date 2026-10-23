@@ -50,7 +50,7 @@ fun LoRaLibrarySection(checkpoint: CheckpointProfile, prompt: String) {
         if (uri != null) {
             scope.launch {
                 runCatching {
-                    store.import(
+                    store.importAsset(
                         uri = uri,
                         name = name.ifBlank { uri.lastPathSegment ?: "Imported LoRA" },
                         triggerWords = triggers.split(',').map(String::trim).filter(String::isNotBlank),
