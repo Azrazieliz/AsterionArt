@@ -7,6 +7,7 @@ android {
     namespace = "com.asterion.art"
     compileSdk = 35
     defaultConfig {
+        ndk { abiFilters += "arm64-v8a" }
         applicationId = "com.asterion.art"
         minSdk = 29
         targetSdk = 35
@@ -25,7 +26,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
-    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+    packaging {
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        jniLibs { useLegacyPackaging = true }
+    }
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))

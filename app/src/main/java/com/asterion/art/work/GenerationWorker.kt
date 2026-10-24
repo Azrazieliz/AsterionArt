@@ -21,6 +21,8 @@ import com.asterion.art.core.CoreResultUploader
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.LocalDreamBridge
+import com.asterion.art.engine.StillImageEngine
+import com.asterion.art.nativeengine.EmbeddedEngineFactory
 import com.asterion.art.engine.availableUpscalers
 import com.asterion.art.engine.upscaleImage
 import com.asterion.art.learning.PreferenceLearning
@@ -54,9 +56,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             val work = OneTimeWorkRequestBuilder<GenerationWorker>()
                 .setInputData(data)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-                .addTag("asterion-native-generation").build()
+                .addTag("asterion-native-generation").addTag("asterion-job-" + jobId).build()
             WorkManager.getInstance(context).enqueueUniqueWork(
-                "asterion-generate-" + jobId, ExistingWorkPolicy.KEEP, work)
+                "asterion-native-execution", ExistingWorkPolicy.APPEND_OR_REPLACE, work)
         }
     }
 
@@ -64,6 +66,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
         val jobId = inputData.getString(JOB) ?: return@withContext Result.failure()
         val taskId = inputData.getString(TASK) ?: return@withContext Result.failure()
         val repo = ArtRepository(applicationContext)
+        var currentEngine: StillImageEngine? = null
         try {
             foreground("Reading generation plan")
             val job = GenerationJobStore(applicationContext).load(jobId)
@@ -87,7 +90,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             val compilerAttempt = runCatching {
                 GenerationPlanner.compile(evidence, job.mode, job.settings,job.creationMode)
             }
-            val engine = LocalDreamBridge()
+            val engine = EmbeddedEngineFactory.open(applicationContext)
+            currentEngine = engine
             val models = engine.installedModels()
             val preferredId = GenerationPlanner.selectModelId(
                 models.map { it.id to it.name }, job.mode)
@@ -254,6 +258,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
         } catch (e: Exception) {
             repo.updateTask(taskId, TaskStatus.FAILED, e.message ?: "Generation failed")
             Result.failure()
+        } finally {
+            currentEngine?.release()
         }
     }
 

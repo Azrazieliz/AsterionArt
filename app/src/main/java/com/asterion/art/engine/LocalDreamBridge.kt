@@ -11,6 +11,7 @@ import kotlin.math.max
 /** Local-only compatibility layer; a native embedded engine will implement the same interface. */
 interface StillImageEngine {
     fun installedModels(): List<DreamModel>
+    fun release() {}
     fun prepare(model: DreamModel, width: Int, height: Int, cancelled: () -> Boolean)
     fun verifyText(prompt: String): TokenCapacity
     fun generate(

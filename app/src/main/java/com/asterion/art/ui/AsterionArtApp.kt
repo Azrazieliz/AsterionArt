@@ -80,6 +80,8 @@ import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.model.ArtPolicies
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
+import com.asterion.art.nativeengine.EmbeddedNativeRunner
+import com.asterion.art.nativeengine.NativeModelLibrary
 import com.asterion.art.model.SheetRecord
 import com.asterion.art.model.SheetRole
 import com.asterion.art.model.GradedAsset
@@ -94,7 +96,7 @@ import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), VIDEO("Video"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
 }
 
@@ -133,6 +135,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         Triple(Page.HOME, Icons.Default.Home, "Home"),
                         Triple(Page.CREATE, Icons.Default.AutoAwesome, "Create"),
                         Triple(Page.LIBRARY, Icons.Default.Collections, "Sheets"),
+                        Triple(Page.MODELS, Icons.Default.Tune, "Models"),
                         Triple(Page.JOBS, Icons.Default.WorkHistory, "Queue")
                     ).forEach { (page, icon, text) ->
                         NavigationBarItem(
@@ -152,6 +155,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
                     Page.CORE -> CoreSheetBrowser(repo) { current = Page.JOBS }
                     Page.VIDEO -> VideoWorkspace(repo) { current = Page.JOBS }
+                    Page.MODELS -> NativeModelLibraryScreen()
                     Page.LIBRARY -> SheetLibraryScreen(repo)
                     Page.JOBS -> QueueScreen(repo)
                     Page.GRADING -> GradingScreen(repo) { asset ->
@@ -226,13 +230,16 @@ private fun HomeScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    val context = LocalContext.current
+                    val bundled = EmbeddedNativeRunner.isEmbedded(context)
                     Text("ENGINE STATUS", color = Gold, style = MaterialTheme.typography.labelMedium)
-                    Text("Native generation not installed", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "This build renders real reference sheets and stores grading. " +
-                        "Diffusion, enhancement and video require their native engine integrations.",
-                        color = Mist
-                    )
+                    Text(if(bundled) "Native engine bundled" else "Native engine unavailable",
+                        fontWeight = FontWeight.SemiBold)
+                    Text("Installed QNN checkpoints: " + NativeModelLibrary(context).list().size,
+                        color = Mist)
+                    OutlinedButton(onClick = { navigate(Page.MODELS) }) {
+                        Text("Open native model library")
+                    }
                 }
             }
         }
@@ -611,13 +618,12 @@ private fun QueueScreen(repo: ArtRepository) {
                     Text(task.id.take(13), style = MaterialTheme.typography.bodySmall, color = Mist)
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
                         OutlinedButton(onClick = {
-                            val name = when (task.kind) {
-                                TaskKind.STILL_IMAGE -> "asterion-generate-" + task.targetId
-                                TaskKind.IMAGE_EDIT -> "asterion-edit-" + task.targetId
-                                TaskKind.VIDEO -> "asterion-video-" + task.targetId
-                                else -> "asterion-sheet-" + task.targetId
-                            }
-                            androidx.work.WorkManager.getInstance(context).cancelUniqueWork(name)
+                            val wm=androidx.work.WorkManager.getInstance(context)
+                            if (task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT,TaskKind.VIDEO))
+                                wm.cancelAllWorkByTag("asterion-job-" + task.targetId)
+                            else if (task.kind==TaskKind.SHEET_RENDER)
+                                wm.cancelUniqueWork("asterion-sheet-" + task.targetId)
+                            else wm.cancelUniqueWork("asterion-model-import-serial")
                             repo.updateTask(task.id, TaskStatus.FAILED, "Cancelled by user")
                         }) { Text("Cancel") }
                     }

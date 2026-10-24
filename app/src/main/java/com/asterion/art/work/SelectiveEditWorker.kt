@@ -21,6 +21,8 @@ import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.LocalDreamBridge
+import com.asterion.art.engine.StillImageEngine
+import com.asterion.art.nativeengine.EmbeddedEngineFactory
 import com.asterion.art.engine.SelectiveImageEditor
 import com.asterion.art.engine.SheetTextReader
 import com.asterion.art.engine.TechnicalImageScorer
@@ -38,10 +40,10 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
             val request = OneTimeWorkRequestBuilder<SelectiveEditWorker>()
                 .setInputData(Data.Builder().putString("edit", editId)
                     .putString("task", taskId).build())
-                .addTag("asterion-image-edit")
+                .addTag("asterion-image-edit").addTag("asterion-job-" + editId)
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
-                "asterion-edit-" + editId, ExistingWorkPolicy.KEEP, request)
+                "asterion-native-execution", ExistingWorkPolicy.APPEND_OR_REPLACE, request)
         }
     }
 
@@ -49,6 +51,7 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
         val id = inputData.getString("edit") ?: return@withContext Result.failure()
         val taskId = inputData.getString("task") ?: return@withContext Result.failure()
         val repo = ArtRepository(applicationContext)
+        var currentEngine: StillImageEngine? = null
         try {
             val channel = "asterion_art_edit"
             applicationContext.getSystemService(NotificationManager::class.java)
@@ -71,7 +74,8 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
             }
             val evidence = sheets.map { SheetTextReader.read(applicationContext,it) }
             val recipe = GenerationPlanner.compile(evidence, source.mode, source.settings)
-            val engine = LocalDreamBridge()
+            val engine = EmbeddedEngineFactory.open(applicationContext)
+            currentEngine = engine
             val models = engine.installedModels()
             val modelId = GenerationPlanner.selectModelId(
                 models.map { it.id to it.name }, source.mode)
@@ -115,6 +119,8 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
         } catch (e: Exception) {
             repo.updateTask(taskId,TaskStatus.FAILED,e.message ?: "Selective edit failed")
             Result.failure()
+        } finally {
+            currentEngine?.release()
         }
     }
 }

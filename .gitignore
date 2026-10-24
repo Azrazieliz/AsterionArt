@@ -6,3 +6,9 @@ local.properties
 *.jks
 *.keystore
 .DS_Store
+
+# Pinned upstream runtime is embedded by CI, not committed in source.
+app/src/main/jniLibs/
+app/src/main/assets/qnnlibs/
+app/src/main/assets/ditlibs/
+app/src/main/assets/asterion_native_provenance.json
