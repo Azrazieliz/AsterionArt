@@ -1,0 +1,24 @@
+name: Fusion B source preflight (no model weights)
+on:
+  push:
+    paths:
+      - 'fusion/fusion_b_sources.json'
+      - 'fusion/preflight_sources.py'
+      - '.github/workflows/fusion-b-preflight.yml'
+  workflow_dispatch:
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pin model source SHA256 and revisions without downloading multi-GB checkpoints
+        run: python3 fusion/preflight_sources.py --output fusion_b_lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Fusion-B-Source-Lock
+          path: fusion_b_lock.json
+          retention-days: 15

@@ -1,0 +1,31 @@
+{
+  "schema": "asterion.fusion-b.sources.v1",
+  "algorithm": "compatible-anima-weighted-fp16-merge",
+  "fuse_only_same_architecture": true,
+  "prototype_weights": {
+    "rin": 0.7,
+    "miaomiao": 0.3
+  },
+  "quality_gate": "Must outperform unchanged Rin on real user sheet tasks; no automatic deployment before benchmarking",
+  "rin": {
+    "id": "nyanpoko/public",
+    "revision": "3d37cda6e49af7a3e75db585a0ca735f3e884119",
+    "file": "Anima/Model/RIN Flanime Anima/v1.4/rinFlanimeAnima_v14_pruned_fp16.safetensors",
+    "sha256": "a28d1e04787dcc58507feb7921e8fcbffc051dcf86d8685cf1049eedfc317be2",
+    "warning": "Original Rin Anima v1.4, NOT proven identical to the user's preferred rin_flanime_v1_turbo QNN model"
+  },
+  "miaomiao": {
+    "id": "RunningHubAI/rh-miaomiao-harem-v16-unet",
+    "revision": "main",
+    "file": "MiaoMiaoHarem_Anima_1.6.safetensors",
+    "warning": "V1.6 source is a candidate; it may differ from the installed MiaoMiao model"
+  },
+  "hassaku": {
+    "id": "SiE69/Illoustrious_Checkpoint_Collection",
+    "revision": "main",
+    "file": "hassakuXLIllustrious_v34.safetensors",
+    "sha256": "1618edb443d9c641fb01c4961f5875d5f01b1a851fd9f2ea64623ceac82257e0",
+    "architecture": "Illustrious SDXL",
+    "fusion_b_role": "separate quality benchmark, not weight averaged into Anima"
+  }
+}
