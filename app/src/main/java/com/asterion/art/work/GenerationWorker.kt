@@ -29,6 +29,7 @@ import com.asterion.art.engine.upscaleImage
 import com.asterion.art.learning.PreferenceLearning
 import com.asterion.art.engine.SheetTextReader
 import com.asterion.art.engine.TechnicalImageScorer
+import com.asterion.art.enhancement.EmbeddedRealSr
 import com.asterion.art.engine.SourceReferenceEncoder
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.CreationMode
@@ -167,14 +168,21 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             val out = mutableListOf<JSONObject>()
             var technicalLeaderScore = Double.NEGATIVE_INFINITY
             var technicalLeader: ByteArray? = null
+            var technicalLeaderUri: android.net.Uri? = null
             val count = job.settings.batch.coerceIn(1, 8)
-            repo.updateTaskProgress(taskId,0,(count*5+2)*100,"Beginning generation")
+            // v3 Character Creation explicitly prescribes ONE generation call
+            // per fully specified analytical sheet; artwork uses five passes.
+            val oneShotCharacterSheet = job.creationMode == CreationMode.CHARACTER
+            val stageSequence = if (oneShotCharacterSheet)
+                listOf(recipe.passes.first()) else recipe.passes
+            val passesPerCandidate = stageSequence.size
+            repo.updateTaskProgress(taskId,0,(count*passesPerCandidate+2)*100,"Beginning generation")
             for (candidate in 1..count) {
                 if (isStopped) throw CancellationException("Job stopped")
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
                 val candidateSettings = PreferenceLearning.candidate(job.settings,candidate - 1)
                 var current: ByteArray? = originalImage
-                for (stage in recipe.passes) {
+                for (stage in stageSequence) {
                     if (isStopped) throw CancellationException()
                     val path = File(intermediate, "candidate_" + candidate +
                         "_pass_" + stage.number + ".png")
@@ -184,9 +192,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     }
                     thermalGate()
                     val stageLabel = "Image " + candidate + "/" + count +
-                        " · pass " + stage.number + "/5"
-                    repo.updateTaskProgress(taskId, ((candidate-1)*5+stage.number-1)*100,
-                        (count*5+2)*100, stageLabel)
+                        (if(oneShotCharacterSheet) " · one-shot master sheet"
+                         else " · pass " + stage.number + "/5")
+                    repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
+                        (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
                     val methodStage = if (job.creationMode==CreationMode.CHARACTER)
                         stage.copy(positive=stage.positive+"\n"+
@@ -200,16 +209,16 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         methodStage, candidateSettings, resolution.first, resolution.second,
                         current, seed, { isStopped }, { step, totalSteps ->
                             if (totalSteps > 0 && step >= 0 && step % 3 == 0) {
-                                repo.updateTaskProgress(taskId, (candidate-1)*5*100 +
+                                repo.updateTaskProgress(taskId, (candidate-1)*passesPerCandidate*100 +
                                     (stage.number-1)*100 + (step*100/totalSteps),
-                                    (count*5+2)*100, stageLabel + " · " + step + "/" + totalSteps)
+                                    (count*passesPerCandidate+2)*100, stageLabel + " · " + step + "/" + totalSteps)
                             }
                         },
                         referencePngs = referenceInputs)
                     current = result.png
                     GeneratedImagePublisher.atomicWrite(path, result.png)
                     setProgress(Data.Builder().putInt("candidate", candidate)
-                        .putInt("pass", stage.number).putInt("total", count * 5).build())
+                        .putInt("pass", stage.number).putInt("total", count * passesPerCandidate).build())
                 }
                 val image = current ?: error("No image produced")
                 val technical = TechnicalImageScorer.score(image)
@@ -219,6 +228,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 }
                 val uri = GeneratedImagePublisher.publish(
                     applicationContext, job.id, candidate, image)
+                if (technical.score == technicalLeaderScore) technicalLeaderUri = uri
                 repo.registerAsset(uri.toString(), sourceSheetId = null,
                     autoScore = technical.score, sourceJobId = job.id)
                 val coreSync = runCatching {
@@ -241,49 +251,48 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     put("denoise", candidateSettings.denoise.toDouble())
                 }
             }
-            repo.updateTaskProgress(taskId,count*5*100,(count*5+2)*100,
+            repo.updateTaskProgress(taskId,count*passesPerCandidate*100,(count*passesPerCandidate+2)*100,
                 "Ranking and enhancing results")
             var enhancementStatus = "NOT_REQUESTED"
             var enhancedUri: String? = null
-            if (job.settings.automatic && technicalLeader != null) {
-                enhancementStatus = "NO_NATIVE_UPSCALER_INSTALLED"
-                // The optional upscaler currently uses the external compatibility
-                // service; the embedded image engine must not pretend it exposes it.
-                val upscalerBridge = engine as? LocalDreamBridge
-                val upscalers = runCatching {
-                    upscalerBridge?.availableUpscalers().orEmpty()
-                }.getOrDefault(emptyList())
-                val chosen = upscalers.firstOrNull()
-                if (chosen != null) {
-                    foreground("Enhancing top technical candidate")
+            if (job.settings.automatic && technicalLeaderUri != null) {
+                // Release the 6+ GB NPU model BEFORE starting a Vulkan SR model.
+                currentEngine?.release()
+                currentEngine = null
+                if (EmbeddedRealSr.available(applicationContext)) {
+                    foreground("Neural 4× enhancement")
+                    enhancementStatus = "NEURAL_REALSR_PENDING"
+                    val winner = requireNotNull(technicalLeaderUri)
                     runCatching {
-                        val jpeg = requireNotNull(upscalerBridge).upscaleImage(requireNotNull(technicalLeader), chosen) { isStopped }
-                        val uri = GeneratedImagePublisher.publishEnhancedJpeg(
-                            applicationContext, job.id, jpeg)
-                        val score = TechnicalImageScorer.score(jpeg)
-                        repo.registerAsset(uri.toString(), autoScore = score.score,
-                            sourceJobId = job.id)
-                        runCatching {
-                            CoreResultUploader(applicationContext).upload(
-                                uri,job.id,job.mode,GeneratedImagePublisher.sha256(jpeg))
-                        }.onFailure { error ->
-                            enhancementStatus = "UPSCALING_OK_CORE_SYNC_FAILED: "+error.message
-                        }
-                        enhancedUri = uri.toString()
-                        enhancementStatus = "UPSCALED_WITH_" + chosen.id
-                    }.onFailure {
-                        enhancementStatus = "FAILED: " + (it.message ?: it.javaClass.simpleName)
+                        val png=EmbeddedRealSr(applicationContext).enhance(
+                            winner,4,128,{isStopped},{status->
+                                repo.updateTaskProgress(taskId,
+                                    count*passesPerCandidate*100,
+                                    (count*passesPerCandidate+2)*100,status)
+                            })
+                        val uri=GeneratedImagePublisher.publish(
+                            applicationContext,job.id,98,png)
+                        val score=TechnicalImageScorer.score(png)
+                        repo.registerAsset(uri.toString(),autoScore=score.score,
+                            sourceJobId=job.id)
+                        enhancedUri=uri.toString()
+                        enhancementStatus="NATIVE_REALSR_4X_COMPLETED"
+                    }.onFailure { error ->
+                        enhancementStatus="NATIVE_REALSR_FAILED: "+
+                            (error.message ?: error.javaClass.simpleName)
                     }
-                }
+                } else enhancementStatus="NO_EMBEDDED_REALSR"
             }
-            repo.updateTaskProgress(taskId,(count*5+1)*100,(count*5+2)*100,
+            repo.updateTaskProgress(taskId,(count*passesPerCandidate+1)*100,(count*passesPerCandidate+2)*100,
                 "Finalizing and saving")
             foreground("Saving generation provenance")
             val provenance = JSONObject().apply {
                 put("schema", "asterion.generation.v1")
                 put("job_id", job.id)
                 put("model_id", model.id)
-                put("five_real_passes", true)
+                put("five_real_passes", !oneShotCharacterSheet)
+                put("one_shot_master_sheet_methodology", oneShotCharacterSheet)
+                put("methodology_certified", false)
                 put("reference_sheet_ids", JSONArray(job.sheetIds))
                 put("results", JSONArray(out))
                 put("automated_scoring", "technical-only; sheet fidelity not evaluated")

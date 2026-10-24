@@ -102,7 +102,7 @@ import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), TOOLBOX("Toolbox"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
 }
 
@@ -191,9 +191,17 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.MODELS -> NativeModelLibraryScreen()
                     Page.LIBRARY -> SheetLibraryScreen(repo)
                     Page.JOBS -> QueueScreen(repo)
-                    Page.GRADING -> GradingScreen(repo) { asset ->
-                        editingAsset = asset
-                        current = Page.EDIT
+                    Page.GRADING -> GradingScreen(repo,
+                        onEdit = { asset ->
+                            editingAsset = asset
+                            current = Page.EDIT
+                        },
+                        onToolbox = { asset ->
+                            editingAsset = asset
+                            current = Page.TOOLBOX
+                        })
+                    Page.TOOLBOX -> ImageToolboxStudio(editingAsset, repo) {
+                        current = Page.JOBS
                     }
                     Page.EDIT -> SelectiveEditScreen(editingAsset, repo) { current = Page.JOBS }
                     Page.SETTINGS -> ParametersScreen(repo)
@@ -708,7 +716,8 @@ private fun QueueScreen(repo: ArtRepository) {
 }
 
 @Composable
-private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit) {
+private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit,
+                          onToolbox: (GradedAsset) -> Unit) {
     val context = LocalContext.current
     var status by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -745,6 +754,10 @@ private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit) {
                     if (asset.autoScore != null) {
                         Text("Technical screening: " + "%.0f".format(asset.autoScore) + "/100 " +
                             "(contrast/detail only, not character or style fidelity)", color = Mist)
+                    }
+                    OutlinedButton(onClick = { onToolbox(asset) },
+                        modifier=Modifier.fillMaxWidth()) {
+                        Text("Image Toolbox · brightness, contrast, saturation, detail")
                     }
                     if (asset.sourceJobId != null) {
                         OutlinedButton(onClick = { onEdit(asset) }) {
