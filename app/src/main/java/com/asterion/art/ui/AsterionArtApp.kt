@@ -99,7 +99,7 @@ import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
 }
 
@@ -109,6 +109,7 @@ fun AsterionArtApp(repo: ArtRepository) {
     AsterionArtTheme {
         var current by rememberSaveable { mutableStateOf(Page.HOME) }
         var editingAsset by remember { mutableStateOf<GradedAsset?>(null) }
+        var selectedDefault by remember { mutableStateOf(CreationMode.CHARACTER) }
         Scaffold(
             containerColor = Ink,
             topBar = {
@@ -120,7 +121,14 @@ fun AsterionArtApp(repo: ArtRepository) {
                         }
                     },
                     navigationIcon = {
-                        if (current != Page.HOME) IconButton(onClick = { current = Page.HOME }) {
+                        if (current != Page.HOME) IconButton(onClick = {
+                            current = when(current) {
+                                Page.DEFAULT_STUDIO -> Page.DEFAULTS
+                                Page.DEFAULTS,Page.ARTWORK,Page.SHEET -> Page.IMAGE_GATE
+                                Page.IMAGE_GATE,Page.VIDEO -> Page.CREATE
+                                else -> Page.HOME
+                            }
+                        }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Home")
                         }
                     },
@@ -142,7 +150,10 @@ fun AsterionArtApp(repo: ArtRepository) {
                         Triple(Page.JOBS, Icons.Default.WorkHistory, "Queue")
                     ).forEach { (page, icon, text) ->
                         NavigationBarItem(
-                            selected = current == page,
+                            selected = if(page==Page.CREATE)
+                                current in setOf(Page.CREATE,Page.IMAGE_GATE,Page.ARTWORK,
+                                    Page.DEFAULTS,Page.DEFAULT_STUDIO,Page.VIDEO)
+                                else current == page,
                             onClick = { current = page },
                             icon = { Icon(icon, contentDescription = text) },
                             label = { Text(text) }
@@ -154,7 +165,23 @@ fun AsterionArtApp(repo: ArtRepository) {
             Box(Modifier.padding(padding).fillMaxSize()) {
                 when (current) {
                     Page.HOME -> HomeScreen(repo) { current = it }
-                    Page.CREATE -> CreationScreen(repo) { current = it }
+                    Page.CREATE -> CreativeGateway(
+                        openImage={ current=Page.IMAGE_GATE },
+                        openAnimation={ current=Page.VIDEO })
+                    Page.IMAGE_GATE -> ImageGateway(
+                        openArtwork={ current=Page.ARTWORK },
+                        openDefaults={ current=Page.DEFAULTS },
+                        openSheets={ current=Page.SHEET })
+                    Page.ARTWORK -> CreationScreen(repo) { current=it }
+                    Page.DEFAULTS -> MethodologyGateway { method ->
+                        selectedDefault=method
+                        current=Page.DEFAULT_STUDIO
+                    }
+                    Page.DEFAULT_STUDIO -> MethodologyStudio(repo,selectedDefault,
+                        browseSheets={ current=Page.SHEET },
+                        browseCore={ current=Page.CORE },
+                        openParameters={ current=Page.SETTINGS },
+                        onQueued={ current=Page.JOBS })
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
                     Page.CORE -> CoreSheetBrowser(repo) { current = Page.JOBS }
                     Page.VIDEO -> VideoWorkspace(repo) { current = Page.JOBS }
@@ -472,17 +499,13 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Header("Automated creation", "Image and video",
-                "Choose your existing sheets. The generation engine will compile them through five controlled stages when available.")
+            Header("Image generator", "Artwork creation",
+                "Choose character, art style and theme sheets for your illustration. Elements are optional.")
         }
         item {
             OutlinedButton(onClick = { navigate(Page.CORE) }) { Text("Find character sheets in Asterion Core") }
         }
-        item {
-            OutlinedButton(onClick = { navigate(Page.VIDEO) }) {
-                Text("Open integrated video workspace")
-            }
-        }
+
         item {
             Text("OUTPUT MODE", color = Gold, style = MaterialTheme.typography.labelLarge)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -491,31 +514,6 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 }
             }
         }
-        item {
-            Text("CREATION METHODOLOGY", color=Gold,
-                style=MaterialTheme.typography.labelLarge)
-            LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                item {
-                    FilterChip(selected=creationMode==null,
-                        onClick={creationMode=null},label={Text("Standard artwork")})
-                }
-                items(CreationMode.entries.toList()) { workflow ->
-                    FilterChip(selected=creationMode==workflow,
-                        onClick={creationMode=workflow},
-                        label={Text(workflow.display)})
-                }
-            }
-        }
-        if(creationMode==CreationMode.STYLE_CORRECTION) {
-            item {
-                OutlinedButton(onClick={sourcePicker.launch(arrayOf("image/*"))}) {
-                    Text(if(sourceArtwork==null)
-                        "Choose source illustration to preserve"
-                        else "Change source illustration")
-                }
-            }
-        }
-        if(sourceWarning!=null) item { Text(sourceWarning.orEmpty(),color=Red) }
         SheetRole.entries.forEach { role ->
             item {
                 Text(role.display.uppercase(), color = Gold, style = MaterialTheme.typography.labelMedium)
@@ -592,7 +590,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             }
         }
         item {
-            Text("Native engine currently requires Local Dream's on-device host mode. " +
+            Text("Requires a compatible installed on-device QNN model. " +
                 "A missing model or model context is reported as a failed job, never silently ignored. " +
                 "Full engine embedding and video are still under development. " +
                 "Cosplay preserves canonical horns, wings, tails and other fantasy features.",
