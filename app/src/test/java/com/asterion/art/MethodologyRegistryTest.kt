@@ -26,6 +26,17 @@ class MethodologyRegistryTest {
     @Test fun requiresTheCorrectAuthorities() {
         val errors=MethodologyRegistry.validate(CreationMode.ALTERNATE_UNIVERSE,
             mapOf(SheetRole.CHARACTER to 1))
-        assertTrue(errors.any { it.contains("Theme") })
+        assertTrue(errors.any { it.contains("concept") })
+        assertTrue(MethodologyRegistry.validate(CreationMode.ALTERNATE_UNIVERSE,
+            mapOf(SheetRole.CHARACTER to 1), conceptCount=1).isEmpty())
+        assertTrue(MethodologyRegistry.validate(CreationMode.CHARACTER,
+            emptyMap(), conceptCount=2).isEmpty())
+        assertTrue(MethodologyRegistry.validate(CreationMode.STYLE_CORRECTION,
+            mapOf(SheetRole.ART_STYLE to 1),
+            sourceIllustration=true).isEmpty())
+        val creation=MethodologyRegistry.modes.getValue(CreationMode.CHARACTER)
+        assertEquals(15,creation.layout.totalDesigns)
+        assertEquals(3,creation.layout.pageCount)
+        assertEquals("16:9",creation.layout.ratio)
     }
 }
