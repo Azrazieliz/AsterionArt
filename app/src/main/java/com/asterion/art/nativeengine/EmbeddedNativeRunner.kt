@@ -18,7 +18,7 @@ class EmbeddedNativeRunner(private val context: Context) {
 
     companion object {
         private const val BINARY = "libstable_diffusion_core.so"
-        const val PORT = 8081
+        const val PORT = 18081
 
         fun isEmbedded(context: Context): Boolean =
             File(context.applicationInfo.nativeLibraryDir,BINARY).isFile

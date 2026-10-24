@@ -48,9 +48,10 @@ class BackendUnavailable(message: String): IllegalStateException(message)
  * Talks ONLY to the existing on-device Local Dream host over loopback.
  * For a fully fused single APK a native provider must replace this adapter.
  */
-class LocalDreamBridge : StillImageEngine {
+class LocalDreamBridge(private val generationPort: Int = 8081) : StillImageEngine {
+    init { require(generationPort in 1024..65535) }
     private val control = "http://127.0.0.1:8808"
-    private val generation = "http://127.0.0.1:8081"
+    private val generation = "http://127.0.0.1:" + generationPort
 
     private fun call(base: String, path: String, body: JSONObject? = null, timeout: Int = 15_000): JSONObject {
         val c = URL(base + path).openConnection() as HttpURLConnection

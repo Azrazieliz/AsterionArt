@@ -110,6 +110,24 @@ class NativeModelLibrary(private val context: Context) {
                     }
                 }
             }
+            // Many official ZIPs contain one top-level directory. Unwrap
+            // it without copying model tensors or creating a second 7 GB tree.
+            if (markers.keys.none { File(stage,it).exists() }) {
+                val contents=stage.listFiles().orEmpty()
+                if (contents.size==1 && contents[0].isDirectory) {
+                    val wrapper=contents[0]
+                    require(wrapper.listFiles().orEmpty().all { nested ->
+                        File(stage,nested.name).canonicalPath.startsWith(
+                            stage.canonicalPath + File.separator)
+                    })
+                    for (nested in wrapper.listFiles().orEmpty()) {
+                        require(nested.renameTo(File(stage,nested.name))) {
+                            "Could not unwrap model package root"
+                        }
+                    }
+                    require(wrapper.delete()) { "Could not remove empty wrapper" }
+                }
+            }
             val backend=markers.entries.firstOrNull { File(stage,it.key).exists() }
                 ?: error("Missing NPU model type marker (ANIMA/SDXL/etc.)")
             require(files>=3 && stage.walkTopDown().any {

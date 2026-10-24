@@ -16,7 +16,7 @@ import com.asterion.art.model.GeneratorSettings
 class EmbeddedNpuEngine(context: Context): StillImageEngine {
     private val models=NativeModelLibrary(context)
     private val runner=EmbeddedNativeRunner(context)
-    private val inferenceProtocol=LocalDreamBridge()
+    private val inferenceProtocol=LocalDreamBridge(EmbeddedNativeRunner.PORT)
 
     override fun installedModels(): List<DreamModel> =
         models.list().map { it.toDreamModel() }
