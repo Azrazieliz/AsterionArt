@@ -632,7 +632,8 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             Text("Requires a compatible installed on-device QNN model. " +
                 "A missing model or model context is reported as a failed job, never silently ignored. " +
-                "Full engine embedding and video are still under development. " +
+                "The native executable is embedded; working inference still requires a compatible converted QNN model and device verification. " +
+                "Animation uses a separately connected video backend. " +
                 "Cosplay preserves canonical horns, wings, tails and other fantasy features.",
                 color = Mist, style = MaterialTheme.typography.bodySmall)
         }
@@ -652,7 +653,7 @@ private fun QueueScreen(repo: ArtRepository) {
     }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("Background processing", "Job history",
-            "Sheet rendering continues via Android WorkManager. Your results remain in the local catalog.") }
+            "Import, image, sheet, edit and video jobs persist through WorkManager and the local task catalog.") }
         if (repo.tasks.isEmpty()) item { Text("No jobs submitted yet.", color = Mist) }
         items(repo.tasks.sortedByDescending { it.createdAt }) { task ->
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
@@ -785,7 +786,7 @@ private fun ParametersScreen(repo: ArtRepository) {
     }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { Header("Advanced controls", "Generation parameters",
-            "Editable control profiles for the future generation engine. Values are not assumed to be ideal for every model.") }
+            "Model-dependent controls for inference. Stored preferences are not guaranteed optimal for every checkpoint.") }
         item {
             Text("ASPECT RATIO", color = Gold)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
