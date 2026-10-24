@@ -44,6 +44,7 @@ fun NativeModelLibraryScreen() {
     var installed by remember { mutableStateOf(library.list()) }
     var tagRefresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
+    var selectedFamily by remember { mutableStateOf("auto") }
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri != null) {
             runCatching {
@@ -53,7 +54,7 @@ fun NativeModelLibraryScreen() {
                     arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use {
                     if(it.moveToFirst()) it.getString(0) else null
                 }?.removeSuffix(".zip") ?: "Imported QNN checkpoint"
-                NativeModelImportWorker.enqueue(context,uri.toString(),name)
+                NativeModelImportWorker.enqueue(context,uri.toString(),name,selectedFamily)
             }.onSuccess { id -> message="Model installation queued: "+id.take(12) }
                 .onFailure { e -> message=e.message ?: "Could not read model archive" }
         }
@@ -79,6 +80,21 @@ fun NativeModelLibraryScreen() {
                     Text("Imported models: "+installed.size,color=Mist)
                 }
             }
+        }
+        item {
+            Text("MODEL FAMILY · SELECT IF ZIP HAS NO MARKER",color=Gold)
+            LazyRow(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
+                items(listOf("auto","anima","sdxl","sd15npu","zimage",
+                    "klein","qwen21","krea2turbo")) { family ->
+                    FilterChip(selected=selectedFamily==family,
+                        onClick={selectedFamily=family},
+                        label={Text(family.uppercase())})
+                }
+            }
+            Text("Auto reads packaged QNN markers. A selected family is only applied " +
+                "when the archive contains compiled NPU tensors but no marker. " +
+                "Raw Illustrious .safetensors must be converted first.",
+                style=MaterialTheme.typography.bodySmall,color=Mist)
         }
         item {
             Button(onClick={picker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},

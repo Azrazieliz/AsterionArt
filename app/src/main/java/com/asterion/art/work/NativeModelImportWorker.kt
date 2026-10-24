@@ -26,11 +26,12 @@ import java.util.concurrent.CancellationException
 class NativeModelImportWorker(context:Context,params:WorkerParameters):
     CoroutineWorker(context,params) {
     companion object {
-        fun enqueue(context:Context,uri:String,label:String):String {
+        fun enqueue(context:Context,uri:String,label:String, family: String = "auto"):String {
             val repo=ArtRepository(context)
             val task=repo.recordTask("qnn-install",TaskKind.MODEL_IMPORT)
             val data=Data.Builder().putString("model_zip_uri",uri)
-                .putString("model_label",label).putString("task_id",task.id).build()
+                .putString("model_label",label).putString("family",family)
+                .putString("task_id",task.id).build()
             val request=OneTimeWorkRequestBuilder<NativeModelImportWorker>()
                 .setInputData(data).addTag("asterion-native-import").build()
             WorkManager.getInstance(context).enqueueUniqueWork(
@@ -74,7 +75,8 @@ class NativeModelImportWorker(context:Context,params:WorkerParameters):
                         manager.notify(7226,progress(unpackedBytes))
                     }
                 },
-                stopped={isStopped}
+                stopped={isStopped},
+                family=inputData.getString("family")
             )
             repo.updateTaskProgress(taskId, 100, 100, "Model ready", totalBytes, totalBytes)
             repo.updateTask(taskId,TaskStatus.COMPLETED)

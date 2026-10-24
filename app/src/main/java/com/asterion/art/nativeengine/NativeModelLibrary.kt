@@ -34,8 +34,9 @@ class NativeModelLibrary(private val context: Context) {
     private val root = File(context.filesDir,"asterion-qnn-models").also { it.mkdirs() }
     private val markers = linkedMapOf(
         "ANIMA" to "anima",
+        "npucustom" to "sd15npu",
         "SDXL" to "sdxl",
-        "Z_IMAGE" to "zimage",
+        "ZIMAGE" to "zimage",
         "FLUX2_KLEIN" to "klein",
         "QWEN_IMAGE_2_1" to "qwen21",
         "KREA_2_TURBO" to "krea2turbo"
@@ -55,7 +56,11 @@ class NativeModelLibrary(private val context: Context) {
         }.toList()
 
     fun importZip(uri: Uri, label: String, progress: (Long, Long)->Unit,
-                  stopped: ()->Boolean): InstalledQnnModel {
+                  stopped: ()->Boolean, family: String? = null): InstalledQnnModel {
+        val chosen = family?.lowercase()?.takeUnless { it=="auto" }
+        require(chosen==null || chosen in markers.values) {
+            "Unknown model architecture choice"
+        }
         val name = context.contentResolver.query(uri,
             arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { rows ->
             if (rows.moveToFirst()) rows.getString(0) else ""
@@ -157,13 +162,28 @@ class NativeModelLibrary(private val context: Context) {
                     require(wrapper.delete()) { "Could not remove empty wrapper" }
                 }
             }
-            val backend=markers.entries.firstOrNull { File(stage,it.key).exists() }
-                ?: error("Converted QNN model type marker missing. The archive is not a supported NPU package: " +
+            var backend=markers.entries.firstOrNull { File(stage,it.key).exists() }
+            val compiledData=stage.walkTopDown().any { file ->
+                file.isFile && file.extension.lowercase()=="bin" &&
+                    file.length()>1024*1024
+            }
+            if (backend==null && chosen!=null && compiledData) {
+                val marker=markers.entries.first { it.value==chosen }.key
+                require(File(stage,marker).createNewFile()) {
+                    "Could not set selected model family marker"
+                }
+                backend=markers.entries.first { it.value==chosen }
+            }
+            if (backend!=null && chosen!=null && backend.value!=chosen) {
+                error("Selected family "+chosen+" conflicts with archive marker "+backend.key)
+            }
+            backend = backend ?: error("Converted QNN model type marker missing. The archive is not a supported NPU package: " +
                     "expected ANIMA, SDXL, or another documented native model marker. " +
                     "An original Illustrious/SDXL .safetensors cannot run without conversion.")
-            require(files>=3 && stage.walkTopDown().any {
-                it.isFile && it.extension in listOf("bin","mnn","safetensors","gguf")
-            }) { "Incomplete native model files" }
+            require(files>=3 && compiledData) {
+                "No compiled NPU .bin tensor files detected. This may be a ZIP of original "+
+                ".safetensors rather than a converted QNN runtime package."
+            }
             val ready=File(root,id)
             require(stage.renameTo(ready)) { "Could not atomically finalize model" }
             val record=InstalledQnnModel(id,safeLabel,backend.value,ready,total,
