@@ -17,6 +17,7 @@ data class GenerationJob(
     val createdAt: Long,
     val creationMode: CreationMode? = null,
     val sourceImageUri: String? = null,
+    val concepts: List<String> = emptyList()
 )
 
 class GenerationJobStore(context: Context) {
@@ -24,9 +25,10 @@ class GenerationJobStore(context: Context) {
         .also { it.mkdirs() }
 
     fun create(mode: RenderMode, sheets: List<String>, settings: GeneratorSettings,
-               creationMode: CreationMode? = null, sourceImageUri: String? = null): GenerationJob {
+               creationMode: CreationMode? = null, sourceImageUri: String? = null,
+               concepts: List<String> = emptyList()): GenerationJob {
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
-            settings, System.currentTimeMillis(),creationMode,sourceImageUri)
+            settings, System.currentTimeMillis(),creationMode,sourceImageUri,concepts.distinct())
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -46,6 +48,7 @@ class GenerationJobStore(context: Context) {
             put("created", job.createdAt)
             put("creation_mode", creationMode?.name ?: JSONObject.NULL)
             put("source_image",sourceImageUri ?: JSONObject.NULL)
+            put("concepts",JSONArray(job.concepts))
             put("settings", s)
         }
         val tmp = File(folder, job.id + ".tmp")
@@ -78,7 +81,10 @@ class GenerationJobStore(context: Context) {
             if (root.isNull("creation_mode") || !root.has("creation_mode")) null
                 else CreationMode.valueOf(root.getString("creation_mode")),
             if (root.isNull("source_image") || !root.has("source_image")) null
-                else root.getString("source_image")
+                else root.getString("source_image"),
+            root.optJSONArray("concepts")?.let { arr ->
+                (0 until arr.length()).map { arr.getString(it) }
+            }.orEmpty()
         )
     }
 }

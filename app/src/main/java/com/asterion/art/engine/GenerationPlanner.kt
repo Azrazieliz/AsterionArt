@@ -39,27 +39,32 @@ object GenerationPlanner {
 
     private fun join(words: List<String>) = clean(words).joinToString(", ")
 
-    private fun enforceRoles(sources: List<SourceEvidence>, creation: CreationMode?) {
+    private fun enforceRoles(sources: List<SourceEvidence>, creation: CreationMode?,
+                             concepts: List<String>, sourceIllustration: Boolean) {
         val selected = sources.groupingBy { it.role }.eachCount()
-        val roles = if (creation == null)
-            setOf(SheetRole.CHARACTER,SheetRole.ART_STYLE,SheetRole.THEME)
-        else MethodologyRegistry.modes.getValue(creation).required
-        val missing = roles.filter { selected.getOrDefault(it,0)<1 }
-        require(missing.isEmpty()) {
-            "Missing required reference authorities: "+missing.joinToString { it.display }
-        }
+        val errors = if (creation==null) {
+            listOf(SheetRole.CHARACTER,SheetRole.ART_STYLE,SheetRole.THEME)
+                .filter { selected.getOrDefault(it,0)<1 }
+                .map { it.display+" reference required" }
+        } else MethodologyRegistry.validate(
+            creation,selected,concepts.size,sourceIllustration)
+        require(errors.isEmpty()) { errors.joinToString("; ") }
     }
-    private fun directive(creation: CreationMode?, sources: List<SourceEvidence>): String =
+    private fun directive(creation: CreationMode?, sources: List<SourceEvidence>,
+                          concepts: List<String>, sourceIllustration: Boolean): String =
         if (creation == null) "" else MethodologyRegistry.compileDirective(
-            creation,sources.groupingBy { it.role }.eachCount())
+            creation,sources.groupingBy { it.role }.eachCount(),
+            concepts.size,sourceIllustration)
 
     fun compile(
         sources: List<SourceEvidence>,
         mode: RenderMode,
         settings: GeneratorSettings,
         creation: CreationMode? = null,
+        concepts: List<String> = emptyList(),
+        sourceIllustration: Boolean = false
     ): GenerationRecipe {
-        enforceRoles(sources,creation)
+        enforceRoles(sources,creation,concepts,sourceIllustration)
         require(sources.all { it.all().isNotEmpty() }) {
             "At least one selected sheet has no machine-readable visual specification. " +
             "Do not invent missing details."
@@ -88,7 +93,8 @@ object GenerationPlanner {
         val appearance = join(
             pieces(styles, "PRIMARY", "FINGERPRINT", "SHAPE", "COMPOSITION", "LIGHT", "COLOR")
         )
-        val core = listOf(directive(creation,sources), character, outfitAndPose, theme,
+        val core = listOf(directive(creation,sources,concepts,sourceIllustration),
+            concepts.joinToString(", "), character, outfitAndPose, theme,
             environmentAndElements, appearance)
             .filter { it.isNotBlank() }.joinToString("\n\n")
         require(core.isNotBlank()) { "No interpretable prompt content in selected reference images." }
@@ -127,8 +133,10 @@ object GenerationPlanner {
         mode: RenderMode,
         settings: GeneratorSettings,
         creation: CreationMode? = null,
+        concepts: List<String> = emptyList(),
+        sourceIllustration: Boolean = false
     ): GenerationRecipe {
-        enforceRoles(sources,creation)
+        enforceRoles(sources,creation,concepts,sourceIllustration)
         val groups=sources.groupBy { it.role }
         val roleLabels=listOf(
             SheetRole.CHARACTER to "character identity and physical form",
@@ -147,7 +155,8 @@ object GenerationPlanner {
             RenderMode.COSPLAY ->
                 "Create a photoreal cosplay interpretation; preserve the canonical wings, horns, ears, tails and marks."
         }
-        val base=look+" "+directive(creation,sources)+" Use ONLY actual reference images for character identity, style, scene and mandatory details. "+
+        val base=look+" "+directive(creation,sources,concepts,sourceIllustration)+" "+concepts.joinToString(", ")+
+            " Use ONLY actual reference images for character identity, style, scene and mandatory details. "+
             numbered+" Render one coherent artwork, not a labeled reference-sheet infographic. "+
             "Never invent a missing canonical trait or omit an established one."
         val modifiers=listOf(
@@ -163,6 +172,31 @@ object GenerationPlanner {
             GenerationPass(index,base+" "+modifiers[index-1],"",denoise[index-1])
         }
         return GenerationRecipe(mode,passes,sources.map { it.sheetId },settings)
+    }
+
+
+    /**
+     * Character Creation v3 and original Creature Creation start without sheets.
+     * The selected, frozen user concepts are the authoritative task input.
+     */
+    fun compileConcepts(concepts: List<String>, creation: CreationMode,
+                        mode: RenderMode, settings: GeneratorSettings): GenerationRecipe {
+        require(creation==CreationMode.CHARACTER || creation==CreationMode.CREATURE)
+        enforceRoles(emptyList(),creation,concepts,false)
+        val specification=MethodologyRegistry.modes.getValue(creation)
+        val frozen=concepts.distinct().joinToString(" × ")
+        val base=specification.directive+"\nPrimary concepts: "+frozen+
+            "\nProduce a faithful 2D visual output. Follow exact framing and candidate count."+
+            " No unrelated environmental scenery or textual labels except the specified candidate numbers."
+        val details=listOf("Establish every major structure and all characters in this pass.",
+            "Stabilize body architecture, silhouette, face, head and visual identity.",
+            "Resolve anatomical and material interaction with consistent lighting.",
+            "Detail intrinsic morphology, hair, surfaces and smaller structure without redesign.",
+            "Finalize faithful visual coherence and clean neutral presentation.")
+        val passes=(1..5).map { i ->
+            GenerationPass(i,base+"\n"+details[i-1],"",listOf(1f,.46f,.32f,.21f,.13f)[i-1])
+        }
+        return GenerationRecipe(mode,passes,emptyList(),settings)
     }
 
     fun selectModelId(models: List<Pair<String, String>>, mode: RenderMode): String? {

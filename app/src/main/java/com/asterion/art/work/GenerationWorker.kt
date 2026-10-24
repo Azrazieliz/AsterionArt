@@ -90,7 +90,11 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 "Style correction requires a source illustration, not just a style sheet."
             }
             val compilerAttempt = runCatching {
-                GenerationPlanner.compile(evidence, job.mode, job.settings,job.creationMode)
+                if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
+                    GenerationPlanner.compileConcepts(
+                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
+                else GenerationPlanner.compile(evidence,job.mode,job.settings,
+                    job.creationMode,job.concepts,job.sourceImageUri!=null)
             }
             val engine = EmbeddedEngineFactory.open(applicationContext)
             currentEngine = engine
@@ -107,10 +111,17 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 model = visualModel ?: error(
                     "Text-only preferred model or authoritative text is unavailable and " +
                         "no reference-aware Qwen/Klein model is installed.")
-                recipe = GenerationPlanner.compileVisual(evidence, job.mode, job.settings,job.creationMode)
+                recipe = if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
+                    GenerationPlanner.compileConcepts(
+                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
+                else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
+                    job.creationMode,job.concepts,job.sourceImageUri!=null)
             }
             var size = model.generationSize.coerceIn(512, 1536)
-            var resolution = model.resolutions.firstOrNull() ?: (size to size)
+            var resolution = if (job.settings.ratio == "16:9")
+                model.resolutions.firstOrNull { (w,h) -> w*9==h*16 }
+                    ?: (1024 to 576)
+            else model.resolutions.firstOrNull() ?: (size to size)
             foreground("Loading " + model.name)
             engine.prepare(model, resolution.first, resolution.second) { isStopped }
             val capacityCheck = runCatching {
@@ -124,9 +135,15 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 // Don't truncate authoritative prompt text. Switch to a genuine
                 // reference-conditioned engine instead of dropping source facts.
                 model = visualModel
-                recipe = GenerationPlanner.compileVisual(evidence, job.mode, job.settings)
+                recipe = if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
+                    GenerationPlanner.compileConcepts(
+                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
+                else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
+                    job.creationMode,job.concepts,job.sourceImageUri!=null)
                 size = model.generationSize.coerceIn(512, 1536)
-                resolution = model.resolutions.firstOrNull() ?: (size to size)
+                resolution = if(job.settings.ratio=="16:9")
+                    model.resolutions.firstOrNull { (w,h)->w*9==h*16 } ?: (1024 to 576)
+                else model.resolutions.firstOrNull() ?: (size to size)
                 foreground("Prompt exceeded text context; using " + model.name + " visual conditioning")
                 engine.prepare(model, resolution.first, resolution.second) { isStopped }
                 recipe.passes.forEach { pass -> engine.verifyText(pass.positive) }
@@ -170,8 +187,14 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     repo.updateTaskProgress(taskId, (candidate-1)*5 + stage.number-1,
                         count*5, stageLabel)
                     foreground(stageLabel)
+                    val methodStage = if (job.creationMode==CreationMode.CHARACTER)
+                        stage.copy(positive=stage.positive+"\n"+
+                            com.asterion.art.methodology.MethodologyRegistry.pageCaption(
+                                CreationMode.CHARACTER,candidate-1)+
+                            " on one single 16:9 landscape five-character analytical sheet.")
+                    else stage
                     val result = engine.generate(
-                        stage, candidateSettings, resolution.first, resolution.second,
+                        methodStage, candidateSettings, resolution.first, resolution.second,
                         current, seed, { isStopped }, { step, totalSteps ->
                             if (totalSteps > 0 && step >= 0 && step % 3 == 0) {
                                 repo.updateTaskProgress(taskId, (candidate-1)*5*100 +
@@ -261,6 +284,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("native_reference_images", referenceInputs.size)
                 put("reference_model_kind", model.ditKind)
                 put("creation_methodology", job.creationMode?.name ?: JSONObject.NULL)
+                put("selected_concepts", JSONArray(job.concepts))
                 put("source_artwork", job.sourceImageUri ?: JSONObject.NULL)
                 put("enhancement_status", enhancementStatus)
                 put("enhanced_uri", enhancedUri ?: JSONObject.NULL)
