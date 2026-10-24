@@ -22,12 +22,18 @@ object MethodologyRegistry {
     val modes: Map<CreationMode,CreationWorkflow> = listOf(
         CreationWorkflow(CreationMode.CHARACTER,"Character Creation",
             emptySet(),2,false,false,true,DefaultLayout("16:9",15,3,5,1),
-            "Character Creation v3: two or more primary concept slots; generate a population of " +
-                "fifteen genuinely different premium female characters, in three exact 16:9 sheets " +
-                "containing five characters each. Plain white, neutral true-front full-body stances; " +
-                "complete visible identities, no poses, scene, or cropping. Concepts materialize into " +
-                "body, face, head and hair, with individual morphology. Phase 1 only: do not automatically " +
-                "skip to Phase 2 outfit, Phase 3 weapon, or Phase 4 assembly. Those require selected frozen inputs."),
+            "Character Creation v3 is authoritative: two or more primary concept slots; " +
+                "create FIFTEEN visually independent premium 2D female anime/manhwa identities. " +
+                "Output exactly THREE separate 16:9 landscape sheets, FIVE identities per sheet, " +
+                "and exactly THREE linked full-body depictions per identity: (1) dominant true-front " +
+                "neutral standing, (2) smaller exact 90-degree side profile, and (3) smaller direct " +
+                "rear view. This means FIFTEEN full-body depictions per sheet, not five. " +
+                "All three views must be the SAME frozen anatomy, hair, markings, colors and appendage " +
+                "origins; viewpoint is the only change. White analytical background. No cropped body, " +
+                "action pose, 3/4 side view, scene, substitute clothing layer or generic mannequin. " +
+                "The body, face, eyes and hair must independently materialize the fused concepts. " +
+                "Phase 1 only: Phase 2 outfit, Phase 3 weapon and Phase 4 assembly require separate " +
+                "deliberate selection/freeze. Do not replace Phase 1 with a generic character sheet."),
         CreationWorkflow(CreationMode.STYLE_CORRECTION,"Art Style Correction",
             setOf(SheetRole.ART_STYLE),0,true,true,false,DefaultLayout("SOURCE",1,1,1,1,false),
             "Exactly one target art-style sheet plus source illustration. Preserve identity, pose, " +
