@@ -18,6 +18,7 @@ import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.nativeengine.NativeModelLibrary
+import com.asterion.art.nativeengine.OriginalCheckpointLibrary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CancellationException
@@ -47,6 +48,18 @@ class NativeModelImportWorker(context:Context,params:WorkerParameters):
             val uri=inputData.getString("model_zip_uri")
                 ?: error("QNN source ZIP is missing")
             val label=inputData.getString("model_label").orEmpty()
+            val original=OriginalCheckpointLibrary(applicationContext)
+                .registerIfOriginal(Uri.parse(uri),label)
+            if(original!=null) {
+                repo.updateTaskProgress(taskId,100,100,
+                    "Indexed "+original.format+" · conversion required for QNN",
+                    original.sizeBytes.coerceAtLeast(0L),
+                    original.sizeBytes.coerceAtLeast(0L))
+                repo.updateTask(taskId,TaskStatus.COMPLETED)
+                return@withContext Result.success(Data.Builder()
+                    .putString("checkpoint_id",original.id)
+                    .putString("runnable","false").build())
+            }
             val manager=applicationContext.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(
                 "asterion-native-import","Model imports",NotificationManager.IMPORTANCE_LOW))
