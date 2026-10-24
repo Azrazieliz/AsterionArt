@@ -205,12 +205,17 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             var enhancedUri: String? = null
             if (job.settings.automatic && technicalLeader != null) {
                 enhancementStatus = "NO_NATIVE_UPSCALER_INSTALLED"
-                val upscalers = runCatching { engine.availableUpscalers() }.getOrDefault(emptyList())
+                // The optional upscaler currently uses the external compatibility
+                // service; the embedded image engine must not pretend it exposes it.
+                val upscalerBridge = engine as? LocalDreamBridge
+                val upscalers = runCatching {
+                    upscalerBridge?.availableUpscalers().orEmpty()
+                }.getOrDefault(emptyList())
                 val chosen = upscalers.firstOrNull()
                 if (chosen != null) {
                     foreground("Enhancing top technical candidate")
                     runCatching {
-                        val jpeg = engine.upscaleImage(requireNotNull(technicalLeader), chosen) { isStopped }
+                        val jpeg = requireNotNull(upscalerBridge).upscaleImage(requireNotNull(technicalLeader), chosen) { isStopped }
                         val uri = GeneratedImagePublisher.publishEnhancedJpeg(
                             applicationContext, job.id, jpeg)
                         val score = TechnicalImageScorer.score(jpeg)
