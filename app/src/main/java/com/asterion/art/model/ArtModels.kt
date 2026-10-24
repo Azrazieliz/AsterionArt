@@ -12,7 +12,7 @@ enum class CreationMode(val display: String) {
     CREATURE("Creature Creation"), ALTERNATE_UNIVERSE("Alternate Universe")
 }
 enum class RenderMode(val display: String) {
-    ANIME("Anime"), REALISTIC("Realistic"), COSPLAY("Cosplay"), ANIMATION("Animation")
+    ANIME("Anime"), REALISTIC("Realistic"), COSPLAY("Cosplay"), ANIMATION("Animation"), OTHER("Other")
 }
 enum class TaskStatus { QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED }
 enum class TaskKind { SHEET_RENDER, STILL_IMAGE, IMAGE_EDIT, MODEL_IMPORT, VIDEO }

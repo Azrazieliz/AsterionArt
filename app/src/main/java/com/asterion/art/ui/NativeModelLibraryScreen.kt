@@ -195,7 +195,8 @@ fun NativeModelLibraryScreen() {
                     Text("OUTPUT TYPES",color=Gold,style=MaterialTheme.typography.labelSmall)
                     val chosen=remember(model.id,tagRefresh) { routing.tags(model.id) }
                     LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                        items(listOf(RenderMode.ANIME,RenderMode.REALISTIC,RenderMode.COSPLAY)) { type ->
+                        items(listOf(RenderMode.ANIME,RenderMode.REALISTIC,RenderMode.COSPLAY,
+                            RenderMode.OTHER,RenderMode.ANIMATION)) { type ->
                             FilterChip(selected=type in chosen,
                                 onClick={
                                     routing.set(model.id,type,type !in chosen)
@@ -203,6 +204,9 @@ fun NativeModelLibraryScreen() {
                                 },label={Text(type.display)})
                         }
                     }
+                    Text("Tags describe intended output categories, not verified model " +
+                        "capabilities. Animation still requires an actual video backend.",
+                        style=MaterialTheme.typography.bodySmall,color=Mist)
                 }
             }
         }

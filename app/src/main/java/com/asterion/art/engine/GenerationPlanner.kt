@@ -154,6 +154,8 @@ object GenerationPlanner {
                 "Create a photographically realistic fantasy illustration; preserve any nonhuman traits."
             RenderMode.COSPLAY ->
                 "Create a photoreal cosplay interpretation; preserve the canonical wings, horns, ears, tails and marks."
+            RenderMode.OTHER ->
+                "Create a faithful image for the selected custom category; use provided sources as authority."
         }
         val base=look+" "+directive(creation,sources,concepts,sourceIllustration)+" "+concepts.joinToString(", ")+
             " Use ONLY actual reference images for character identity, style, scene and mandatory details. "+
@@ -210,6 +212,7 @@ object GenerationPlanner {
                 listOf("rin_flanime", "miaomiao", "hassaku", "noobai")
             RenderMode.REALISTIC, RenderMode.COSPLAY ->
                 listOf("cyberrealistic", "realism", "sam_anima_realistic", "rin_flanime")
+            RenderMode.OTHER -> emptyList()
         }
         return rank.firstNotNullOfOrNull { needle ->
             models.firstOrNull { (id, name) ->

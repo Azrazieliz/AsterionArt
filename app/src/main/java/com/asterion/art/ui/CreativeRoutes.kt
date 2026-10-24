@@ -199,7 +199,8 @@ fun MethodologyStudio(
         if (method!=CreationMode.CHARACTER) item {
             Text("OUTPUT TYPE",color=Gold)
             LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                items(listOf(RenderMode.ANIME,RenderMode.REALISTIC,RenderMode.COSPLAY)) { type ->
+                items(listOf(RenderMode.ANIME,RenderMode.REALISTIC,RenderMode.COSPLAY,
+                        RenderMode.OTHER)) { type ->
                     FilterChip(selected=type==media,onClick={media=type},label={Text(type.display)})
                 }
             }

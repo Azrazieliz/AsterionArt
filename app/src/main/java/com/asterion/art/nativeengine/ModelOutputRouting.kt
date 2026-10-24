@@ -28,14 +28,14 @@ class ModelOutputRouting(context: Context) {
             when(mode) {
                 RenderMode.ANIME -> it.isAnima || it.isSdxl
                 RenderMode.REALISTIC,RenderMode.COSPLAY -> it.isSdxl || it.isAnima
-                RenderMode.ANIMATION -> false
+                RenderMode.ANIMATION,RenderMode.OTHER -> false
             }
         }
         val ranked=when(mode) {
             RenderMode.ANIME -> listOf("rin", "miaomiao", "hassaku", "noobai")
             RenderMode.REALISTIC,RenderMode.COSPLAY ->
                 listOf("realistic","realism","cyberrealistic","cosplay")
-            RenderMode.ANIMATION -> emptyList()
+            RenderMode.ANIMATION,RenderMode.OTHER -> emptyList()
         }
         return pool.minByOrNull { item ->
             val label=(item.name+" "+item.id).lowercase()
