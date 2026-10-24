@@ -49,8 +49,13 @@ class NativeModelLibrary(private val context: Context) {
                 val data = JSONObject(File(dir,"asterion_model.json").readText())
                 val backend = data.getString("backend")
                 require(backend in markers.values)
-                InstalledQnnModel(dir.name, data.getString("label"), backend, dir,
-                    data.getLong("bytes"), data.getString("content_sha256"),
+                val relative=data.optString("model_subdir", "")
+                val modelRoot=File(dir,relative).canonicalFile
+                require(modelRoot.path==dir.canonicalPath ||
+                    modelRoot.path.startsWith(dir.canonicalPath+File.separator))
+                require(modelRoot.isDirectory)
+                InstalledQnnModel(dir.name,data.getString("label"),backend,modelRoot,
+                    data.getLong("bytes"),data.getString("content_sha256"),
                     data.getLong("installed_at"))
             }.getOrNull()
         }.toList()
@@ -70,18 +75,20 @@ class NativeModelLibrary(private val context: Context) {
             error("This is an original checkpoint, not a runnable QNN package. " +
                 "Use a converted QNN model ZIP (ANIMA/SDXL marker and tensor files).")
         }
-        val magic = context.contentResolver.openInputStream(uri)?.use { it.readNBytes(4) }
-            ?: error("Cannot open model package")
-        require(magic.size >= 4 && magic[0] == 0x50.toByte() &&
-            magic[1] == 0x4B.toByte()) {
-            "Unsupported model format. Select the *converted QNN package ZIP*, " +
-            "not a raw .safetensors checkpoint."
+        val magic=context.contentResolver.openInputStream(uri)?.use { it.readNBytes(16) }
+            ?: error("Document provider cannot open this model file")
+        if(magic.size>=4 && String(magic,0,4,Charsets.US_ASCII)=="GGUF")
+            error("GGUF detected: this file is not supported by the embedded QNN diffusion engine.")
+        require(magic.size>=4 && magic[0]==0x50.toByte() && magic[1]==0x4B.toByte()) {
+            "Not a converted QNN ZIP. First bytes: "+
+                magic.take(4).joinToString(" ") { "%02X".format(it.toInt() and 255) }
         }
         val safeLabel = label.trim().ifBlank { "Imported QNN checkpoint" }.take(100)
         val id = "qnn_" + UUID.randomUUID().toString().replace("-", "").take(24)
         val stage = File(root,id+".partial").also { it.mkdirs() }
         var total = 0L
         var files = 0
+        var compressedRead=0L
         val contentDigest = MessageDigest.getInstance("SHA-256")
         try {
             val input = context.contentResolver.openInputStream(uri)
@@ -142,62 +149,52 @@ class NativeModelLibrary(private val context: Context) {
                         zip.closeEntry()
                     }
                 }
+                compressedRead=counted.bytesRead
             }
-            progress(total, total)
-            // Many official ZIPs contain one top-level directory. Unwrap
-            // it without copying model tensors or creating a second 7 GB tree.
-            if (markers.keys.none { File(stage,it).exists() }) {
-                val contents=stage.listFiles().orEmpty()
-                if (contents.size==1 && contents[0].isDirectory) {
-                    val wrapper=contents[0]
-                    require(wrapper.listFiles().orEmpty().all { nested ->
-                        File(stage,nested.name).canonicalPath.startsWith(
-                            stage.canonicalPath + File.separator)
-                    })
-                    for (nested in wrapper.listFiles().orEmpty()) {
-                        require(nested.renameTo(File(stage,nested.name))) {
-                            "Could not unwrap model package root"
-                        }
-                    }
-                    require(wrapper.delete()) { "Could not remove empty wrapper" }
-                }
+            progress(compressedRead,total)
+            // Nested ZIP wrappers are preserved; the validated model root
+            // is stored as a relative subdirectory, without moving tensors.
+            val found=stage.walkTopDown().filter { it.name in markers.keys }.toList()
+            val families=found.mapNotNull { markers[it.name] }.distinct()
+            require(families.size<=1) {
+                "Conflicting QNN model markers: "+families.joinToString()
             }
-            var backend=markers.entries.firstOrNull { File(stage,it.key).exists() }
-            val compiledData=stage.walkTopDown().any { file ->
-                file.isFile && file.extension.lowercase()=="bin" &&
-                    file.length()>1024*1024
+            val detected=families.firstOrNull()
+            if(detected!=null && chosen!=null && detected!=chosen)
+                error("Selected "+chosen+" conflicts with detected QNN family "+detected)
+            val compiledData=stage.walkTopDown().any { it.isFile &&
+                it.extension.equals("bin",true) && it.length()>1024*1024 }
+            if(!compiledData) {
+                val raw=stage.walkTopDown().filter { it.isFile &&
+                    it.extension.lowercase() in setOf("safetensors","ckpt","gguf","pt") }
+                    .take(4).map { it.name }.toList()
+                error(if(raw.isNotEmpty()) "Original weights ("+raw.joinToString()+
+                    ") found but no compiled QNN .bin tensors. Conversion is required."
+                else "Missing compiled QNN .bin tensor files in the selected ZIP.")
             }
-            if (backend==null && chosen!=null && compiledData) {
-                val marker=markers.entries.first { it.value==chosen }.key
-                require(File(stage,marker).createNewFile()) {
-                    "Could not set selected model family marker"
-                }
-                backend=markers.entries.first { it.value==chosen }
+            val backend=detected ?: chosen ?: error(
+                "Missing QNN architecture marker (ANIMA/SDXL/etc.). Compiled .bin data exists, "+
+                "but the architecture is unknown. Choose the actual QNN family; this does not convert it.")
+            require(files>=3) { "Incomplete QNN archive: only "+files+" files" }
+            val modelFolder=found.firstOrNull()?.parentFile ?: stage
+            val relative=stage.toPath().relativize(modelFolder.toPath()).toString()
+            val sha=contentDigest.digest().joinToString("") { "%02x".format(it) }
+            val existing=list().firstOrNull { it.contentSha256==sha }
+            if(existing!=null) {
+                stage.deleteRecursively()
+                return existing
             }
-            if (backend!=null && chosen!=null && backend.value!=chosen) {
-                error("Selected family "+chosen+" conflicts with archive marker "+backend.key)
-            }
-            backend = backend ?: error("Converted QNN model type marker missing. The archive is not a supported NPU package: " +
-                    "expected ANIMA, SDXL, or another documented native model marker. " +
-                    "An original Illustrious/SDXL .safetensors cannot run without conversion.")
-            require(files>=3 && compiledData) {
-                "No compiled NPU .bin tensor files detected. This may be a ZIP of original "+
-                ".safetensors rather than a converted QNN runtime package."
-            }
+            // The manifest is committed before the atomic move; no unlisted
+            // half-installed model can become visible.
+            File(stage,"asterion_model.json").writeText(JSONObject().apply {
+                put("schema",2);put("label",safeLabel);put("backend",backend)
+                put("bytes",total);put("content_sha256",sha)
+                put("installed_at",System.currentTimeMillis())
+                put("model_subdir",relative)
+            }.toString(2))
             val ready=File(root,id)
             require(stage.renameTo(ready)) { "Could not atomically finalize model" }
-            val record=InstalledQnnModel(id,safeLabel,backend.value,ready,total,
-                contentDigest.digest().joinToString("") { "%02x".format(it) },
-                System.currentTimeMillis())
-            File(ready,"asterion_model.json").writeText(JSONObject().apply {
-                put("schema",1)
-                put("label",record.label)
-                put("backend",record.backend)
-                put("bytes",record.sizeBytes)
-                put("content_sha256",record.contentSha256)
-                put("installed_at",record.installedAt)
-            }.toString(2))
-            return record
+            return list().first { it.id==id }
         } catch (e: Throwable) {
             stage.deleteRecursively()
             throw e
