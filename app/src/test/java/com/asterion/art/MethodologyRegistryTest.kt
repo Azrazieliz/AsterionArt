@@ -39,4 +39,24 @@ class MethodologyRegistryTest {
         assertEquals(3,creation.layout.pageCount)
         assertEquals("16:9",creation.layout.ratio)
     }
+
+    @Test fun characterV3RequiresThreeViewsForEachIdentity() {
+        val character=MethodologyRegistry.modes.getValue(CreationMode.CHARACTER)
+        assertEquals(15,character.layout.totalDesigns)
+        assertEquals(3,character.layout.pageCount)
+        assertTrue(character.directive.contains("FIFTEEN full-body depictions per sheet"))
+        assertTrue(character.directive.contains("90-degree side profile"))
+        assertTrue(character.directive.contains("direct rear"))
+        assertTrue(character.required.isEmpty())
+    }
+    @Test fun styleCorrectionRequiresOnlyIllustrationAndStyleSheet() {
+        val expected=MethodologyRegistry.modes.getValue(CreationMode.STYLE_CORRECTION)
+        assertEquals(setOf(SheetRole.ART_STYLE),expected.required)
+        assertTrue(expected.requiresIllustration)
+        assertFalse(expected.changeBodyAllowed)
+        assertTrue(MethodologyRegistry.validate(CreationMode.STYLE_CORRECTION,
+            mapOf(SheetRole.ART_STYLE to 1),sourceIllustration=true).isEmpty())
+        assertFalse(MethodologyRegistry.validate(CreationMode.STYLE_CORRECTION,
+            mapOf(SheetRole.ART_STYLE to 1),sourceIllustration=false).isEmpty())
+    }
 }
