@@ -87,6 +87,9 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     repo.updateTaskProgress(task,index+1,plan.imageUris.size,"Recovered segment")
                     continue
                 }
+                repo.updateTaskProgress(task,index,0,
+                    "Rendering segment "+(index+1)+"/"+plan.imageUris.size+
+                    " · model progress unavailable")
                 val result=bridge.generate(
                     Uri.parse(frame),plan.preset.instruction,
                     plan.seed+index*1009L,plan.secondsPerSegment,

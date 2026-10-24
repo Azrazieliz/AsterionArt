@@ -167,7 +167,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             var technicalLeaderScore = Double.NEGATIVE_INFINITY
             var technicalLeader: ByteArray? = null
             val count = job.settings.batch.coerceIn(1, 8)
-            repo.updateTaskProgress(taskId,0,count*5,"Beginning generation")
+            repo.updateTaskProgress(taskId,0,count*5+2,"Beginning generation")
             for (candidate in 1..count) {
                 if (isStopped) throw CancellationException("Job stopped")
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
@@ -185,7 +185,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     val stageLabel = "Image " + candidate + "/" + count +
                         " · pass " + stage.number + "/5"
                     repo.updateTaskProgress(taskId, (candidate-1)*5 + stage.number-1,
-                        count*5, stageLabel)
+                        count*5+2, stageLabel)
                     foreground(stageLabel)
                     val methodStage = if (job.creationMode==CreationMode.CHARACTER)
                         stage.copy(positive=stage.positive+"\n"+
@@ -199,7 +199,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                             if (totalSteps > 0 && step >= 0 && step % 3 == 0) {
                                 repo.updateTaskProgress(taskId, (candidate-1)*5*100 +
                                     (stage.number-1)*100 + (step*100/totalSteps),
-                                    count*5*100, stageLabel + " · " + step + "/" + totalSteps)
+                                    (count*5+2)*100, stageLabel + " · " + step + "/" + totalSteps)
                             }
                         },
                         referencePngs = referenceInputs)
@@ -238,6 +238,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     put("denoise", candidateSettings.denoise.toDouble())
                 }
             }
+            repo.updateTaskProgress(taskId,count*5,count*5+2,"Ranking and enhancing results")
             var enhancementStatus = "NOT_REQUESTED"
             var enhancedUri: String? = null
             if (job.settings.automatic && technicalLeader != null) {
@@ -271,7 +272,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     }
                 }
             }
-            repo.updateTaskProgress(taskId,count*5,count*5,"Finalizing and saving")
+            repo.updateTaskProgress(taskId,count*5+1,count*5+2,"Finalizing and saving")
             foreground("Saving generation provenance")
             val provenance = JSONObject().apply {
                 put("schema", "asterion.generation.v1")
