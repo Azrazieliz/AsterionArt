@@ -17,6 +17,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.lazy.LazyRow
+import com.asterion.art.model.RenderMode
+import com.asterion.art.nativeengine.ModelOutputRouting
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -36,7 +40,9 @@ import com.asterion.art.work.NativeModelImportWorker
 fun NativeModelLibraryScreen() {
     val context=LocalContext.current
     val library=remember(context) { NativeModelLibrary(context) }
+    val routing=remember(context) { ModelOutputRouting(context) }
     var installed by remember { mutableStateOf(library.list()) }
+    var tagRefresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri != null) {
@@ -97,6 +103,17 @@ fun NativeModelLibraryScreen() {
                         (model.sizeBytes / 1048576L)+" MiB",color=Mist)
                     Text("Content checksum "+model.contentSha256.take(18)+"…",
                         style=MaterialTheme.typography.bodySmall,color=Mist)
+                    Text("OUTPUT TYPES",color=Gold,style=MaterialTheme.typography.labelSmall)
+                    val chosen=remember(model.id,tagRefresh) { routing.tags(model.id) }
+                    LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        items(listOf(RenderMode.ANIME,RenderMode.REALISTIC,RenderMode.COSPLAY)) { type ->
+                            FilterChip(selected=type in chosen,
+                                onClick={
+                                    routing.set(model.id,type,type !in chosen)
+                                    tagRefresh++
+                                },label={Text(type.display)})
+                        }
+                    }
                 }
             }
         }

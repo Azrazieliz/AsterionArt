@@ -23,6 +23,7 @@ import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.StillImageEngine
 import com.asterion.art.nativeengine.EmbeddedEngineFactory
+import com.asterion.art.nativeengine.ModelOutputRouting
 import com.asterion.art.engine.availableUpscalers
 import com.asterion.art.engine.upscaleImage
 import com.asterion.art.learning.PreferenceLearning
@@ -94,7 +95,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             val engine = EmbeddedEngineFactory.open(applicationContext)
             currentEngine = engine
             val models = engine.installedModels()
-            val preferredId = GenerationPlanner.selectModelId(
+            val taggedPreferred = ModelOutputRouting(applicationContext)
+                .preferred(job.mode, models)
+            val preferredId = taggedPreferred?.id ?: GenerationPlanner.selectModelId(
                 models.map { it.id to it.name }, job.mode)
             val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
                 ?: models.firstOrNull { it.ditKind == "klein" }
