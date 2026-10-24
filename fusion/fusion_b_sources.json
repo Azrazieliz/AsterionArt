@@ -16,13 +16,14 @@
   },
   "miaomiao": {
     "id": "RunningHubAI/rh-miaomiao-harem-v16-unet",
-    "revision": "main",
+    "revision": "e5ce41bc93f331a417193e7800e78183a7ae87cc",
     "file": "MiaoMiaoHarem_Anima_1.6.safetensors",
-    "warning": "V1.6 source is a candidate; it may differ from the installed MiaoMiao model"
+    "warning": "V1.6 source is a candidate; it may differ from the installed MiaoMiao model",
+    "sha256": "6bbb6b6785b4eb0df467658ce47f5f52f1d11fe992b1375b3c67ff02becf193b"
   },
   "hassaku": {
     "id": "SiE69/Illoustrious_Checkpoint_Collection",
-    "revision": "main",
+    "revision": "5e00f87fc9c63bcd402272deba59c7806daeea3a",
     "file": "hassakuXLIllustrious_v34.safetensors",
     "sha256": "1618edb443d9c641fb01c4961f5875d5f01b1a851fd9f2ea64623ceac82257e0",
     "architecture": "Illustrious SDXL",
