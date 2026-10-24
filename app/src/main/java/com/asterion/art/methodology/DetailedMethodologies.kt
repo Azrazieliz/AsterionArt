@@ -77,7 +77,7 @@ object DetailedMethodologies {
             identity + setOf("Pose","Composition","Scene","Outfit","Props","Camera","Source colors as content anchors"),
             setOf("Drawing grammar","Linework","Shading","Render materials","Rendering finish"),
             "Read target Art Style Sheet as style-only authority, and the original illustration as content-only authority. Preserve subjects, identity, camera, crop, pose, clothing, scene, color identities and geometry. Replace entire source rendering treatment with the target style; do not hybridize old/new styles or import characters depicted on the style sheet. One final re-render per original, same aspect ratio and framing.",
-            setOf(StageAction.SINGLE_PREVIEW)
+            setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW)
         ),
         MethodologyContract(
             CreationMode.OUTFIT,"Outfit Creation",
@@ -123,7 +123,7 @@ object DetailedMethodologies {
         MethodologyContract(
             CreationMode.ALTERNATE_UNIVERSE,"Alternate Universe",
             "Alternate Version/Alternate Universe Creation.md",
-            emptySet(),SourcePolicy.CHARACTER_OR_IMAGE,0,five,portrait,
+            emptySet(),SourcePolicy.CHARACTER_OR_IMAGE,1,five,portrait,
             identity,setOf("World logic","Equipment","Technology","Clothing","Role"),
             "The SAME source character must naturally belong to five systematically different alternate universes on a 16:9 white analytical five-design catalogue. Preserve distinctive identity while reauthoring outfit, weapons and material logic for each world. No generic cosplay costume swaps or environment; single AU preview is a neutral uncropped 9:16 portrait.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW)

@@ -54,7 +54,14 @@ fun MethodologyStudioV3(
         }
     }
     val chosen = repo.sheets.filter { it.id in selectedSheets }
-    val names = selectedConcepts.mapNotNull { id -> canonical.firstOrNull { it.id == id }?.label }
+    val names = selectedConcepts.mapNotNull { id ->
+        if (method == CreationMode.ALTERNATE_UNIVERSE)
+            listOf("Cyberpunk","Dark fantasy","Wuxia","Post-apocalyptic","Sci-fi","Gothic",
+                "Historical","Urban occult","Steampunk","High fashion")
+                .mapIndexed { i, name -> SelectableConcept("AU"+i,name) }
+                .firstOrNull { it.id == id }?.label
+        else canonical.firstOrNull { it.id == id }?.label
+    }
     val request = MethodologyRequest(method, illustration != null, chosen.map { it.role }.toSet(),
         names, direction, action)
     val errors = DetailedMethodologies.validate(request)
