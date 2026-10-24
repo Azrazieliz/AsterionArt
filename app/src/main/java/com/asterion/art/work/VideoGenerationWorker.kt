@@ -102,7 +102,8 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             }
             require(segments.size==plan.imageUris.size)
             val combined=File(folder,"assembled.mp4")
-            repo.updateTaskProgress(task,plan.imageUris.size,plan.imageUris.size,"Assembling MP4")
+            repo.updateTaskProgress(task,0,0,
+                "Assembling MP4 · backend progress unavailable")
             Mp4SegmentJoiner.join(segments,combined)
             val uri=VideoPublisher.save(applicationContext,combined,id)
             VideoResultStore(applicationContext).record(VideoResult(

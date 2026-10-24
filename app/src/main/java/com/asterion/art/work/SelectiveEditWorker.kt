@@ -67,6 +67,7 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
                 7224, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
 
             repo.updateTask(taskId, TaskStatus.RUNNING)
+            repo.updateTaskProgress(taskId,0,0,"Loading edit sources and mask")
             val job = EditJobStore(applicationContext).load(id)
             val source = GenerationJobStore(applicationContext).load(job.sourceJobId)
             val sheets = source.sheetIds.map { key ->
@@ -82,6 +83,7 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
                 ?: error("No compatible editing model is installed")
             val model = models.first { it.id == modelId }
             val nativeSize = model.generationSize.coerceIn(512,1536)
+            repo.updateTaskProgress(taskId,0,0,"Loading "+model.name)
             engine.prepare(model,nativeSize,nativeSize) { isStopped }
             val selectedPass = recipe.passes.last().copy(denoise = job.strength)
             engine.verifyText(selectedPass.positive)
@@ -93,13 +95,20 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
                 ?: error("User editing mask is missing")
             try {
                 val patch = SelectiveImageEditor.prepare(original, mask,nativeSize,nativeSize)
+                repo.updateTaskProgress(taskId,0,0,
+                    "Masked image generation · backend progress unavailable")
                 val generated = engine.generate(
                     selectedPass,source.settings,nativeSize,nativeSize,patch.imagePng,
-                    source.settings.seed ?: source.createdAt,{isStopped},{_,_->},
+                    source.settings.seed ?: source.createdAt,{isStopped},{step,total ->
+                        if(total>0) repo.updateTaskProgress(taskId,0,0,
+                            "Masked inference step "+step+"/"+total)
+                    },
                     maskPng = patch.maskPng
                 )
+                repo.updateTaskProgress(taskId,0,0,"Compositing protected pixels")
                 val blended = SelectiveImageEditor.composite(
                     original,generated.png,mask,patch.rectangle)
+                repo.updateTaskProgress(taskId,0,0,"Saving edited image")
                 val published = GeneratedImagePublisher.publish(
                     applicationContext,job.id,1,blended)
                 val technical = TechnicalImageScorer.score(blended)

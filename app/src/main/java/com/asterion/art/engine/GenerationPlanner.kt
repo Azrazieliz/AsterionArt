@@ -157,8 +157,11 @@ object GenerationPlanner {
         }
         val base=look+" "+directive(creation,sources,concepts,sourceIllustration)+" "+concepts.joinToString(", ")+
             " Use ONLY actual reference images for character identity, style, scene and mandatory details. "+
-            numbered+" Render one coherent artwork, not a labeled reference-sheet infographic. "+
-            "Never invent a missing canonical trait or omit an established one."
+            numbered+(if(creation==null) " Render one coherent artwork, not a labeled reference-sheet infographic. "+
+                "Never invent a missing canonical trait or omit an established one."
+             else " Follow the selected methodology's EXACT output layout, view count and " +
+                "design count. Catalogue sheets and analytical labels are permitted ONLY when " +
+                "required by that methodology; keep source identity constraints intact.")
         val modifiers=listOf(
             "",
             "Preserve established character identity, facial features, outfit geometry and body interactions.",
