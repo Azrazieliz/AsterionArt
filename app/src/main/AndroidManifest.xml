@@ -8,6 +8,9 @@
     <uses-permission android:name="com.ailm.android.permission.READ_ART_SHEETS"/>
     <uses-permission android:name="com.ailm.android.permission.WRITE_ART_RESULTS"/>
     <queries>
+        <package android:name="com.zhenxiang.superimage.pro"/>
+        <package android:name="ru.tech.imageresizershrinker"/>
+        <package android:name="com.tumuyan.ncnn.realsr"/>
         <provider android:authorities="com.ailm.android.asterionart.sheets"/>
         <provider android:authorities="com.ailm.android.asterionart.results"/>
     </queries>

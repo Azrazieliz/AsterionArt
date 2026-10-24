@@ -95,6 +95,7 @@ import com.asterion.art.work.SheetRenderWorker
 import com.asterion.art.work.GenerationWorker
 import kotlinx.coroutines.delay
 import com.asterion.art.learning.UserPreferenceStore
+import com.asterion.art.integrations.InstalledImageEnhancers
 import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
 
@@ -743,6 +744,18 @@ private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit) {
                     if (asset.sourceJobId != null) {
                         OutlinedButton(onClick = { onEdit(asset) }) {
                             Text("Edit selected pixels")
+                        }
+                    }
+                    Text("ENHANCE IN INSTALLED APP",color=Gold,
+                        style=MaterialTheme.typography.labelSmall)
+                    LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        items(InstalledImageEnhancers.App.entries.toList()) { enhancer ->
+                            OutlinedButton(onClick={
+                                runCatching {
+                                    InstalledImageEnhancers.share(
+                                        context,enhancer,Uri.parse(asset.uri))
+                                }.onFailure { status=it.message }
+                            }) { Text(enhancer.title) }
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
