@@ -91,6 +91,8 @@ import com.asterion.art.model.SheetLayouts
 import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.render.SheetRenderer
+import com.asterion.art.work.NeuralEnhancementWorker
+import com.asterion.art.enhancement.EmbeddedRealSr
 import com.asterion.art.work.SheetRenderWorker
 import com.asterion.art.work.GenerationWorker
 import kotlinx.coroutines.delay
@@ -686,7 +688,9 @@ private fun QueueScreen(repo: ArtRepository) {
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
                         OutlinedButton(onClick = {
                             val wm=androidx.work.WorkManager.getInstance(context)
-                            if (task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT,TaskKind.VIDEO))
+                            if (task.kind == TaskKind.ENHANCEMENT)
+                                wm.cancelAllWorkByTag("asterion-task-" + task.id)
+                            else if (task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT,TaskKind.VIDEO))
                                 wm.cancelAllWorkByTag("asterion-job-" + task.targetId)
                             else if (task.kind==TaskKind.SHEET_RENDER)
                                 wm.cancelUniqueWork("asterion-sheet-" + task.targetId)
@@ -745,6 +749,15 @@ private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit) {
                     if (asset.sourceJobId != null) {
                         OutlinedButton(onClick = { onEdit(asset) }) {
                             Text("Edit selected pixels")
+                        }
+                    }
+                    if (EmbeddedRealSr.available(context)) {
+                        Button(onClick = {
+                            val task = repo.recordTask(asset.uri, TaskKind.ENHANCEMENT)
+                            NeuralEnhancementWorker.enqueue(context, asset.uri, task.id, 4)
+                            status = "RealSR 4× enhancement queued. Check Queue for progress."
+                        }, modifier=Modifier.fillMaxWidth()) {
+                            Text("Enhance 4× with built-in neural RealSR")
                         }
                     }
                     Text("ENHANCE IN INSTALLED APP",color=Gold,

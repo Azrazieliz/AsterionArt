@@ -12,3 +12,7 @@ app/src/main/jniLibs/
 app/src/main/assets/qnnlibs/
 app/src/main/assets/ditlibs/
 app/src/main/assets/asterion_native_provenance.json
+
+# CI builds pinned RealSR runtime from official MIT release
+app/src/main/assets/realsr/
+app/src/main/assets/licenses/RealSR-NCNN-Android-MIT.txt

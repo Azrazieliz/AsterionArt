@@ -15,7 +15,7 @@ enum class RenderMode(val display: String) {
     ANIME("Anime"), REALISTIC("Realistic"), COSPLAY("Cosplay"), ANIMATION("Animation"), OTHER("Other")
 }
 enum class TaskStatus { QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED }
-enum class TaskKind { SHEET_RENDER, STILL_IMAGE, IMAGE_EDIT, MODEL_IMPORT, VIDEO }
+enum class TaskKind { SHEET_RENDER, STILL_IMAGE, IMAGE_EDIT, ENHANCEMENT, MODEL_IMPORT, VIDEO }
 enum class DetailKind {
     SIGNATURE_WEAPON, WINGS, HORNS, TAIL, MARKING, SPECIES_FEATURE, UNIQUE_EQUIPMENT, OTHER
 }

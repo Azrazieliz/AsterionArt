@@ -29,6 +29,8 @@ jobs:
         run: python -m unittest discover -s native -p 'test_*.py' -v
       - name: Embed pinned Local Dream native engine
         run: python3 native/prepare_native_runtime.py --project .
+      - name: Embed MIT RealSR / Real-ESRGAN native enhancement runtime
+        run: python3 native/prepare_realsr.py --project .
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.10.2
