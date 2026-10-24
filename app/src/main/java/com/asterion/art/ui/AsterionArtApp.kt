@@ -211,67 +211,106 @@ private fun Header(kicker: String, title: String, description: String) {
 
 @Composable
 private fun HomeScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        item {
-            Header(
-                "Local · Phone-first",
-                "Create from references",
-                "Select authoritative sheets, build them from your reference images, and review saved artwork."
-            )
+    val context=LocalContext.current
+    val pending=repo.tasks.filter { it.status==TaskStatus.QUEUED ||
+        it.status==TaskStatus.RUNNING }
+    val latest=repo.assets.sortedByDescending { it.createdAt }.take(6)
+    val models=remember(repo.tasks) { NativeModelLibrary(context).list() }
+    LaunchedEffect(pending.isNotEmpty()) {
+        while(pending.isNotEmpty()) {
+            delay(1100L)
+            repo.reload()
         }
+    }
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),
+        verticalArrangement=Arrangement.spacedBy(15.dp)) {
+        item { Header("CREATIVE STUDIO","Asterion Art",
+            "Generate artwork, design new characters and animate images.") }
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { navigate(Page.SHEET) },
-                colors = CardDefaults.cardColors(containerColor = Raised),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.AddPhotoAlternate, null, tint = Gold, modifier = Modifier.size(30.dp))
-                    Text("Build a master sheet", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        "Deterministic layouts from actual images: Character, Art Style, Theme, Element.",
-                        color = Mist
-                    )
-                    Text("OPEN SHEET BUILDER →", color = Gold, fontWeight = FontWeight.Bold)
+            Card(modifier=Modifier.fillMaxWidth().clickable { navigate(Page.CREATE) },
+                colors=CardDefaults.cardColors(containerColor=Raised),
+                shape=RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(9.dp)) {
+                    Icon(Icons.Default.AutoAwesome,null,tint=Gold,modifier=Modifier.size(32.dp))
+                    Text("Start creating",style=MaterialTheme.typography.headlineSmall)
+                    Text("Choose image or animation",color=Mist)
+                    Text("OPEN STUDIO →",color=Gold)
                 }
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SummaryCard("Sheets", repo.sheets.size.toString(), Modifier.weight(1f))
-                SummaryCard("Finished jobs",
-                    repo.tasks.count { it.status == TaskStatus.COMPLETED }.toString(), Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilledTonalButton(
-                    onClick = { navigate(Page.CREATE) }, modifier = Modifier.weight(1f)
-                ) { Icon(Icons.Default.Image, null); Spacer(Modifier.width(7.dp)); Text("Artwork") }
-                OutlinedButton(onClick = { navigate(Page.GRADING) }, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Star, null); Spacer(Modifier.width(7.dp)); Text("Grade")
+            Row(horizontalArrangement=Arrangement.spacedBy(9.dp)) {
+                FilledTonalButton(onClick={navigate(Page.IMAGE_GATE)},modifier=Modifier.weight(1f)){
+                    Icon(Icons.Default.Image,null)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Image")
+                }
+                OutlinedButton(onClick={navigate(Page.VIDEO)},modifier=Modifier.weight(1f)){
+                    Icon(Icons.Default.PlayArrow,null)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Animation")
                 }
             }
         }
         item {
-            OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    val context = LocalContext.current
-                    val bundled = EmbeddedNativeRunner.isEmbedded(context)
-                    Text("ENGINE STATUS", color = Gold, style = MaterialTheme.typography.labelMedium)
-                    Text(if(bundled) "Native engine bundled" else "Native engine unavailable",
-                        fontWeight = FontWeight.SemiBold)
-                    Text("Installed QNN checkpoints: " + NativeModelLibrary(context).list().size,
-                        color = Mist)
-                    OutlinedButton(onClick = { navigate(Page.MODELS) }) {
-                        Text("Open native model library")
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                SummaryCard("Sheets",repo.sheets.size.toString(),Modifier.weight(1f))
+                SummaryCard("Models",models.size.toString(),Modifier.weight(1f))
+                SummaryCard("In queue",pending.size.toString(),Modifier.weight(1f))
+            }
+        }
+        if(pending.isNotEmpty()) item {
+            OutlinedCard(onClick={navigate(Page.JOBS)},
+                colors=CardDefaults.outlinedCardColors(containerColor=Panel)) {
+                Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                    Text("BACKGROUND ACTIVITY",color=Gold)
+                    pending.take(3).forEach { task ->
+                        Text(task.kind.name.replace('_',' ')+" · "+(task.stage ?: task.status.name))
+                        if(task.progressTotal>0) {
+                            LinearProgressIndicator(progress={
+                                (task.progressCurrent.toFloat()/task.progressTotal).coerceIn(0f,1f)
+                            },modifier=Modifier.fillMaxWidth())
+                        } else LinearProgressIndicator(modifier=Modifier.fillMaxWidth())
+                    }
+                    Text("OPEN QUEUE →",color=Gold)
+                }
+            }
+        }
+        if(latest.isNotEmpty()) {
+            item { Text("RECENT RESULTS",color=Gold,style=MaterialTheme.typography.labelMedium) }
+            item {
+                LazyRow(horizontalArrangement=Arrangement.spacedBy(9.dp)) {
+                    items(latest) { asset ->
+                        Card(onClick={navigate(Page.GRADING)},modifier=Modifier.size(108.dp,138.dp),
+                            colors=CardDefaults.cardColors(containerColor=Panel)) {
+                            AsyncImage(model=Uri.parse(asset.uri),contentDescription="Artwork",
+                                modifier=Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+                        }
                     }
                 }
             }
+        }
+        item {
+            Text("LIBRARIES",color=Gold)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick={navigate(Page.CORE)},modifier=Modifier.weight(1f)){
+                    Text("Asterion Core")
+                }
+                OutlinedButton(onClick={navigate(Page.MODELS)},modifier=Modifier.weight(1f)){
+                    Text("Model library")
+                }
+            }
+            OutlinedButton(onClick={navigate(Page.GRADING)},modifier=Modifier.fillMaxWidth()){
+                Icon(Icons.Default.Star,null)
+                Spacer(Modifier.width(8.dp))
+                Text("Review and edit artworks")
+            }
+        }
+        item {
+            Text(if(EmbeddedNativeRunner.isEmbedded(context))
+                "Embedded NPU runtime detected · compatible model required"
+                else "Native inference executable not found",
+                color=Mist,style=MaterialTheme.typography.bodySmall)
         }
     }
 }
