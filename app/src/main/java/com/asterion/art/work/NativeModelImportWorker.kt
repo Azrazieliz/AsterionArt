@@ -62,6 +62,8 @@ class NativeModelImportWorker(context:Context,params:WorkerParameters):
                 arrayOf(OpenableColumns.SIZE), null, null, null)?.use { rows ->
                 if (rows.moveToFirst()) rows.getLong(0) else 0L
             } ?: 0L
+            repo.updateTaskProgress(taskId,0,if(totalBytes>0)100 else 0,
+                "Checking model format",0L,totalBytes)
             var lastProgress=0L
             val record=NativeModelLibrary(applicationContext).importZip(
                 Uri.parse(uri),label,
@@ -71,18 +73,20 @@ class NativeModelImportWorker(context:Context,params:WorkerParameters):
                         repo.updateTaskProgress(taskId,
                             if (totalBytes > 0) (compressedBytes*100/totalBytes).toInt().coerceIn(0, 99)
                             else 0, if (totalBytes > 0) 100 else 0,
-                            "Importing model package", compressedBytes, totalBytes)
+                            "Unpacking QNN files · "+(unpackedBytes/1048576L)+" MiB extracted",
+                            compressedBytes,totalBytes)
                         manager.notify(7226,progress(unpackedBytes))
                     }
                 },
                 stopped={isStopped},
                 family=inputData.getString("family")
             )
-            repo.updateTaskProgress(taskId, 100, 100, "Model ready", totalBytes, totalBytes)
+            repo.updateTaskProgress(taskId, 100, 100, "Validated and installed",
+                totalBytes,totalBytes)
             repo.updateTask(taskId,TaskStatus.COMPLETED)
             Result.success(Data.Builder().putString("model_id",record.id).build())
         } catch(e:CancellationException) {
-            repo.updateTask(taskId,TaskStatus.FAILED,"Model installation cancelled")
+            repo.updateTask(taskId,TaskStatus.CANCELLED,"Model installation cancelled")
             Result.failure()
         } catch(e:Exception) {
             repo.updateTask(taskId,TaskStatus.FAILED,e.message ?: "Model installation failed")

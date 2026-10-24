@@ -143,7 +143,8 @@ class ArtRepository(context: Context) {
     @Synchronized fun updateTask(id: String, status: TaskStatus, error: String? = null) {
         val current = readPersistedTasks()
         val updated = current.map {
-            if (it.id == id) it.copy(status = status, error = error,
+            if (it.id == id && it.status != TaskStatus.CANCELLED)
+                it.copy(status = status, error = error,
                 progressCurrent = if (status == TaskStatus.COMPLETED && it.progressTotal > 0)
                     it.progressTotal else it.progressCurrent) else it
         }

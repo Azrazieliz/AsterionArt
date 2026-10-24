@@ -660,7 +660,7 @@ private fun QueueScreen(repo: ArtRepository) {
                     Text(task.kind.name.replace('_', ' '), fontWeight = FontWeight.SemiBold)
                     Text(task.status.name, color = when (task.status) {
                         TaskStatus.COMPLETED -> Green
-                        TaskStatus.FAILED -> Red
+                        TaskStatus.FAILED,TaskStatus.CANCELLED -> Red
                         else -> Blue
                     })
                     if (task.stage != null && task.status in listOf(TaskStatus.RUNNING,TaskStatus.QUEUED)) {
@@ -690,7 +690,7 @@ private fun QueueScreen(repo: ArtRepository) {
                             else if (task.kind==TaskKind.SHEET_RENDER)
                                 wm.cancelUniqueWork("asterion-sheet-" + task.targetId)
                             else wm.cancelUniqueWork("asterion-model-import-serial")
-                            repo.updateTask(task.id, TaskStatus.FAILED, "Cancelled by user")
+                            repo.updateTask(task.id, TaskStatus.CANCELLED, "Cancelled by user")
                         }) { Text("Cancel") }
                     }
                 }
