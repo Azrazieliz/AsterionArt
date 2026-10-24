@@ -25,8 +25,10 @@ class SheetRenderWorker(appContext: Context, params: WorkerParameters) :
             return@withContext Result.failure()
         }
         repo.updateTask(taskId, TaskStatus.RUNNING)
+        repo.updateTaskProgress(taskId,0,2,"Composing source sheet")
         try {
             val output = SheetRenderer.render(applicationContext, sheet)
+            repo.updateTaskProgress(taskId,1,2,"Saving sheet PNG")
             repo.finishSheet(sheetId, output.toString())
             repo.updateTask(taskId, TaskStatus.COMPLETED)
             Result.success()

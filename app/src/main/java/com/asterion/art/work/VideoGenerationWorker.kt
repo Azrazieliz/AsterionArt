@@ -72,6 +72,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             val bridge=NightmareVideoBridge(applicationContext,token)
             require(bridge.available()) { "Wan/Neodragon video model not installed or available" }
             val folder=File(applicationContext.filesDir,"video-cache/"+id).also { it.mkdirs() }
+            repo.updateTaskProgress(task,0,plan.imageUris.size,"Preparing video")
             val segments=mutableListOf<File>()
             val runs=mutableListOf<String>()
             for((index,frame) in plan.imageUris.withIndex()) {
@@ -83,6 +84,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 if(file.isFile && file.length()>1024) {
                     segments+=file
                     runs+="recovered"
+                    repo.updateTaskProgress(task,index+1,plan.imageUris.size,"Recovered segment")
                     continue
                 }
                 val result=bridge.generate(
@@ -91,11 +93,13 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     file,{isStopped})
                 segments+=result.file
                 runs+=result.runId
+                repo.updateTaskProgress(task,index+1,plan.imageUris.size,"Segment " + (index+1) + " complete")
                 setProgress(Data.Builder().putInt("segment",index+1)
                     .putInt("total",plan.imageUris.size).build())
             }
             require(segments.size==plan.imageUris.size)
             val combined=File(folder,"assembled.mp4")
+            repo.updateTaskProgress(task,plan.imageUris.size,plan.imageUris.size,"Assembling MP4")
             Mp4SegmentJoiner.join(segments,combined)
             val uri=VideoPublisher.save(applicationContext,combined,id)
             VideoResultStore(applicationContext).record(VideoResult(

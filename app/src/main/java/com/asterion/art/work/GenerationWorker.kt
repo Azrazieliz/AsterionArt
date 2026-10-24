@@ -81,6 +81,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 "Reference sheet creation is not complete"
             }
             repo.updateTask(taskId, TaskStatus.RUNNING)
+            repo.updateTaskProgress(taskId,0,100,"Reading source sheets")
             foreground("Reading source sheet evidence")
             val evidence = sheets.map { SheetTextReader.read(applicationContext, it) }
             require(job.creationMode != CreationMode.STYLE_CORRECTION ||
@@ -146,6 +147,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             var technicalLeaderScore = Double.NEGATIVE_INFINITY
             var technicalLeader: ByteArray? = null
             val count = job.settings.batch.coerceIn(1, 8)
+            repo.updateTaskProgress(taskId,0,count*5,"Beginning generation")
             for (candidate in 1..count) {
                 if (isStopped) throw CancellationException("Job stopped")
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
@@ -160,11 +162,20 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         continue
                     }
                     thermalGate()
-                    foreground("Candidate " + candidate + "/" + count +
-                        " · pass " + stage.number + "/5")
+                    val stageLabel = "Image " + candidate + "/" + count +
+                        " · pass " + stage.number + "/5"
+                    repo.updateTaskProgress(taskId, (candidate-1)*5 + stage.number-1,
+                        count*5, stageLabel)
+                    foreground(stageLabel)
                     val result = engine.generate(
                         stage, candidateSettings, resolution.first, resolution.second,
-                        current, seed, { isStopped }, { _, _ -> },
+                        current, seed, { isStopped }, { step, totalSteps ->
+                            if (totalSteps > 0 && step >= 0 && step % 3 == 0) {
+                                repo.updateTaskProgress(taskId, (candidate-1)*5*100 +
+                                    (stage.number-1)*100 + (step*100/totalSteps),
+                                    count*5*100, stageLabel + " · " + step + "/" + totalSteps)
+                            }
+                        },
                         referencePngs = referenceInputs)
                     current = result.png
                     GeneratedImagePublisher.atomicWrite(path, result.png)
@@ -234,6 +245,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     }
                 }
             }
+            repo.updateTaskProgress(taskId,count*5,count*5,"Finalizing and saving")
             foreground("Saving generation provenance")
             val provenance = JSONObject().apply {
                 put("schema", "asterion.generation.v1")

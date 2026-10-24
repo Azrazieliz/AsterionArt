@@ -52,6 +52,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -61,6 +62,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,6 +93,7 @@ import com.asterion.art.model.TaskStatus
 import com.asterion.art.render.SheetRenderer
 import com.asterion.art.work.SheetRenderWorker
 import com.asterion.art.work.GenerationWorker
+import kotlinx.coroutines.delay
 import com.asterion.art.learning.UserPreferenceStore
 import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
@@ -601,6 +604,14 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
 @Composable
 private fun QueueScreen(repo: ArtRepository) {
     val context = LocalContext.current
+    val active = repo.tasks.any { it.status == TaskStatus.QUEUED ||
+        it.status == TaskStatus.RUNNING }
+    LaunchedEffect(active) {
+        while (active) {
+            delay(900L)
+            repo.reload()
+        }
+    }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("Background processing", "Job history",
             "Sheet rendering continues via Android WorkManager. Your results remain in the local catalog.") }
@@ -614,6 +625,23 @@ private fun QueueScreen(repo: ArtRepository) {
                         TaskStatus.FAILED -> Red
                         else -> Blue
                     })
+                    if (task.stage != null && task.status in listOf(TaskStatus.RUNNING,TaskStatus.QUEUED)) {
+                        Text(task.stage, style = MaterialTheme.typography.bodySmall, color = Mist)
+                        if (task.progressTotal > 0) {
+                            val value = (task.progressCurrent.toFloat() /
+                                task.progressTotal).coerceIn(0f,1f)
+                            LinearProgressIndicator(progress = { value },
+                                modifier = Modifier.fillMaxWidth())
+                            Text((value * 100).toInt().toString() + "%", color = Gold)
+                        } else {
+                            LinearProgressIndicator(modifier=Modifier.fillMaxWidth())
+                        }
+                        if (task.progressBytesTotal > 0) {
+                            Text((task.progressBytes/1048576L).toString() + " / " +
+                                (task.progressBytesTotal/1048576L) + " MiB",
+                                style=MaterialTheme.typography.bodySmall,color=Mist)
+                        }
+                    }
                     if (task.error != null) Text(task.error, color = Red)
                     Text(task.id.take(13), style = MaterialTheme.typography.bodySmall, color = Mist)
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {

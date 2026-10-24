@@ -2,6 +2,9 @@ package com.asterion.art.nativeengine
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
+import java.io.FilterInputStream
+import java.io.InputStream
 import com.asterion.art.engine.DreamModel
 import org.json.JSONObject
 import java.io.File
@@ -51,8 +54,24 @@ class NativeModelLibrary(private val context: Context) {
             }.getOrNull()
         }.toList()
 
-    fun importZip(uri: Uri, label: String, progress: (Long)->Unit,
+    fun importZip(uri: Uri, label: String, progress: (Long, Long)->Unit,
                   stopped: ()->Boolean): InstalledQnnModel {
+        val name = context.contentResolver.query(uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { rows ->
+            if (rows.moveToFirst()) rows.getString(0) else ""
+        }.orEmpty()
+        if (name.endsWith(".safetensors", true) || name.endsWith(".ckpt", true) ||
+            name.endsWith(".gguf", true)) {
+            error("This is an original checkpoint, not a runnable QNN package. " +
+                "Use a converted QNN model ZIP (ANIMA/SDXL marker and tensor files).")
+        }
+        val magic = context.contentResolver.openInputStream(uri)?.use { it.readNBytes(4) }
+            ?: error("Cannot open model package")
+        require(magic.size >= 4 && magic[0] == 0x50.toByte() &&
+            magic[1] == 0x4B.toByte()) {
+            "Unsupported model format. Select the *converted QNN package ZIP*, " +
+            "not a raw .safetensors checkpoint."
+        }
         val safeLabel = label.trim().ifBlank { "Imported QNN checkpoint" }.take(100)
         val id = "qnn_" + UUID.randomUUID().toString().replace("-", "").take(24)
         val stage = File(root,id+".partial").also { it.mkdirs() }
@@ -63,7 +82,16 @@ class NativeModelLibrary(private val context: Context) {
             val input = context.contentResolver.openInputStream(uri)
                 ?: error("Model archive is inaccessible")
             input.use {
-                ZipInputStream(it).use { zip ->
+                val counted = object: FilterInputStream(it) {
+                    var bytesRead: Long = 0L
+                    override fun read(): Int = super.read().also { if (it >= 0) bytesRead++ }
+                    override fun read(buffer: ByteArray, off: Int, len: Int): Int {
+                        val n = super.read(buffer, off, len)
+                        if (n > 0) bytesRead += n
+                        return n
+                    }
+                }
+                ZipInputStream(counted).use { zip ->
                     while (true) {
                         if (stopped()) throw java.util.concurrent.CancellationException()
                         val entry=zip.nextEntry ?: break
@@ -98,7 +126,7 @@ class NativeModelLibrary(private val context: Context) {
                                 }
                                 target.write(buffer,0,n)
                                 digest.update(buffer,0,n)
-                                if (total % (32L*1024*1024) < n) progress(total)
+                                if (total % (8L*1024*1024) < n) progress(counted.bytesRead, total)
                             }
                             target.fd.sync()
                         }
@@ -110,6 +138,7 @@ class NativeModelLibrary(private val context: Context) {
                     }
                 }
             }
+            progress(total, total)
             // Many official ZIPs contain one top-level directory. Unwrap
             // it without copying model tensors or creating a second 7 GB tree.
             if (markers.keys.none { File(stage,it).exists() }) {
@@ -129,7 +158,9 @@ class NativeModelLibrary(private val context: Context) {
                 }
             }
             val backend=markers.entries.firstOrNull { File(stage,it.key).exists() }
-                ?: error("Missing NPU model type marker (ANIMA/SDXL/etc.)")
+                ?: error("Converted QNN model type marker missing. The archive is not a supported NPU package: " +
+                    "expected ANIMA, SDXL, or another documented native model marker. " +
+                    "An original Illustrious/SDXL .safetensors cannot run without conversion.")
             require(files>=3 && stage.walkTopDown().any {
                 it.isFile && it.extension in listOf("bin","mnn","safetensors","gguf")
             }) { "Incomplete native model files" }

@@ -38,7 +38,12 @@ data class TaskRecord(
     val kind: TaskKind,
     val createdAt: Long = System.currentTimeMillis(),
     val status: TaskStatus = TaskStatus.QUEUED,
-    val error: String? = null
+    val error: String? = null,
+    val progressCurrent: Int = 0,
+    val progressTotal: Int = 0,
+    val progressBytes: Long = 0L,
+    val progressBytesTotal: Long = 0L,
+    val stage: String? = null
 )
 data class GradedAsset(
     val uri: String,

@@ -56,7 +56,12 @@ class ArtRepository(context: Context) {
                 kind = TaskKind.valueOf(obj.getString("kind")),
                 createdAt = obj.getLong("createdAt"),
                 status = TaskStatus.valueOf(obj.getString("status")),
-                error = obj.optNullable("error")
+                error = obj.optNullable("error"),
+                progressCurrent = obj.optInt("progressCurrent", 0),
+                progressTotal = obj.optInt("progressTotal", 0),
+                progressBytes = obj.optLong("progressBytes", 0L),
+                progressBytesTotal = obj.optLong("progressBytesTotal", 0L),
+                stage = obj.optNullable("stage")
             )
         }
         assets = parseList("assets") { obj ->
@@ -136,9 +141,46 @@ class ArtRepository(context: Context) {
     }
 
     @Synchronized fun updateTask(id: String, status: TaskStatus, error: String? = null) {
-        val updated = tasks.map { if (it.id == id) it.copy(status = status, error = error) else it }
+        val current = readPersistedTasks()
+        val updated = current.map {
+            if (it.id == id) it.copy(status = status, error = error,
+                progressCurrent = if (status == TaskStatus.COMPLETED && it.progressTotal > 0)
+                    it.progressTotal else it.progressCurrent) else it
+        }
         check(prefs.edit().putString("tasks", encodeTasks(updated)).commit())
         tasks = updated
+    }
+
+    @Synchronized fun updateTaskProgress(id: String, current: Int, total: Int,
+                                         stage: String, bytes: Long = 0L,
+                                         bytesTotal: Long = 0L) {
+        require(current >= 0 && total >= 0 && bytes >= 0 && bytesTotal >= 0)
+        val updated = readPersistedTasks().map { task ->
+            if (task.id == id && task.status != TaskStatus.FAILED &&
+                task.status != TaskStatus.COMPLETED) {
+                task.copy(progressCurrent = current.coerceAtMost(total.takeIf { it > 0 } ?: current),
+                    progressTotal = total, progressBytes = bytes,
+                    progressBytesTotal = bytesTotal, stage = stage)
+            } else task
+        }
+        check(prefs.edit().putString("tasks", encodeTasks(updated)).commit())
+        tasks = updated
+    }
+
+    private fun readPersistedTasks(): List<TaskRecord> = parseList("tasks") { obj ->
+        TaskRecord(
+            id = obj.getString("id"),
+            targetId = obj.getString("targetId"),
+            kind = TaskKind.valueOf(obj.getString("kind")),
+            createdAt = obj.getLong("createdAt"),
+            status = TaskStatus.valueOf(obj.getString("status")),
+            error = obj.optNullable("error"),
+            progressCurrent = obj.optInt("progressCurrent", 0),
+            progressTotal = obj.optInt("progressTotal", 0),
+            progressBytes = obj.optLong("progressBytes", 0L),
+            progressBytesTotal = obj.optLong("progressBytesTotal", 0L),
+            stage = obj.optNullable("stage")
+        )
     }
 
     @Synchronized fun finishSheet(id: String, outputUri: String) {
@@ -194,6 +236,11 @@ class ArtRepository(context: Context) {
         items.forEach { task -> put(JSONObject().apply {
             put("id", task.id); put("targetId", task.targetId); put("kind", task.kind.name)
             put("createdAt", task.createdAt); put("status", task.status.name); put("error", task.error)
+            put("progressCurrent", task.progressCurrent)
+            put("progressTotal", task.progressTotal)
+            put("progressBytes", task.progressBytes)
+            put("progressBytesTotal", task.progressBytesTotal)
+            put("stage", task.stage)
         }) }
     }.toString()
 

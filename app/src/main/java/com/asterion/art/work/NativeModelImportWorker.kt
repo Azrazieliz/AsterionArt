@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -56,17 +57,26 @@ class NativeModelImportWorker(context:Context,params:WorkerParameters):
                 .setSmallIcon(android.R.drawable.stat_sys_download).build()
             setForeground(ForegroundInfo(7226,progress(0),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
+            val totalBytes = applicationContext.contentResolver.query(Uri.parse(uri),
+                arrayOf(OpenableColumns.SIZE), null, null, null)?.use { rows ->
+                if (rows.moveToFirst()) rows.getLong(0) else 0L
+            } ?: 0L
             var lastProgress=0L
             val record=NativeModelLibrary(applicationContext).importZip(
                 Uri.parse(uri),label,
-                progress={ bytes ->
-                    if(bytes-lastProgress>=64L*1024*1024){
-                        lastProgress=bytes
-                        manager.notify(7226,progress(bytes))
+                progress={ compressedBytes, unpackedBytes ->
+                    if (compressedBytes-lastProgress >= 4L*1024*1024) {
+                        lastProgress=compressedBytes
+                        repo.updateTaskProgress(taskId,
+                            if (totalBytes > 0) (compressedBytes*100/totalBytes).toInt().coerceIn(0, 99)
+                            else 0, if (totalBytes > 0) 100 else 0,
+                            "Importing model package", compressedBytes, totalBytes)
+                        manager.notify(7226,progress(unpackedBytes))
                     }
                 },
                 stopped={isStopped}
             )
+            repo.updateTaskProgress(taskId, 100, 100, "Model ready", totalBytes, totalBytes)
             repo.updateTask(taskId,TaskStatus.COMPLETED)
             Result.success(Data.Builder().putString("model_id",record.id).build())
         } catch(e:CancellationException) {
