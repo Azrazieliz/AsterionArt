@@ -178,7 +178,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         selectedDefault=method
                         current=Page.DEFAULT_STUDIO
                     }
-                    Page.DEFAULT_STUDIO -> MethodologyStudio(repo,selectedDefault,
+                    Page.DEFAULT_STUDIO -> MethodologyStudioV3(repo,selectedDefault,
                         browseSheets={ current=Page.SHEET },
                         browseCore={ current=Page.CORE },
                         openParameters={ current=Page.SETTINGS },

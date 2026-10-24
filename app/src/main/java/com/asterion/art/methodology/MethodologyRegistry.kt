@@ -69,27 +69,21 @@ object MethodologyRegistry {
                 "logics. Exact 16:9 analytical white sheet, complete full bodies. Preserve identity.")
     ).associateBy { it.mode }
 
+    // Source and validation are delegated to the exact workflow contract.
+    // The legacy mode metadata remains for historical result compatibility.
     fun validate(mode: CreationMode, selected: Map<SheetRole,Int>,
-                 conceptCount: Int = 0, sourceIllustration: Boolean = false): List<String> {
-        val spec=modes.getValue(mode)
-        return buildList {
-            for (role in spec.required) {
-                if (selected.getOrDefault(role,0)<1 &&
-                    !(role==SheetRole.CHARACTER && sourceIllustration))
-                    add(role.display+" reference required")
-            }
-            if (conceptCount<spec.minimumConcepts)
-                add("Select at least "+spec.minimumConcepts+" distinct concepts")
-            if (spec.requiresIllustration && !sourceIllustration)
-                add("Select source illustration to redraw")
-        }
-    }
+                 conceptCount: Int = 0, sourceIllustration: Boolean = false): List<String> =
+        DetailedMethodologies.validate(MethodologyRequest(
+            mode = mode, sourceIllustrationPresent = sourceIllustration,
+            sheetRoles = selected.filterValues { it > 0 }.keys,
+            conceptIds = (0 until conceptCount).map { "selected-" + it }
+        ))
 
     fun compileDirective(mode: CreationMode, selected: Map<SheetRole,Int>,
                          conceptCount: Int = 0, sourceIllustration: Boolean = false): String {
-        val missing=validate(mode,selected,conceptCount,sourceIllustration)
-        require(missing.isEmpty()) { missing.joinToString("; ") }
-        return modes.getValue(mode).directive
+        val errors = validate(mode, selected, conceptCount, sourceIllustration)
+        require(errors.isEmpty()) { errors.joinToString("; ") }
+        return DetailedMethodologies.all.getValue(mode).rendererDirective
     }
 
     fun pageCaption(mode: CreationMode, index: Int): String {
