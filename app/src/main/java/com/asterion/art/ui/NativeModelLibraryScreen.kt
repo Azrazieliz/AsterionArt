@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +36,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.asterion.art.nativeengine.EmbeddedNativeRunner
 import com.asterion.art.nativeengine.NativeModelLibrary
+import com.asterion.art.nativeengine.OriginalCheckpointLibrary
+import com.asterion.art.data.ArtRepository
+import com.asterion.art.model.TaskStatus
+import com.asterion.art.model.TaskKind
+import kotlinx.coroutines.delay
 import com.asterion.art.work.NativeModelImportWorker
 
 @Composable
@@ -41,7 +48,18 @@ fun NativeModelLibraryScreen() {
     val context=LocalContext.current
     val library=remember(context) { NativeModelLibrary(context) }
     val routing=remember(context) { ModelOutputRouting(context) }
+    val checkpointLibrary=remember(context) { OriginalCheckpointLibrary(context) }
+    val repo=remember(context) { ArtRepository(context) }
     var installed by remember { mutableStateOf(library.list()) }
+    var originalFiles by remember { mutableStateOf(checkpointLibrary.list()) }
+    LaunchedEffect(Unit) {
+        while(true) {
+            repo.reload()
+            installed=library.list()
+            originalFiles=checkpointLibrary.list()
+            delay(1200L)
+        }
+    }
     var tagRefresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
     var selectedFamily by remember { mutableStateOf("auto") }
@@ -99,7 +117,62 @@ fun NativeModelLibraryScreen() {
         item {
             Button(onClick={picker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},
                 modifier=Modifier.fillMaxWidth()) {
-                Text("Import QNN model ZIP")
+                Text("Import model file")
+            }
+            Text("Converted QNN archives are validated and installed. Original .safetensors, "+
+                ".ckpt and .gguf files are indexed without a copy and cannot run "+
+                "on the embedded QNN engine until appropriately converted.",
+                style=MaterialTheme.typography.bodySmall,color=Mist)
+        }
+        item {
+            Text("IMPORT ACTIVITY",color=Gold,
+                style=MaterialTheme.typography.labelLarge)
+        }
+        items(repo.tasks.filter { it.kind==TaskKind.MODEL_IMPORT }
+            .sortedByDescending { it.createdAt }.take(5),key={it.id}) { task ->
+            Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+                Column(Modifier.padding(14.dp),
+                    verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                    Text(task.status.name+" · "+(task.stage ?: "Model import"),
+                        color=if(task.status==TaskStatus.FAILED ||
+                            task.status==TaskStatus.CANCELLED) Red else Gold)
+                    if(task.status==TaskStatus.QUEUED || task.status==TaskStatus.RUNNING) {
+                        if(task.progressTotal>0)
+                            LinearProgressIndicator(progress={
+                                (task.progressCurrent.toFloat()/task.progressTotal)
+                                    .coerceIn(0f,1f)
+                            },modifier=Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(modifier=Modifier.fillMaxWidth())
+                    }
+                    if(task.progressTotal>0 && task.status!=TaskStatus.FAILED)
+                        Text(task.progressCurrent.toString()+"%",
+                            color=Mist,style=MaterialTheme.typography.bodySmall)
+                    if(task.progressBytesTotal>0)
+                        Text((task.progressBytes/1048576L).toString()+" / "+
+                            (task.progressBytesTotal/1048576L)+" MiB read",
+                            color=Mist,style=MaterialTheme.typography.bodySmall)
+                    task.error?.let { Text(it,color=Red) }
+                }
+            }
+        }
+        if(originalFiles.isNotEmpty()) {
+            item { Text("ORIGINAL CHECKPOINTS · NON-RUNNABLE",color=Gold,
+                style=MaterialTheme.typography.labelLarge) }
+            items(originalFiles,key={it.id}) { file ->
+                Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+                    Column(Modifier.padding(14.dp),
+                        verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                        Text(file.name,style=MaterialTheme.typography.titleMedium)
+                        Text(file.format+" · "+
+                            if(file.sizeBytes>=0)
+                                (file.sizeBytes/1048576L).toString()+" MiB"
+                            else "Size unknown",color=Mist)
+                        Text("External SAF reference · no duplicate model copy",color=Mist,
+                            style=MaterialTheme.typography.bodySmall)
+                        Text("Conversion required before QNN inference",color=Gold,
+                            style=MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
         }
         item {
