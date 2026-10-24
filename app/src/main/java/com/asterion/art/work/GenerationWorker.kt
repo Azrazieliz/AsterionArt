@@ -192,7 +192,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         stage.copy(positive=stage.positive+"\n"+
                             com.asterion.art.methodology.MethodologyRegistry.pageCaption(
                                 CreationMode.CHARACTER,candidate-1)+
-                            " on one single 16:9 landscape five-character analytical sheet.")
+                            " on one 16:9 landscape sheet: five distinct identities, each shown in three " +
+                            "views (dominant true-front, exact 90-degree profile, direct rear), " +
+                            "fifteen full-body figures total, identical anatomy across views.")
                     else stage
                     val result = engine.generate(
                         methodStage, candidateSettings, resolution.first, resolution.second,
