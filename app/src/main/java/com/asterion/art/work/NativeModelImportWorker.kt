@@ -92,7 +92,13 @@ class NativeModelImportWorker(context:Context,params:WorkerParameters):
                     }
                 },
                 stopped={isStopped},
-                family=inputData.getString("family")
+                family=inputData.getString("family"),
+                onPhase={ phase ->
+                    repo.updateTaskProgress(taskId,
+                        if (totalBytes > 0) (lastProgress * 100 / totalBytes).toInt().coerceIn(0, 99) else 0,
+                        if (totalBytes > 0) 100 else 0,
+                        phase, lastProgress, totalBytes)
+                }
             )
             repo.updateTaskProgress(taskId, 100, 100, "Validated and installed",
                 totalBytes,totalBytes)

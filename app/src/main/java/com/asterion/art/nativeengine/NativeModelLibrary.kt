@@ -3,6 +3,8 @@ package com.asterion.art.nativeengine
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.provider.DocumentsContract
+import android.os.StatFs
 import java.io.FilterInputStream
 import java.io.InputStream
 import com.asterion.art.engine.DreamModel
@@ -61,15 +63,57 @@ class NativeModelLibrary(private val context: Context) {
         }.toList()
 
     fun importZip(uri: Uri, label: String, progress: (Long, Long)->Unit,
-                  stopped: ()->Boolean, family: String? = null): InstalledQnnModel {
+                  stopped: ()->Boolean, family: String? = null,
+                  onPhase: (String)->Unit = {}): InstalledQnnModel {
         val chosen = family?.lowercase()?.takeUnless { it=="auto" }
         require(chosen==null || chosen in markers.values) {
             "Unknown model architecture choice"
         }
-        val name = context.contentResolver.query(uri,
-            arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { rows ->
-            if (rows.moveToFirst()) rows.getString(0) else ""
-        }.orEmpty()
+        val metadata = context.contentResolver.query(uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+            null, null, null)?.use { rows ->
+            if (rows.moveToFirst()) {
+                rows.getString(0).orEmpty() to
+                    (if (rows.isNull(1)) -1L else rows.getLong(1))
+            } else "" to -1L
+        } ?: ("" to -1L)
+        val name = metadata.first
+        val sourceSize = metadata.second
+        // A persisted SAF reference is not always a stable file revision. Only
+        // short-circuit repeated GB-scale ZIP imports when a provider supplies
+        // a modification timestamp AND the file size and initial bytes agree.
+        val modified = runCatching {
+            context.contentResolver.query(uri,
+                arrayOf(DocumentsContract.Document.COLUMN_LAST_MODIFIED),
+                null, null, null)?.use { rows ->
+                if (rows.moveToFirst() && !rows.isNull(0)) rows.getLong(0) else 0L
+            } ?: 0L
+        }.getOrDefault(0L)
+        val prefix = context.contentResolver.openInputStream(uri)?.use { input ->
+            val bytes = ByteArray(64 * 1024)
+            val n = input.read(bytes)
+            if (n > 0) bytes.copyOf(n) else byteArrayOf()
+        } ?: error("Document provider cannot open model file")
+        val sourceFingerprint = if (sourceSize > 0L && modified > 0L) {
+            MessageDigest.getInstance("SHA-256").apply {
+                update(uri.toString().toByteArray(Charsets.UTF_8))
+                update(name.toByteArray(Charsets.UTF_8))
+                update("$sourceSize:$modified".toByteArray(Charsets.US_ASCII))
+                update(prefix)
+            }.digest().joinToString("") { "%02x".format(it) }
+        } else ""
+        if (sourceFingerprint.isNotEmpty()) {
+            val existing = list().firstOrNull { model ->
+                runCatching {
+                    JSONObject(File(root, model.id + "/asterion_model.json").readText())
+                        .optString("source_fingerprint") == sourceFingerprint
+                }.getOrDefault(false)
+            }
+            if (existing != null) {
+                progress(sourceSize, existing.sizeBytes)
+                return existing
+            }
+        }
         if (name.endsWith(".safetensors", true) || name.endsWith(".ckpt", true) ||
             name.endsWith(".gguf", true)) {
             error("This is an original checkpoint, not a runnable QNN package. " +
@@ -85,6 +129,7 @@ class NativeModelLibrary(private val context: Context) {
         }
         val safeLabel = label.trim().ifBlank { "Imported QNN checkpoint" }.take(100)
         val id = "qnn_" + UUID.randomUUID().toString().replace("-", "").take(24)
+        onPhase("Preparing ZIP import")
         val stage = File(root,id+".partial").also { it.mkdirs() }
         var total = 0L
         var files = 0
@@ -113,7 +158,9 @@ class NativeModelLibrary(private val context: Context) {
                             path.split('/').none { part -> part==".." || part=="." }) {
                             "Unsafe model archive path"
                         }
-                        require(path.split('/').size<=8)
+                        require(path.length <= 1024 && path.split('/').size <= 32) {
+                            "ZIP member nesting exceeds safe path limits: " + path.take(120)
+                        }
                         var name=path
                         val bits=name.split('/')
                         if (bits.size>1 && bits[0] in listOf("model","models","package","checkpoint"))
@@ -136,6 +183,11 @@ class NativeModelLibrary(private val context: Context) {
                                 require(total<18_000_000_000L && bytes<12_000_000_000L) {
                                     "Unsafe model ZIP expansion size"
                                 }
+                                if (total % (256L*1024*1024) < n) {
+                                    require(StatFs(root.absolutePath).availableBytes > 256L*1024*1024) {
+                                        "Insufficient device storage to complete QNN import"
+                                    }
+                                }
                                 target.write(buffer,0,n)
                                 digest.update(buffer,0,n)
                                 if (total % (8L*1024*1024) < n) progress(counted.bytesRead, total)
@@ -152,32 +204,21 @@ class NativeModelLibrary(private val context: Context) {
                 compressedRead=counted.bytesRead
             }
             progress(compressedRead,total)
-            // Nested ZIP wrappers are preserved; the validated model root
-            // is stored as a relative subdirectory, without moving tensors.
-            val found=stage.walkTopDown().filter { it.name in markers.keys }.toList()
-            val families=found.mapNotNull { markers[it.name] }.distinct()
-            require(families.size<=1) {
-                "Conflicting QNN model markers: "+families.joinToString()
-            }
-            val detected=families.firstOrNull()
-            if(detected!=null && chosen!=null && detected!=chosen)
-                error("Selected "+chosen+" conflicts with detected QNN family "+detected)
-            val compiledData=stage.walkTopDown().any { it.isFile &&
-                it.extension.equals("bin",true) && it.length()>1024*1024 }
-            if(!compiledData) {
-                val raw=stage.walkTopDown().filter { it.isFile &&
-                    it.extension.lowercase() in setOf("safetensors","ckpt","gguf","pt") }
-                    .take(4).map { it.name }.toList()
-                error(if(raw.isNotEmpty()) "Original weights ("+raw.joinToString()+
-                    ") found but no compiled QNN .bin tensors. Conversion is required."
-                else "Missing compiled QNN .bin tensor files in the selected ZIP.")
-            }
-            val backend=detected ?: chosen ?: error(
-                "Missing QNN architecture marker (ANIMA/SDXL/etc.). Compiled .bin data exists, "+
-                "but the architecture is unknown. Choose the actual QNN family; this does not convert it.")
-            require(files>=3) { "Incomplete QNN archive: only "+files+" files" }
-            val modelFolder=found.firstOrNull()?.parentFile ?: stage
-            val relative=stage.toPath().relativize(modelFolder.toPath()).toString()
+            onPhase("Validating extracted model files")
+            // Analyze the actual extracted member tree, including arbitrary
+            // parent folders and case variations, without loading tensors.
+            val report = QnnPackageInspector.inspect(stage.walkTopDown().map { item ->
+                QnnPackageInspector.Member(
+                    stage.toPath().relativize(item.toPath()).toString(),
+                    if (item.isFile) item.length() else 0L,
+                    item.isDirectory
+                )
+            }.asIterable())
+            val backend = QnnPackageInspector.validate(report, chosen)
+            val modelFolder = report.markerParent?.let { File(stage, it) } ?: stage
+            require(modelFolder.isDirectory) { "Model root directory is missing" }
+            val relative = stage.toPath().relativize(modelFolder.toPath()).toString()
+            onPhase("Checking for an existing identical model")
             val sha=contentDigest.digest().joinToString("") { "%02x".format(it) }
             val existing=list().firstOrNull { it.contentSha256==sha }
             if(existing!=null) {
@@ -186,11 +227,13 @@ class NativeModelLibrary(private val context: Context) {
             }
             // The manifest is committed before the atomic move; no unlisted
             // half-installed model can become visible.
+            onPhase("Finalizing verified model installation")
             File(stage,"asterion_model.json").writeText(JSONObject().apply {
                 put("schema",2);put("label",safeLabel);put("backend",backend)
                 put("bytes",total);put("content_sha256",sha)
                 put("installed_at",System.currentTimeMillis())
                 put("model_subdir",relative)
+                if (sourceFingerprint.isNotEmpty()) put("source_fingerprint",sourceFingerprint)
             }.toString(2))
             val ready=File(root,id)
             require(stage.renameTo(ready)) { "Could not atomically finalize model" }
