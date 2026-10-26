@@ -18,6 +18,10 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
+import com.asterion.art.engine.GenerationPlanner
+import com.asterion.art.engine.SheetTextReader
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.asterion.art.learning.UserPreferenceStore
 import com.asterion.art.methodology.*
 import com.asterion.art.model.*
@@ -37,6 +41,7 @@ fun MethodologyStudioV3(
     val spec = DetailedMethodologies.all.getValue(method)
     val canonical = remember { ConceptCatalog.load(context) }
     val isCharacter = method == CreationMode.CHARACTER
+    var showMethodDetails by remember(method) { mutableStateOf(false) }
     var selectedConcepts by remember(method) { mutableStateOf<Set<String>>(emptySet()) }
     var selectedSheets by remember(method) { mutableStateOf<Set<String>>(emptySet()) }
     var illustration by remember(method) { mutableStateOf<String?>(null) }
@@ -45,6 +50,7 @@ fun MethodologyStudioV3(
     var alphabet by remember(method) { mutableStateOf("All") }
     val direction: String? = null
     var message by remember(method) { mutableStateOf<String?>(null) }
+    var promptReview by remember(method) { mutableStateOf<Pair<String,String>?>(null) }
     val picturePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(
@@ -54,37 +60,82 @@ fun MethodologyStudioV3(
         }
     }
     val chosen = repo.sheets.filter { it.id in selectedSheets }
-    val names = selectedConcepts.mapNotNull { id ->
-        if (method == CreationMode.ALTERNATE_UNIVERSE)
-            listOf("Cyberpunk","Dark fantasy","Wuxia","Post-apocalyptic","Sci-fi","Gothic",
-                "Historical","Urban occult","Steampunk","High fashion")
-                .mapIndexed { i, name -> SelectableConcept("AU"+i,name) }
-                .firstOrNull { it.id == id }?.label
-        else canonical.firstOrNull { it.id == id }?.label
+    val options = remember(method) { StudioChoices.options(method,canonical) }
+    var exposure by remember(method) { mutableFloatStateOf(2f) }
+    var intimidation by remember(method) { mutableFloatStateOf(3f) }
+    var detail by remember(method) { mutableFloatStateOf(3f) }
+    val selectedNames = selectedConcepts.mapNotNull { id ->
+        options.firstOrNull { it.id == id }?.label
     }
+    val parameters = when(method) {
+        CreationMode.OUTFIT -> listOf(
+            "Garment coverage: " + listOf("fully enclosed","conservative","moderate",
+                "revealing","highly revealing","minimal coverage")[exposure.toInt()],
+            "Silhouette presence: " + listOf("soft","subtle","balanced",
+                "strong","intimidating","overwhelming")[intimidation.toInt()],
+            "Structural detailing: " + listOf("minimal","restrained","balanced",
+                "intricate","highly intricate","maximal")[detail.toInt()])
+        CreationMode.WEAPON -> listOf(
+            "Weapon presence: " + listOf("subtle","restrained","balanced",
+                "strong","intimidating","monumental")[intimidation.toInt()],
+            "Construction complexity: " + listOf("minimal","restrained","balanced",
+                "intricate","elaborate","maximal")[detail.toInt()])
+        else -> emptyList()
+    }
+    val names = selectedNames + parameters
     val request = MethodologyRequest(method, illustration != null, chosen.map { it.role }.toSet(),
         names, direction, action)
     val errors = DetailedMethodologies.validate(request)
     val geometry = DetailedMethodologies.geometry(request)
-    val options = if(method == CreationMode.ALTERNATE_UNIVERSE)
-        listOf("Cyberpunk","Dark fantasy","Wuxia","Post-apocalyptic","Sci-fi","Gothic",
-            "Historical","Urban occult","Steampunk","High fashion")
-            .mapIndexed { i, title -> SelectableConcept("AU"+i,title) }
-    else canonical
     val needsConceptPicker = method in setOf(CreationMode.CHARACTER,CreationMode.CREATURE,
-        CreationMode.TRANSFORMATION,CreationMode.MUTATION,CreationMode.ALTERNATE_UNIVERSE,\n        CreationMode.OUTFIT,CreationMode.WEAPON)
+        CreationMode.TRANSFORMATION,CreationMode.MUTATION,CreationMode.ALTERNATE_UNIVERSE,
+        CreationMode.OUTFIT,CreationMode.WEAPON)
     val available = options.filter { alphabet == "All" || it.label.startsWith(alphabet, true) }
     val sourceAllowed = spec.sourcePolicy != SourcePolicy.NONE
-    val showSheets = spec.requiredSheets.isNotEmpty() || spec.sourcePolicy == SourcePolicy.CHARACTER_OR_IMAGE
+    val showSheets = spec.requiredSheets.isNotEmpty() ||
+        spec.sourcePolicy == SourcePolicy.CHARACTER_OR_IMAGE ||
+        method in setOf(CreationMode.OUTFIT,CreationMode.WEAPON,
+            CreationMode.TRANSFORMATION,CreationMode.MUTATION,CreationMode.ALTERNATE_UNIVERSE)
     val eligible = errors.isEmpty() && chosen.all { it.outputUri != null }
+    fun enqueueApproved() {
+        runCatching {
+            val adjusted=repo.settings.copy(
+                ratio=if(geometry.preserveOriginalFraming)repo.settings.ratio else geometry.ratio,
+                batch=geometry.imageCount)
+            val job=GenerationJobStore(context).create(
+                media,chosen.map { it.id },adjusted,method,illustration,names)
+            val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
+            GenerationWorker.enqueue(context,job.id,task.id)
+        }.onSuccess { onQueued() }.onFailure { message=it.message }
+    }
+    if(promptReview!=null) {
+        val review=requireNotNull(promptReview)
+        AlertDialog(onDismissRequest={promptReview=null},
+            title={Text("Review generation prompts")},
+            text={
+                Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Text("Model-dependent token capacity is checked again before inference.",
+                        color=Mist,style=MaterialTheme.typography.bodySmall)
+                    Text("POSITIVE",color=Gold)
+                    Text(review.first,style=MaterialTheme.typography.bodySmall)
+                    Text("NEGATIVE",color=Gold)
+                    Text(review.second.ifBlank { "(none in this contract)" },
+                        style=MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton={TextButton(onClick={promptReview=null;enqueueApproved()}) {
+                Text("Approve and queue")
+            }},
+            dismissButton={TextButton(onClick={promptReview=null}) { Text("Back") }})
+    }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Text("CREATION STUDIO", color = Gold, style = MaterialTheme.typography.labelMedium)
             Text(spec.name, style = MaterialTheme.typography.headlineMedium)
-            Text("Source: " + spec.referenceSource, color = Mist,
-                style = MaterialTheme.typography.labelSmall)
+            Text("Selected workflow",color=Mist,style=MaterialTheme.typography.labelSmall)
         }
         item {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
@@ -95,7 +146,10 @@ fun MethodologyStudioV3(
                             " designs per image  ·  " + geometry.imageCount + " image(s)")
                     if(geometry.frontAndRearViews) Text(
                         "Mandatory same-identity front / 90° profile / rear views",color=Mist)
-                    Text(spec.rendererDirective,color=Mist,
+                    TextButton(onClick={showMethodDetails=!showMethodDetails}) {
+                        Text(if(showMethodDetails)"Hide methodology details" else "Methodology details")
+                    }
+                    if(showMethodDetails) Text(spec.rendererDirective,color=Mist,
                         style=MaterialTheme.typography.bodySmall)
                 }
             }
@@ -122,6 +176,24 @@ fun MethodologyStudioV3(
             }
         }
 
+        if(method in setOf(CreationMode.OUTFIT,CreationMode.WEAPON)) item {
+            Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
+                Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                    Text("DESIGN CONTROL",color=Gold)
+                    if(method==CreationMode.OUTFIT) {
+                        Text("Coverage / sensual presentation: " + exposure.toInt(),color=Mist)
+                        Slider(value=exposure,onValueChange={exposure=it},
+                            valueRange=0f..5f,steps=4)
+                    }
+                    Text("Presence / intimidation: " + intimidation.toInt(),color=Mist)
+                    Slider(value=intimidation,onValueChange={intimidation=it},
+                        valueRange=0f..5f,steps=4)
+                    Text("Structural complexity: " + detail.toInt(),color=Mist)
+                    Slider(value=detail,onValueChange={detail=it},
+                        valueRange=0f..5f,steps=4)
+                }
+            }
+        }
         if(sourceAllowed) item {
             Text(if(spec.sourcePolicy==SourcePolicy.REQUIRED) "SOURCE ILLUSTRATION · REQUIRED"
                 else "SOURCE ILLUSTRATION",color=Gold)
@@ -139,17 +211,17 @@ fun MethodologyStudioV3(
                 if(spec.requiredSheets==setOf(SheetRole.ART_STYLE))
                     Text("Only a target Art Style Sheet and the illustration above. No theme/character sheet.",
                         color=Mist)
-                else Text("Character Sheet OR source image. Preserve the source individual.",
-                    color=Mist)
+                else Text("Optional visual authorities. Select multiple sheets to combine " +
+                    "their relevant structural, material or identity evidence.",color=Mist)
                 OutlinedButton(onClick=browseSheets) { Text("Build a reference sheet") }
                 if(spec.sourcePolicy==SourcePolicy.CHARACTER_OR_IMAGE)
                     OutlinedButton(onClick=browseCore) { Text("Browse Asterion Core") }
             }
             items(repo.sheets.filter { it.role in spec.requiredSheets ||
-                (spec.sourcePolicy==SourcePolicy.CHARACTER_OR_IMAGE && it.role==SheetRole.CHARACTER) }) { item ->
+                (method!=CreationMode.STYLE_CORRECTION && method!=CreationMode.FEMINISATION) }) { item ->
                 val active=item.id in selectedSheets
                 OutlinedCard(onClick={selectedSheets=if(active)selectedSheets-item.id
-                    else (selectedSheets-repo.sheets.filter { it.role==item.role }.map { it.id }.toSet())+item.id},
+                    else selectedSheets+item.id},
                     border=BorderStroke(1.dp,if(active)Gold else Raised)) {
                     Row(Modifier.fillMaxWidth().padding(10.dp),
                         horizontalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -199,20 +271,34 @@ fun MethodologyStudioV3(
                 enabled=eligible && (!isCharacter || action==StageAction.CATALOGUE),
                 onClick={
                     runCatching {
-                        val adjusted=repo.settings.copy(
-                            ratio=if(geometry.preserveOriginalFraming)repo.settings.ratio else geometry.ratio,
-                            batch=geometry.imageCount
-                        )
-                        val job=GenerationJobStore(context).create(
-                            media,chosen.map { it.id },adjusted,method,illustration,names)
-                        val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
-                        GenerationWorker.enqueue(context,job.id,task.id)
-                    }.onSuccess { onQueued() }.onFailure { message=it.message }
+                        if(method==CreationMode.CHARACTER)
+                            (0..2).joinToString("\n\n===== SHEET =====\n\n") {
+                                DesignBlueprintEngine.sheetPrompt(names,it)
+                            } to DesignBlueprintEngine.negative()
+                        else {
+                            val settings=repo.settings.copy(
+                                ratio=if(geometry.preserveOriginalFraming)repo.settings.ratio
+                                    else geometry.ratio,batch=geometry.imageCount)
+                            val recipe=if(method==CreationMode.CREATURE)
+                                GenerationPlanner.compileConcepts(names,method,media,settings)
+                            else {
+                                val evidence=chosen.map { SheetTextReader.read(context,it) }
+                                runCatching {
+                                    GenerationPlanner.compile(evidence,media,settings,method,names,
+                                        illustration!=null)
+                                }.getOrElse {
+                                    GenerationPlanner.compileVisual(evidence,media,settings,method,names,
+                                        illustration!=null)
+                                }
+                            }
+                            recipe.passes.joinToString("\n\n") { it.positive } to
+                                recipe.passes.joinToString("\n\n") { it.negative }
+                        }
+                    }.onSuccess { promptReview=it }.onFailure { message=it.message }
                 }) {
                 Text(when {
-                    action==StageAction.OUTFIT && isCharacter->"Phase 2 requires a frozen body"
                     !eligible->"Complete the required authorities"
-                    else->"Queue " + spec.name
+                    else->"Review prompts"
                 })
             }
         }
