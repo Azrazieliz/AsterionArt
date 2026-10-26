@@ -26,6 +26,7 @@ import com.asterion.art.learning.UserPreferenceStore
 import com.asterion.art.methodology.*
 import com.asterion.art.model.*
 import com.asterion.art.work.GenerationWorker
+import kotlinx.coroutines.launch
 
 /** Each named Default has its own actual source, layout and phase contract. */
 @Composable
@@ -38,6 +39,7 @@ fun MethodologyStudioV3(
     onQueued: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val spec = DetailedMethodologies.all.getValue(method)
     val canonical = remember { ConceptCatalog.load(context) }
     val isCharacter = method == CreationMode.CHARACTER
@@ -270,6 +272,7 @@ fun MethodologyStudioV3(
                 modifier=Modifier.fillMaxWidth(),
                 enabled=eligible && (!isCharacter || action==StageAction.CATALOGUE),
                 onClick={
+                    coroutineScope.launch {
                     runCatching {
                         if(method==CreationMode.CHARACTER)
                             (0..2).joinToString("\n\n===== SHEET =====\n\n") {
@@ -295,6 +298,7 @@ fun MethodologyStudioV3(
                                 recipe.passes.joinToString("\n\n") { it.negative }
                         }
                     }.onSuccess { promptReview=it }.onFailure { message=it.message }
+                    }
                 }) {
                 Text(when {
                     !eligible->"Complete the required authorities"
