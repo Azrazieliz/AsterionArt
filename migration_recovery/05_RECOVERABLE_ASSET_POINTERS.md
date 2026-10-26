@@ -1,6 +1,6 @@
 # Private assets and external artifact inventory
 
-The primary downloadable RECOVERY ZIP, generated in this conversation, includes the private user-facing files below where available. They are **not copied into this public GitHub repository**, to avoid unintended publication and GitHub's 100 MiB per-file limit.
+The primary downloadable RECOVERY ZIP, generated in this conversation, includes the original methodology, source archives and private reference media below. Two large APK artifact ZIPs are preserved as separate, directly linked companion downloads (their hashes/IDs are in the recovery manifest). They are **not copied into this public GitHub repository**, to avoid unintended publication and GitHub's 100 MiB per-file limit.
 
 ### Original methodology / project documents
 - `Methodology.zip` — authoritative supplied archive, 40 entries including nested `Archive odt.zip` with historical .odt versions. Includes Character Creation v3 `Concepts.md`, `Design_Direction.md`, `characters_creation.md`; v2 and v1.5; four sheet methodologies; Prompt Writing/Pose; other creation modes; historical Translation module that must stay excluded from Art UI.
@@ -16,8 +16,8 @@ The primary downloadable RECOVERY ZIP, generated in this conversation, includes 
 ### Binaries
 - GitHub source archive Art: run `40335416298`, source artifact `12656907263`, commit `1bdff7823a6afbb0e37c364af15092bf4e5c25f3`. User-facing backup additionally includes a newer separate migration-branch source archive.
 - Core source archive: run `40335426421`, artifact `12657226213`, archived Core source at immutable migration commit; active Core `main` `7d7ab3318cfdd829b28faa301568cedc8b100961`.
-- Last Android source main build `40099170762`: latest debug APK artifact `12562172283`, Android CI success, 23 JVM unit tests; APK is **debug**, its signing may not match installed app.
-- Previous portable debug artifact `40044831118`, artifact `12539924835`. Available older standalone `Asterion-Art-debug.apk` is the same APK bytes nested in previous artifact ZIP and need not be duplicated.
+- Last Android source main build `40099170762`: latest debug APK artifact `12562172283`, Android CI success, 23 JVM unit tests; artifact ZIP is a **separate companion download**, not nested inside the primary ZIP. Debug signer may not match installed app.
+- Previous portable debug artifact `40044831118`, artifact `12539924835`, likewise a **separate companion download**. Available older standalone `Asterion-Art-debug.apk` is identical to the nested APK bytes and is not duplicated.
 - Fusion tensor preflight `40044619909` and source pin `40044548814` archives remain available via GitHub links; source manifest is in `fusion/fusion_b_sources.json`.
 
 ### Original model weights not included

@@ -19,7 +19,7 @@
 - `05_RECOVERABLE_ASSET_POINTERS.md`: project assets, methodology ZIP, design boards, binaries and what is not in public Git.
 - `06_PASTE_TO_RESUME.md`: standalone next-chat prompt.
 
-**Separate local full recovery ZIP:** The user's attached Methodology.zip, character sheets, prior APKs, source snapshots, recorded reference video and earlier Library handoffs should be retained *outside public Git history*. They are in the user-facing download archive generated in the current conversation, not silently published to this public repository. GitHub branch source remains accessible independently even if that archive link expires.
+**Separate local full recovery ZIP:** The user's attached Methodology.zip, character sheets, source snapshots, recorded reference video and earlier Library handoffs remain in the user-facing **primary recovery ZIP**. The large latest/older CI APK artifacts are **companion ZIP downloads** linked independently by their exact GitHub run/artifact IDs, SHA256 values and verified local paths; this avoids the platform attachment limit. Neither the reference media nor APK binaries are silently published to this public repository. GitHub branch source remains accessible independently even if that archive link expires.
 
 ## Honesty labels
 - VERIFIED: commit, file hash, build/test record, directly examined source or zip bytes.
