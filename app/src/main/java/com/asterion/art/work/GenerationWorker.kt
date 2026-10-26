@@ -20,6 +20,7 @@ import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.core.CoreResultUploader
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
+import com.asterion.art.methodology.DesignBlueprintEngine
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.StillImageEngine
 import com.asterion.art.nativeengine.EmbeddedEngineFactory
@@ -126,10 +127,14 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             repo.updateTaskProgress(taskId,0,0,"Loading QNN model · "+model.name)
             foreground("Loading " + model.name)
             engine.prepare(model, resolution.first, resolution.second) { isStopped }
+            // Character Creation prompts are per-sheet and must be checked AFTER
+            // the actual five blueprint descriptions are compiled.
             val capacityCheck = runCatching {
-                recipe.passes.forEach { pass ->
-                    engine.verifyText(pass.positive)
-                    if (pass.negative.isNotBlank()) engine.verifyText(pass.negative)
+                if (job.creationMode != CreationMode.CHARACTER) {
+                    recipe.passes.forEach { pass ->
+                        engine.verifyText(pass.positive)
+                        if (pass.negative.isNotBlank()) engine.verifyText(pass.negative)
+                    }
                 }
             }
             if (capacityCheck.isFailure && model.ditKind != "qwen21" &&
@@ -165,6 +170,28 @@ class GenerationWorker(context: Context, params: WorkerParameters):
 
             val intermediate = File(applicationContext.filesDir,
                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
+            if (job.creationMode == CreationMode.CHARACTER) {
+                val capsules = JSONArray()
+                DesignBlueprintEngine.population(job.concepts).forEach { design ->
+                    capsules.put(JSONObject().apply {
+                        put("id", design.id)
+                        put("index", design.number)
+                        put("concepts", JSONArray(design.concepts))
+                        put("morphology", design.morphology)
+                        put("face_and_hair", design.faceAndHair)
+                        put("mechanics", design.internalMechanics)
+                        put("fusion", design.conceptFusion)
+                        put("renderer_description", design.render())
+                        put("frozen", false)
+                    })
+                }
+                GeneratedImagePublisher.atomicWrite(
+                    File(applicationContext.filesDir,
+                        "generation-plans/" + job.id + "-capsules.json"),
+                    JSONObject().put("schema", "asterion.design-capsules.v1")
+                        .put("job_id", job.id).put("designs", capsules)
+                        .toString(2).toByteArray(Charsets.UTF_8))
+            }
             val out = mutableListOf<JSONObject>()
             var technicalLeaderScore = Double.NEGATIVE_INFINITY
             var technicalLeader: ByteArray? = null
@@ -198,13 +225,15 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
                     val methodStage = if (job.creationMode==CreationMode.CHARACTER)
-                        stage.copy(positive=stage.positive+"\n"+
-                            com.asterion.art.methodology.MethodologyRegistry.pageCaption(
-                                CreationMode.CHARACTER,candidate-1)+
-                            " on one 16:9 landscape sheet: five distinct identities, each shown in three " +
-                            "views (dominant true-front, exact 90-degree profile, direct rear), " +
-                            "fifteen full-body figures total, identical anatomy across views.")
+                        stage.copy(
+                            positive=DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1),
+                            negative=DesignBlueprintEngine.negative())
                     else stage
+                    // Validate the *actual* model input, including page-specific
+                    // character descriptions. The earlier bug checked only the base.
+                    engine.verifyText(methodStage.positive)
+                    if (methodStage.negative.isNotBlank())
+                        engine.verifyText(methodStage.negative)
                     val result = engine.generate(
                         methodStage, candidateSettings, resolution.first, resolution.second,
                         current, seed, { isStopped }, { step, totalSteps ->
@@ -238,6 +267,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 out += JSONObject().apply {
                     put("candidate", candidate)
                     put("uri", uri.toString())
+                    put("prompt_positive", if (job.creationMode==CreationMode.CHARACTER)
+                        DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1)
+                        else stageSequence.joinToString("\n\n") { it.positive })
+                    put("prompt_negative", if (job.creationMode==CreationMode.CHARACTER)
+                        DesignBlueprintEngine.negative()
+                        else stageSequence.joinToString("\n\n") { it.negative })
                     put("technical_score", technical.score)
                     put("contrast", technical.contrast)
                     put("detail", technical.detail)

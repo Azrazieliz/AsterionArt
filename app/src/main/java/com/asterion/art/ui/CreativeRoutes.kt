@@ -108,7 +108,7 @@ fun ImageGateway(openArtwork:()->Unit,openDefaults:()->Unit,openSheets:()->Unit)
         item { Text("Choose a workflow",style=MaterialTheme.typography.headlineLarge) }
         item { DestinationCard("Artwork creation","Combine character, style, theme and element sheets into one artwork",
             Icons.Default.Image,openArtwork) }
-        item { DestinationCard("Methodology defaults","Character creation, outfit, weapon, creature, transformation, mutation and art-style correction",
+        item { DestinationCard("Creation Studios","Characters, outfits, weapons, forms, creatures and artistic transformations",
             Icons.Default.AutoAwesome,openDefaults) }
         item { DestinationCard("Sheet creation","Build normalized Character, Art Style, Theme and Element reference sheets",
             Icons.Default.Image,openSheets) }
@@ -119,8 +119,8 @@ fun ImageGateway(openArtwork:()->Unit,openDefaults:()->Unit,openSheets:()->Unit)
 fun MethodologyGateway(onSelect:(CreationMode)->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),
         verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { Text("METHODOLOGY",color=Gold,style=MaterialTheme.typography.labelMedium) }
-        item { Text("Choose a specific default",style=MaterialTheme.typography.headlineMedium) }
+        item { Text("CREATION STUDIOS",color=Gold,style=MaterialTheme.typography.labelMedium) }
+        item { Text("Choose your studio",style=MaterialTheme.typography.headlineMedium) }
         items(CreationMode.entries.toList()) { mode ->
             val spec=MethodologyRegistry.modes.getValue(mode)
             val layout=spec.layout

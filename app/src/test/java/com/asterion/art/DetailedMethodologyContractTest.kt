@@ -34,16 +34,19 @@ class DetailedMethodologyContractTest {
         assertTrue(DetailedMethodologies.all.getValue(CreationMode.WEAPON)
             .rendererDirective.contains("ISOLATED"))
     }
-    @Test fun allFourCharacterCreationPhasesAreExplicitlyGated() {
+    @Test fun characterCreationIsOnlyPhaseOne() {
         val base=MethodologyRequest(CreationMode.CHARACTER,conceptIds=listOf("SC084","SC016"))
+        assertTrue(DetailedMethodologies.validate(base).isEmpty())
         assertTrue(DetailedMethodologies.validate(base.copy(action=StageAction.OUTFIT)).isNotEmpty())
-        assertTrue(DetailedMethodologies.validate(base.copy(action=StageAction.OUTFIT,
-            frozenBodyRevision="body-v1")).isEmpty())
-        assertTrue(DetailedMethodologies.validate(base.copy(action=StageAction.WEAPON,
-            frozenBodyRevision="body-v1")).isNotEmpty())
-        assertTrue(DetailedMethodologies.validate(base.copy(action=StageAction.ASSEMBLY,
-            frozenBodyRevision="body-v1",frozenOutfitRevision="outfit-v1",
-            frozenWeaponRevision="weapon-v1")).isEmpty())
+        assertTrue(DetailedMethodologies.validate(base.copy(action=StageAction.WEAPON)).isNotEmpty())
+        assertTrue(DetailedMethodologies.validate(base.copy(action=StageAction.ASSEMBLY)).isNotEmpty())
+    }
+
+    @Test fun feminisationRequiresSourceImageAndOneFullBodyOutput() {
+        val base=MethodologyRequest(CreationMode.FEMINISATION,sourceIllustrationPresent=true)
+        assertTrue(DetailedMethodologies.validate(base).isEmpty())
+        assertEquals("9:16",DetailedMethodologies.geometry(base).ratio)
+        assertTrue(DetailedMethodologies.validate(base.copy(sourceIllustrationPresent=false)).isNotEmpty())
     }
     @Test fun mutationAndAlternateUniverseAreNotOneGenericMode() {
         val mutation=DetailedMethodologies.all.getValue(CreationMode.MUTATION)

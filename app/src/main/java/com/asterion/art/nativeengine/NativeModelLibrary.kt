@@ -62,6 +62,30 @@ class NativeModelLibrary(private val context: Context) {
             }.getOrNull()
         }.toList()
 
+    /**
+     * Deletes only an installed app-owned model. The caller must first confirm
+     * that no queued or active generation job can use this installation.
+     * Original SAF checkpoint URIs are never touched.
+     */
+    @Synchronized
+    fun remove(id: String, generationInProgress: Boolean): Boolean {
+        require(!generationInProgress) {
+            "Cannot delete a model while image generation is active or queued."
+        }
+        require(id.matches(Regex("qnn_[a-f0-9]{24}"))) { "Invalid model identifier" }
+        val installed = list().firstOrNull { it.id == id } ?: return false
+        val directory = File(root, id).canonicalFile
+        require(directory.parentFile == root.canonicalFile) { "Unsafe model path" }
+        require(installed.root.canonicalPath.startsWith(directory.path)) {
+            "Installed model root does not belong to its registration"
+        }
+        val deleting = File(root, "$id.deleting")
+        require(!deleting.exists()) { "An earlier model deletion needs recovery" }
+        check(directory.renameTo(deleting)) { "Unable to isolate model for deletion" }
+        check(deleting.deleteRecursively()) { "Model isolated but storage cleanup incomplete" }
+        return true
+    }
+
     fun importZip(uri: Uri, label: String, progress: (Long, Long)->Unit,
                   stopped: ()->Boolean, family: String? = null,
                   onPhase: (String)->Unit = {}): InstalledQnnModel {

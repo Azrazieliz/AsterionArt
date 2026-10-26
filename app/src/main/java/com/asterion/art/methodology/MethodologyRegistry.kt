@@ -66,7 +66,10 @@ object MethodologyRegistry {
         CreationWorkflow(CreationMode.ALTERNATE_UNIVERSE,"Alternate Universe",
             setOf(SheetRole.CHARACTER),1,false,true,true,five,
             "The SAME original character interpreted through five different alternate-universe design " +
-                "logics. Exact 16:9 analytical white sheet, complete full bodies. Preserve identity.")
+                "logics. Exact 16:9 analytical white sheet, complete full bodies. Preserve identity."),
+        CreationWorkflow(CreationMode.FEMINISATION,"Feminisation",
+            emptySet(),0,true,true,true,DefaultLayout("9:16",1,1,1,1),
+            "Complete female reconstruction preserving the source's conceptual identity; one full-body result.")
     ).associateBy { it.mode }
 
     // Source and validation are delegated to the exact workflow contract.

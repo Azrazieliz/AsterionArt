@@ -25,6 +25,8 @@ import com.asterion.art.nativeengine.ModelOutputRouting
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,6 +65,9 @@ fun NativeModelLibraryScreen() {
     var tagRefresh by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
     var selectedFamily by remember { mutableStateOf("auto") }
+    var deleteModelId by remember { mutableStateOf<String?>(null) }
+    var unregisterOriginalId by remember { mutableStateOf<String?>(null) }
+
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri != null) {
             runCatching {
@@ -76,6 +81,36 @@ fun NativeModelLibraryScreen() {
             }.onSuccess { id -> message="Model installation queued: "+id.take(12) }
                 .onFailure { e -> message=e.message ?: "Could not read model archive" }
         }
+    }
+    if (deleteModelId != null) {
+        val target = installed.firstOrNull { it.id == deleteModelId }
+        AlertDialog(onDismissRequest={deleteModelId=null},
+            title={Text("Delete installed QNN model?")},
+            text={Text("Permanently remove " + (target?.label ?: "this model") +
+                " and free " + ((target?.sizeBytes ?: 0L)/1048576L) +
+                " MiB of app-owned storage? External original checkpoints remain untouched.")},
+            confirmButton={TextButton(onClick={
+                val active = repo.tasks.any {
+                    it.kind==TaskKind.STILL_IMAGE &&
+                        it.status in setOf(TaskStatus.QUEUED,TaskStatus.RUNNING)
+                }
+                runCatching { library.remove(requireNotNull(deleteModelId),active) }
+                    .onSuccess { installed=library.list(); message="Model deleted." }
+                    .onFailure { message=it.message ?: "Model deletion failed" }
+                deleteModelId=null
+            }){Text("Delete model")}},
+            dismissButton={TextButton(onClick={deleteModelId=null}){Text("Cancel")}})
+    }
+    if (unregisterOriginalId != null) {
+        AlertDialog(onDismissRequest={unregisterOriginalId=null},
+            title={Text("Unregister original checkpoint?")},
+            text={Text("Only the catalogue reference will be removed. The original file remains in its document provider.")},
+            confirmButton={TextButton(onClick={
+                checkpointLibrary.unregister(requireNotNull(unregisterOriginalId))
+                originalFiles=checkpointLibrary.list()
+                unregisterOriginalId=null
+            }){Text("Unregister")}},
+            dismissButton={TextButton(onClick={unregisterOriginalId=null}){Text("Cancel")}})
     }
     LazyColumn(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(14.dp),
         contentPadding=androidx.compose.foundation.layout.PaddingValues(18.dp)) {
@@ -169,6 +204,9 @@ fun NativeModelLibraryScreen() {
                             else "Size unknown",color=Mist)
                         Text("External SAF reference · no duplicate model copy",color=Mist,
                             style=MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onClick={unregisterOriginalId=file.id}) {
+                            Text("Unregister original")
+                        }
                         Text("Conversion required before QNN inference",color=Gold,
                             style=MaterialTheme.typography.bodySmall)
                     }
@@ -203,6 +241,9 @@ fun NativeModelLibraryScreen() {
                                     tagRefresh++
                                 },label={Text(type.display)})
                         }
+                    }
+                    OutlinedButton(onClick={deleteModelId=model.id}) {
+                        Text("Delete installed model")
                     }
                     Text("Tags describe intended output categories, not verified model " +
                         "capabilities. Animation still requires an actual video backend.",

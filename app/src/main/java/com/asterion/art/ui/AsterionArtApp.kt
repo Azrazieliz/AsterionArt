@@ -148,9 +148,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                     listOf(
                         Triple(Page.HOME, Icons.Default.Home, "Home"),
                         Triple(Page.CREATE, Icons.Default.AutoAwesome, "Create"),
-                        Triple(Page.LIBRARY, Icons.Default.Collections, "Sheets"),
-                        Triple(Page.MODELS, Icons.Default.Tune, "Models"),
-                        Triple(Page.JOBS, Icons.Default.WorkHistory, "Queue")
+                        Triple(Page.LIBRARY, Icons.Default.Collections, "Library")
                     ).forEach { (page, icon, text) ->
                         NavigationBarItem(
                             selected = if(page==Page.CREATE)
@@ -184,12 +182,14 @@ fun AsterionArtApp(repo: ArtRepository) {
                         browseSheets={ current=Page.SHEET },
                         browseCore={ current=Page.CORE },
                         openParameters={ current=Page.SETTINGS },
-                        onQueued={ current=Page.JOBS })
+                        onQueued={ current=Page.HOME })
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
-                    Page.CORE -> CoreSheetBrowser(repo) { current = Page.JOBS }
-                    Page.VIDEO -> VideoWorkspace(repo) { current = Page.JOBS }
+                    Page.CORE -> CoreSheetBrowser(repo) { current = Page.HOME }
+                    Page.VIDEO -> VideoWorkspace(repo) { current = Page.HOME }
                     Page.MODELS -> NativeModelLibraryScreen()
-                    Page.LIBRARY -> SheetLibraryScreen(repo)
+                    Page.LIBRARY -> LibraryHub(repo,
+                        onEdit={ asset -> editingAsset=asset;current=Page.EDIT },
+                        onToolbox={ asset -> editingAsset=asset;current=Page.TOOLBOX })
                     Page.JOBS -> QueueScreen(repo)
                     Page.GRADING -> GradingScreen(repo,
                         onEdit = { asset ->
@@ -479,6 +479,32 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Mist
             )
+        }
+    }
+}
+
+@Composable
+private fun LibraryHub(
+    repo: ArtRepository,
+    onEdit: (GradedAsset) -> Unit,
+    onToolbox: (GradedAsset) -> Unit
+) {
+    var tab by rememberSaveable { mutableStateOf("Creations") }
+    Column(Modifier.fillMaxSize()) {
+        LazyRow(contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp),
+            horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            items(listOf("Creations","Sheets","Models","History")) { value ->
+                FilterChip(selected=tab==value,onClick={tab=value},
+                    label={Text(value)})
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            when(tab) {
+                "Creations" -> GradingScreen(repo,onEdit=onEdit,onToolbox=onToolbox)
+                "Sheets" -> SheetLibraryScreen(repo)
+                "Models" -> NativeModelLibraryScreen()
+                else -> QueueScreen(repo)
+            }
         }
     }
 }

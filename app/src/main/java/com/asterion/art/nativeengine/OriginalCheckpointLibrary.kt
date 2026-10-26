@@ -32,6 +32,22 @@ class OriginalCheckpointLibrary(private val context: Context) {
         }
     }.getOrElse { emptyList() }
 
+    /** Unregister a SAF pointer only. The original external file is untouched. */
+    fun unregister(id: String): Boolean {
+        val existing = list()
+        if (existing.none { it.id == id }) return false
+        val records = JSONArray()
+        existing.filterNot { it.id == id }.forEach { item ->
+            records.put(JSONObject().apply {
+                put("id", item.id); put("name", item.name)
+                put("format", item.format); put("bytes", item.sizeBytes)
+                put("uri", item.sourceUri)
+            })
+        }
+        check(prefs.edit().putString("records", records.toString()).commit())
+        return true
+    }
+
     /** Return null only when this isn't a recognized original-checkpoint file. */
     fun registerIfOriginal(uri: Uri, proposedLabel: String): OriginalCheckpoint? {
         val projection=arrayOf(OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE)

@@ -43,7 +43,7 @@ fun MethodologyStudioV3(
     var action by remember(method) { mutableStateOf(StageAction.CATALOGUE) }
     var media by remember(method) { mutableStateOf(RenderMode.ANIME) }
     var alphabet by remember(method) { mutableStateOf("All") }
-    var direction by remember(method) { mutableStateOf("DD0001") }
+    val direction: String? = null
     var message by remember(method) { mutableStateOf<String?>(null) }
     val picturePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -72,7 +72,7 @@ fun MethodologyStudioV3(
             .mapIndexed { i, title -> SelectableConcept("AU"+i,title) }
     else canonical
     val needsConceptPicker = method in setOf(CreationMode.CHARACTER,CreationMode.CREATURE,
-        CreationMode.TRANSFORMATION,CreationMode.MUTATION,CreationMode.ALTERNATE_UNIVERSE)
+        CreationMode.TRANSFORMATION,CreationMode.MUTATION,CreationMode.ALTERNATE_UNIVERSE,\n        CreationMode.OUTFIT,CreationMode.WEAPON)
     val available = options.filter { alphabet == "All" || it.label.startsWith(alphabet, true) }
     val sourceAllowed = spec.sourcePolicy != SourcePolicy.NONE
     val showSheets = spec.requiredSheets.isNotEmpty() || spec.sourcePolicy == SourcePolicy.CHARACTER_OR_IMAGE
@@ -81,7 +81,7 @@ fun MethodologyStudioV3(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Text("METHODOLOGY DEFAULT", color = Gold, style = MaterialTheme.typography.labelMedium)
+            Text("CREATION STUDIO", color = Gold, style = MaterialTheme.typography.labelMedium)
             Text(spec.name, style = MaterialTheme.typography.headlineMedium)
             Text("Source: " + spec.referenceSource, color = Mist,
                 style = MaterialTheme.typography.labelSmall)
@@ -100,40 +100,7 @@ fun MethodologyStudioV3(
                 }
             }
         }
-        if (isCharacter) {
-            item {
-                Text("CHARACTER CREATION PHASE",color=Gold)
-                LazyRow(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
-                    items(listOf(StageAction.CATALOGUE,StageAction.OUTFIT,
-                        StageAction.WEAPON,StageAction.ASSEMBLY)) { phase ->
-                        FilterChip(selected=action==phase,onClick={action=phase},
-                            label={Text(when(phase) {
-                                StageAction.CATALOGUE->"Phase 1 · Body"
-                                StageAction.OUTFIT->"Phase 2 · Outfit"
-                                StageAction.WEAPON->"Phase 3 · Weapon"
-                                StageAction.ASSEMBLY->"Phase 4 · Assembly"
-                                else->phase.name
-                            })})
-                    }
-                }
-                if(action != StageAction.CATALOGUE) Text(
-                    "This phase requires explicitly selected and frozen results from previous phases. " +
-                        "No automatic phase progression or substitution is permitted.",
-                    color=Red,style=MaterialTheme.typography.bodySmall)
-            }
-            item {
-                Text("DESIGN DIRECTION",color=Gold)
-                LazyRow(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
-                    items(listOf("DD0001" to "Shoujo Kaisen",
-                        "DD0002" to "Fate","DD0003" to "Arknights")) { item ->
-                        FilterChip(selected=direction==item.first,onClick={direction=item.first},
-                            label={Text(item.second)})
-                    }
-                }
-                Text("Design Direction defines construction grammar, not an existing character identity.",
-                    color=Mist,style=MaterialTheme.typography.bodySmall)
-            }
-        } else {
+        if (!isCharacter) {
             item {
                 Text("OUTPUT TYPE",color=Gold)
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
@@ -201,7 +168,7 @@ fun MethodologyStudioV3(
         if(needsConceptPicker) {
             item {
                 Text(if(isCharacter) "PRIMARY CONCEPT SLOTS · MINIMUM TWO"
-                    else "CONCEPT / DESIGN DIRECTION",color=Gold)
+                    else "CONCEPTS / STRUCTURES",color=Gold)
                 Text("Selected: " + names.joinToString(" × "),color=Mist)
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(5.dp)) {
                     items(listOf("All")+('A'..'Z').map { it.toString() }) { letter ->
@@ -210,7 +177,7 @@ fun MethodologyStudioV3(
                     }
                 }
             }
-            items(available.take(75),key={it.id}) { concept ->
+            items(available,key={it.id}) { concept ->
                 val active=concept.id in selectedConcepts
                 OutlinedCard(onClick={selectedConcepts=if(active)selectedConcepts-concept.id
                     else selectedConcepts+concept.id},

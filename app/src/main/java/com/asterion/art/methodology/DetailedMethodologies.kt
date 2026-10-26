@@ -67,7 +67,7 @@ object DetailedMethodologies {
             OutputGeometry("9:16",1,1,1,1,frontAndRearViews=true),
             emptySet(),setOf("Original body architecture","Face","Hair","Concept fusion"),
             "Phase 1: one population of exactly fifteen independent authored identities. Three separate 16:9 analytical sheets, each containing exactly five distinct characters. Each identity has an uncropped true-front neutral view plus smaller exact 90-degree profile and exact rear of the SAME body. White field. Concepts must materialize intrinsically as premium 2D female characters, not as surrounding icons, props or decorations. Fifteen designs must be authored and certified before any first-sheet rendering. No outfit, weapon, environment, pose substitution, 3/4 view, collage or cropped morphology. Phase 2 outfit, Phase 3 weapon and Phase 4 assembly require explicit user approval and frozen previous phase.",
-            setOf(StageAction.CATALOGUE, StageAction.BODY,StageAction.OUTFIT,StageAction.WEAPON,StageAction.ASSEMBLY),
+            setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW),
             mustFreezeBeforeNextPhase=true
         ),
         MethodologyContract(
@@ -82,7 +82,7 @@ object DetailedMethodologies {
         MethodologyContract(
             CreationMode.OUTFIT,"Outfit Creation",
             "Outfit Creation/Outfit Creation.md",
-            emptySet(),SourcePolicy.CHARACTER_OR_IMAGE,0,ten,portrait,
+            emptySet(),SourcePolicy.OPTIONAL,0,ten,portrait,
             freeze,setOf("Garment construction","Coverage","Materials","Outfit colors","Ornament"),
             "Freeze source character body, face, hair, proportions and concept anatomy. Default exactly ten structurally and materially different outfits on one 16:9 white 2x5 catalogue. Use analytical headless forms matching frozen morphology when needed. Do not reauthor body, insert weapons or scenes. Selected preview: exact 9:16 white full-body original character wearing chosen outfit.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW,StageAction.CONSTRUCTION)
@@ -90,7 +90,7 @@ object DetailedMethodologies {
         MethodologyContract(
             CreationMode.WEAPON,"Weapon Creation",
             "Weapon Creation/Weapon Creation.md",
-            emptySet(),SourcePolicy.CHARACTER_OR_IMAGE,0,ten,portrait,
+            emptySet(),SourcePolicy.OPTIONAL,0,ten,portrait,
             freeze + setOf("Selected frozen outfit"),setOf("Category","Weapon geometry","Grip","Materials","Ornament"),
             "Freeze character and selected outfit. Default exactly ten distinct, complete, ISOLATED readable weapons on a single white 16:9 two-row by five-column catalogue. No character, hand, scene or decorative effects. Simple category-recognizable macro structure with premium character-specific fine construction. Preview may show original full-body character holding selected weapon only after user selection.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW,StageAction.CONSTRUCTION)
@@ -127,6 +127,21 @@ object DetailedMethodologies {
             identity,setOf("World logic","Equipment","Technology","Clothing","Role"),
             "The SAME source character must naturally belong to five systematically different alternate universes on a 16:9 white analytical five-design catalogue. Preserve distinctive identity while reauthoring outfit, weapons and material logic for each world. No generic cosplay costume swaps or environment; single AU preview is a neutral uncropped 9:16 portrait.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW)
+        ),
+        MethodologyContract(
+            CreationMode.FEMINISATION,"Feminisation",
+            "Feminisation/feminisation_reconstructed_current.md",
+            emptySet(),SourcePolicy.REQUIRED,0,portrait,portrait,
+            setOf("Recognizable identity anchors","Source concept","Canonical non-gender identity"),
+            setOf("Female anatomy","Head and face","Hair","Outfit","Body proportions"),
+            "Create one complete, uncropped 9:16 full-body female character on a plain white field. " +
+                "Reconstruct head shape, face, eye architecture, hair design, anatomical proportions, " +
+                "silhouette, clothing and materials as an independently authored female design. " +
+                "Preserve recognizable source concept anchors without copying the original masculine " +
+                "body template. Rebuild garments around the new body, never merely open the male outfit. " +
+                "Level 4.5 means comprehensive coordinated female redesign across every body system, " +
+                "not a numeric instruction for the diffusion model. One figure only, no extra panels.",
+            setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW)
         )
     ).associateBy { it.mode }
 
@@ -153,7 +168,7 @@ object DetailedMethodologies {
                 add("Select at least "+contract.minimumConceptSlots+" distinct canonical concept slots")
             if(request.action !in contract.commands)
                 add("This methodology does not support the selected operation")
-            if(request.mode==CreationMode.CHARACTER) {
+            if (false && request.mode==CreationMode.CHARACTER) {
                 when(request.action) {
                     StageAction.OUTFIT -> if(request.frozenBodyRevision.isNullOrBlank())
                         add("Freeze the selected body before Phase 2")

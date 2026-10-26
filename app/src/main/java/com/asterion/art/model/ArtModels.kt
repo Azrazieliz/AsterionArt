@@ -9,7 +9,8 @@ enum class CreationMode(val display: String) {
     CHARACTER("Character Creation"), STYLE_CORRECTION("Art Style Correction"),
     OUTFIT("Outfit Creation"), WEAPON("Weapon Creation"),
     TRANSFORMATION("Transformation"), MUTATION("Mutation"),
-    CREATURE("Creature Creation"), ALTERNATE_UNIVERSE("Alternate Universe")
+    CREATURE("Creature Creation"), ALTERNATE_UNIVERSE("Alternate Universe"),
+    FEMINISATION("Feminisation")
 }
 enum class RenderMode(val display: String) {
     ANIME("Anime"), REALISTIC("Realistic"), COSPLAY("Cosplay"), ANIMATION("Animation"), OTHER("Other")
