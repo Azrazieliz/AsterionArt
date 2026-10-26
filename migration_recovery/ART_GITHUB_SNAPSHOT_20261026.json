@@ -1,0 +1,884 @@
+{
+  "date": "2026-10-26",
+  "repo": "Azrazieliz/AsterionCompiler",
+  "main": "88206baa9e2a33d41195834783023a9fb0c7e0dc",
+  "branches": [
+    {
+      "name": "archive-pre-asterion-art-20261023",
+      "sha": "db68e11c411ae120b7d08e5e8aa5914608a7a404"
+    },
+    {
+      "name": "asterion-art-integration",
+      "sha": "b20509363b474b0738467d25ea90bb206f1e8c63"
+    },
+    {
+      "name": "asterion-art-unified-20261023",
+      "sha": "352e625f37bb8c3a376729574b11c7da049fcb8f"
+    },
+    {
+      "name": "asterion-rebuild-model-aware-prompts-lora-20261023",
+      "sha": "008a07db3adf62252719757238de89e83384ddb3"
+    },
+    {
+      "name": "legacy-asterion-compiler-20261023",
+      "sha": "db68e11c411ae120b7d08e5e8aa5914608a7a404"
+    },
+    {
+      "name": "main",
+      "sha": "88206baa9e2a33d41195834783023a9fb0c7e0dc"
+    },
+    {
+      "name": "migration/asterion-art-complete-recovery-2026-10-26",
+      "sha": "1bdff7823a6afbb0e37c364af15092bf4e5c25f3"
+    },
+    {
+      "name": "migration/asterion-art-conversation-backup-20261026",
+      "sha": "88206baa9e2a33d41195834783023a9fb0c7e0dc"
+    }
+  ],
+  "commits": [
+    {
+      "sha": "88206baa9e2a33d41195834783023a9fb0c7e0dc",
+      "date": "2026-10-24T13:40:35Z",
+      "message": "feat: integrate in-app Image Toolbox and automatic neural SR after one-shot methodology"
+    },
+    {
+      "sha": "3995f068c42e1520e416390286af4928560e4736",
+      "date": "2026-10-24T13:32:13Z",
+      "message": "feat: embed genuine MIT RealSR Vulkan upscaler and in-app neural enhancement queue"
+    },
+    {
+      "sha": "fa54886c22768083fdaf80210a36fa772e346334",
+      "date": "2026-10-24T13:27:45Z",
+      "message": "fix: accept style redraw as single-mode and require AU direction"
+    },
+    {
+      "sha": "8d636132f1e6c5225400a8be012165c851745ebd",
+      "date": "2026-10-24T13:23:36Z",
+      "message": "feat: enforce methodology-specific defaults, staged character creation and source contracts"
+    },
+    {
+      "sha": "07f81344a3570df21efaa84bb96662b212e3249e",
+      "date": "2026-10-24T10:38:22Z",
+      "message": "fix(copy): accurately describe embedded runtime, video dependency and persistent queue"
+    },
+    {
+      "sha": "965db0bfa3ff787fc5594273203e413a3baed27a",
+      "date": "2026-10-24T10:37:34Z",
+      "message": "chore(android): advance Asterion Art version to 0.2.0 while preserving package ID"
+    },
+    {
+      "sha": "45f388b9f34c13f7ec1572b42e325952c4747e4f",
+      "date": "2026-10-24T10:37:01Z",
+      "message": "feat(routing): assign visual Other and Animation model tags without inventing runtime capability"
+    },
+    {
+      "sha": "9661e446f9bbf0a88dedd3216f32f862eea8dd30",
+      "date": "2026-10-24T10:35:25Z",
+      "message": "test(methodology): lock authoritative v3 triple-view and style-only input contracts"
+    },
+    {
+      "sha": "5517317586467855fc270f72a4a6abe37c94f4a8",
+      "date": "2026-10-24T10:33:13Z",
+      "message": "fix(workflow): preserve methodology catalogue layouts and truthful indeterminate job progress"
+    },
+    {
+      "sha": "d9fe05919b89d8ed77f0ca1a8c1e8030d6188c46",
+      "date": "2026-10-24T10:31:16Z",
+      "message": "fix(generation): enforce v3 three views per character in each render pass"
+    },
+    {
+      "sha": "9d007e42ceb7b86229ea22b9873d57c00932adf3",
+      "date": "2026-10-24T10:31:07Z",
+      "message": "fix(methodology): enforce v3 three-view fifteen-body-per-sheet character presentation"
+    },
+    {
+      "sha": "3127b8131ac5e95aee4d142fc27c22baa1bfcbb3",
+      "date": "2026-10-24T10:30:10Z",
+      "message": "feat(models-ui): show live import progress and non-runnable source checkpoints"
+    },
+    {
+      "sha": "f538bb54dfbef8b4c51234436b3b17ba3abc8cf9",
+      "date": "2026-10-24T10:29:44Z",
+      "message": "feat(import): store original checkpoints by SAF reference without copying or NPU misclassification"
+    },
+    {
+      "sha": "0a61a7e2976c9a07181c15c405d613186ca5a13a",
+      "date": "2026-10-24T10:29:14Z",
+      "message": "feat(models): index original safetensors and GGUF in-place as non-runnable references"
+    },
+    {
+      "sha": "da450f2db1210c7c3c410c98404e881d1e99bdd4",
+      "date": "2026-10-24T10:27:40Z",
+      "message": "fix(progress): durable job stages, consistent inference progress, import cancellation and QNN errors"
+    },
+    {
+      "sha": "76203c2768c438d6c009edb092069e7457b30035",
+      "date": "2026-10-24T10:25:48Z",
+      "message": "fix(models): classify raw weights and nested QNN ZIPs, atomic manifest and dedupe"
+    },
+    {
+      "sha": "92285d28310a17a0e88b43f1ad57789be12f2cd2",
+      "date": "2026-10-24T09:31:43Z",
+      "message": "fix(progress): keep animation progress indeterminate during native inference and reserve image finalization stages"
+    },
+    {
+      "sha": "71c1f6e56c37d38954e97faa19e479a9ea27e142",
+      "date": "2026-10-24T09:21:52Z",
+      "message": "fix(models): support markerless compiled QNN packages with explicit family selection and reject original weights clearly"
+    },
+    {
+      "sha": "01a199119866ba0a9fed3b4586ceb16f590444f0",
+      "date": "2026-10-24T09:17:46Z",
+      "message": "feat: enable private Android share handoff to licensed SuperImage Pro, Image Toolbox and RealSR"
+    },
+    {
+      "sha": "43c7a7268c6d7896aa7c56500ca5ead36cbbee78",
+      "date": "2026-10-24T09:16:11Z",
+      "message": "test(methodology): assert Character v3 and per-workflow authority instead of obsolete theme requirements"
+    },
+    {
+      "sha": "b81faf9ca51d7939bd4a5cd900e6905158c009a6",
+      "date": "2026-10-24T09:15:22Z",
+      "message": "feat(home): studio start, status dashboard, active progress, recent results and direct library access"
+    },
+    {
+      "sha": "4772d8b2e781060afa567a96e65d47027e0d40e3",
+      "date": "2026-10-24T09:14:48Z",
+      "message": "feat(ui): Image/Animation gateway and Artwork/Methodology/Sheet routes with navigable back stack"
+    },
+    {
+      "sha": "cdb4f4630b5d4f0a592af25dc6b7622f05fc6d21",
+      "date": "2026-10-24T09:13:08Z",
+      "message": "feat(ui): create Image/Animation gateway and methodology-specific clickable studios driven by 455 concepts"
+    },
+    {
+      "sha": "ed3c621842fb1299a6c955a5b0645cba58d14c7e",
+      "date": "2026-10-24T09:11:25Z",
+      "message": "feat: make Character Creation and Creature Creation independent of character/theme sheets with canonical concept inputs"
+    },
+    {
+      "sha": "c106af5aa496683ee8f711829db4c659637596b8",
+      "date": "2026-10-24T09:09:37Z",
+      "message": "data(methodology): ship all 455 canonical selectable Character Creation v3 concepts"
+    },
+    {
+      "sha": "7d5725cc8668b499fcfa543c23d2be81bdedc02b",
+      "date": "2026-10-24T09:08:14Z",
+      "message": "fix(methodology): v3 character design geometry and mode-specific authority constraints"
+    },
+    {
+      "sha": "5373c992e0c6a9bfdc726968a6454fb428c6c774",
+      "date": "2026-10-24T09:05:46Z",
+      "message": "feat: user-configurable anime, realistic and cosplay tags on imported QNN models"
+    },
+    {
+      "sha": "919db6b41960dbcb9490c2c78df3ed2f828e9f6e",
+      "date": "2026-10-24T09:02:44Z",
+      "message": "fix: robust QNN import diagnostics with compressed byte progress and per-job image/video/sheet progress"
+    },
+    {
+      "sha": "cce6df549f48161e16d66a17dbf2dee9d60bd04c",
+      "date": "2026-10-24T00:24:12Z",
+      "message": "ci(native): verify exact QNN runtime checksums inside packaged Android APK"
+    },
+    {
+      "sha": "43de93ccc2320c2580c22ef676298d425adb9027",
+      "date": "2026-10-24T00:22:55Z",
+      "message": "test(fusion): check BF16 MiaoMiao and FP16 Rin interpolation and exact output bytes"
+    },
+    {
+      "sha": "e847e472d84db417706ac8c18b476c2553ad99f5",
+      "date": "2026-10-24T00:22:47Z",
+      "message": "feat(fusion): stream numerical FP16 Rin + BF16 MiaoMiao with float32 arithmetic into FP16"
+    },
+    {
+      "sha": "9a574d03f2867f9b2871e6a5b3d9e100186c6db7",
+      "date": "2026-10-24T00:21:58Z",
+      "message": "test(fusion): inspect Rin and MiaoMiao tensor compatibility via bounded HTTP range reads"
+    },
+    {
+      "sha": "40c416616988144ca493e76ba30b3e5b96aa0b4f",
+      "date": "2026-10-24T00:21:12Z",
+      "message": "build(fusion): lock original MiaoMiao and Hassaku source commits and SHA256"
+    },
+    {
+      "sha": "cb1218eb1bb498d8cd2eaa3ff25e1910fc701a5e",
+      "date": "2026-10-24T00:19:14Z",
+      "message": "security: isolate embedded inference on private loopback port and unwrap official ZIP model folders"
+    },
+    {
+      "sha": "47ebaebccd3ac6daa5f21ff7948fb76946b8b207",
+      "date": "2026-10-24T00:18:35Z",
+      "message": "feat: pin Hassaku XL v3.4 and prepare private-only Fusion B source validation and merge"
+    },
+    {
+      "sha": "a18abd8e9f025664371f814f128e485aac5052e6",
+      "date": "2026-10-24T00:16:21Z",
+      "message": "fix: keep optional external upscaler distinct from embedded StillImageEngine"
+    },
+    {
+      "sha": "1338524be2d541af746955538a7bb2a4b4ef8c2c",
+      "date": "2026-10-24T00:14:43Z",
+      "message": "feat: add native runtime packaging, offline QNN import, and embedded ARM64 process engine"
+    },
+    {
+      "sha": "2d647e7eca8a45fea56dcb697c1081d08de1d9e5",
+      "date": "2026-10-24T00:14:15Z",
+      "message": "feat: integrate pinned native engine inside Asterion Art with streaming 7 GB model imports"
+    },
+    {
+      "sha": "f926f83c622523035535d3c6f90fc11192deaa34",
+      "date": "2026-10-23T22:24:03Z",
+      "message": "feat: provide click-only creation methodology selector and source-locked style correction"
+    },
+    {
+      "sha": "0386f461543e7db03e5cd8dd30f4d5e91495926b",
+      "date": "2026-10-23T22:23:39Z",
+      "message": "feat: apply source-preserving art-style correction and creation methodology to true five-pass generation"
+    },
+    {
+      "sha": "54078130ea1594459b9a8716d8b1ddace7491b11",
+      "date": "2026-10-23T22:23:17Z",
+      "message": "feat: compile all user-selected creation methodologies into constrained five-pass prompts"
+    },
+    {
+      "sha": "5939fdb80d7ec86c317e3ed103bae31968cf93cf",
+      "date": "2026-10-23T22:23:04Z",
+      "message": "feat: persist normalized creation methodology and optional source artwork with each generation job"
+    },
+    {
+      "sha": "e6f4a52026eda8edb9b8f8e410757a3017f9bc8c",
+      "date": "2026-10-23T22:22:27Z",
+      "message": "feat: turn source Methodology.zip creation families into typed validated internal workflow contracts"
+    },
+    {
+      "sha": "24105b861595fc0e61fb1d1117ea56aaf1ab5098",
+      "date": "2026-10-23T22:20:26Z",
+      "message": "feat: auto-sync generated originals, enhanced artwork and edits to signed Core library with SHA evidence"
+    },
+    {
+      "sha": "ce0b26d5f5611a2eb729e75aa86d56c7eba9bc3f",
+      "date": "2026-10-23T22:20:05Z",
+      "message": "feat: add signed ContentProvider streaming upload from Art gallery into Core image database"
+    },
+    {
+      "sha": "4eb07acc6db78844fc8f43d6b2fac25ae4f49619",
+      "date": "2026-10-23T22:17:27Z",
+      "message": "feat: auto-route overflow/imagery-heavy jobs to true Qwen/Klein multi-reference diffusion, never truncate source facts"
+    },
+    {
+      "sha": "a7d50f4821bfbe625ebde1fc35cc40a075f3460e",
+      "date": "2026-10-23T22:16:56Z",
+      "message": "feat: bound source-image encoding for real multi-reference vision model input"
+    },
+    {
+      "sha": "623255e9e84ffdcb5e336da8fb7321441d02752e",
+      "date": "2026-10-23T22:16:31Z",
+      "message": "feat: support five-pass visual-reference compilation without invented OCR-derived traits"
+    },
+    {
+      "sha": "33d1e17d5093582d660d64994c6f56de5900777a",
+      "date": "2026-10-23T22:16:03Z",
+      "message": "feat: add real DiT multi-reference image inputs and capability detection"
+    },
+    {
+      "sha": "2a10577e3a838b844962f2d3ea3bef0ce9c6e3a4",
+      "date": "2026-10-23T22:15:20Z",
+      "message": "ci: test original-weight Anima fusion without allocating full checkpoint memory"
+    },
+    {
+      "sha": "4b682a25668c3d8048b255c26f14985b601f941e",
+      "date": "2026-10-23T22:14:12Z",
+      "message": "feat: role-specific professional normalized sheet grids with ordered panels and sourced color swatches"
+    },
+    {
+      "sha": "148d4051ef266fd883f40d15c88a7fbd65407cac",
+      "date": "2026-10-23T22:13:19Z",
+      "message": "perf: stream NoWorld multi-GB video export with fixed memory and SHA verification"
+    },
+    {
+      "sha": "43c086623cb33fe857360493faef9535609208cf",
+      "date": "2026-10-23T22:13:03Z",
+      "message": "fix: never recycle caller's bitmap during full-frame mask edits"
+    },
+    {
+      "sha": "1f92f947712d3bcbcae1b9fb70dd0793eb17ed59",
+      "date": "2026-10-23T22:12:42Z",
+      "message": "fix: preserve Core canonical character-sheet bytes and unique identity on import"
+    },
+    {
+      "sha": "cdb9168998d8ecbcbf58f0a51997a9e0607ce3a5",
+      "date": "2026-10-23T22:12:34Z",
+      "message": "feat: reuse Core's verified original character sheet without double rendering"
+    },
+    {
+      "sha": "6fb434f0b0c8eb53781392e7ab04f178222bc784",
+      "date": "2026-10-23T22:12:02Z",
+      "message": "fix: replace final Worker.onStopped override with cooperative native video cancellation watcher"
+    },
+    {
+      "sha": "c79fa556a15f3449af6712e7fdced512cc9a8f5b",
+      "date": "2026-10-23T22:11:30Z",
+      "message": "fix: correct local API error-text variable shadowing"
+    },
+    {
+      "sha": "57e7077d3204d7f961b6c97095af79e9f5fde272",
+      "date": "2026-10-23T22:10:50Z",
+      "message": "feat: touch-only Video Studio with ordered keyframes, motion modes, encrypted API pairing and NoWorld export"
+    },
+    {
+      "sha": "8f07fee387658f8e60123ffedbf2e279cf7ec102",
+      "date": "2026-10-23T22:10:15Z",
+      "message": "fix: make video worker cancellation invoke authenticated Nightmare cancel endpoint"
+    },
+    {
+      "sha": "eaf7e17f79fc4db5d9f7c7473a8c2bd35735bc03",
+      "date": "2026-10-23T22:09:59Z",
+      "message": "feat: implement background real Wan i2v jobs, multi-anchor MP4 timeline and pending NoWorld exports"
+    },
+    {
+      "sha": "83588a3d70d1a71f7ea288ae58d1c13aef0d662f",
+      "date": "2026-10-23T22:09:05Z",
+      "message": "feat: add keyframe video plans, lossless MP4 segment assembler and gallery publication"
+    },
+    {
+      "sha": "f910e6c0949dd0f34dd4e24fae93d3ce43bf0243",
+      "date": "2026-10-23T22:08:23Z",
+      "message": "feat: authenticated local Wan video inference adapter and encrypted API credentials"
+    },
+    {
+      "sha": "a06f397c2bfdf7cc0aff2a359c8e1c33f16ad08d",
+      "date": "2026-10-23T22:05:42Z",
+      "message": "test: correct float tolerance and nonautomatic mode expected flag"
+    },
+    {
+      "sha": "2cb2aba32a039c56b2276ed77450917d81a8ab5a",
+      "date": "2026-10-23T22:03:53Z",
+      "message": "fix: remove invalid Compose pointer consume extension import"
+    },
+    {
+      "sha": "9fab5e46f5fc9a267baaadb4f9f0e42eff126420",
+      "date": "2026-10-23T22:02:54Z",
+      "message": "feat: use real user ratings to adapt automatic candidate parameters across runs"
+    },
+    {
+      "sha": "7775548a607f9c0e857d60d11188b4ba7dfb11f2",
+      "date": "2026-10-23T22:02:35Z",
+      "message": "feat: add bounded online user-preference learning and deterministic parameter exploration"
+    },
+    {
+      "sha": "81d8ee43d04a4aa88c3f6ebf01be65eccd31abc6",
+      "date": "2026-10-23T22:01:50Z",
+      "message": "feat: add chunk-streamed Anima model fusion tool with strict tensor compatibility tests"
+    },
+    {
+      "sha": "734278c93896b602b7b0dbb165a0d4e077324c2d",
+      "date": "2026-10-23T21:59:47Z",
+      "message": "feat: automatically upscale the strongest technical candidate when a native RealSR/ESRGAN model is installed"
+    },
+    {
+      "sha": "2e0fbd839eff5cb1f978fded31bff4ccf6b953c5",
+      "date": "2026-10-23T21:59:28Z",
+      "message": "feat: save native enhanced JPEG results into dedicated Asterion Art gallery"
+    },
+    {
+      "sha": "7a0ffa9fac55bf62c703ebdad47266569cb5c848",
+      "date": "2026-10-23T21:59:18Z",
+      "message": "feat: integrate native fourfold upscaling through Local Dream's installed RealSR-compatible engine"
+    },
+    {
+      "sha": "36077ad6fdd067168ef5260a5d6cc22579e947d0",
+      "date": "2026-10-23T21:58:34Z",
+      "message": "feat: add optional touch-masked inpainting that preserves every pixel outside mask"
+    },
+    {
+      "sha": "b4d65b9a0c3ca572a06b70822209aef80b47ebb0",
+      "date": "2026-10-23T21:56:30Z",
+      "message": "feat: add genuine reference-mask inpainting to QNN backend protocol"
+    },
+    {
+      "sha": "28dc5dab0fcd2d9e2d67e1e518ae82d5593f8635",
+      "date": "2026-10-23T21:55:02Z",
+      "message": "feat: add signature-protected Asterion Core sheet search and import in Art"
+    },
+    {
+      "sha": "5738e88ef60adc1a31d6eaf481a16eca0e1bae40",
+      "date": "2026-10-23T21:52:37Z",
+      "message": "fix: honor aspect ratio and scheduler Karras controls in native requests"
+    },
+    {
+      "sha": "67361e980a1bbe67cd33b3dc2fcb5920e4b5de2b",
+      "date": "2026-10-23T21:52:27Z",
+      "message": "feat: integrate real five-pass on-device generation bridge, OCR source compiler and persistent foreground jobs"
+    },
+    {
+      "sha": "8663eab3dd6474bbae6d8f12d152d85dd94da8c7",
+      "date": "2026-10-23T21:38:19Z",
+      "message": "fix: opt into Material3 top-app-bar API for Kotlin compilation"
+    },
+    {
+      "sha": "a70eb304278f619bad05ed3535590d1106e9e952",
+      "date": "2026-10-23T21:37:54Z",
+      "message": "feat: add role-specific tap-assigned reference slots and sheet layout tests"
+    },
+    {
+      "sha": "6b2e7ebec0d490d0ee2f01d6286f46c1c14e26de",
+      "date": "2026-10-23T21:34:57Z",
+      "message": "build: replace legacy compiler tree with new Asterion Art Android app"
+    },
+    {
+      "sha": "db68e11c411ae120b7d08e5e8aa5914608a7a404",
+      "date": "2026-09-26T22:16:42Z",
+      "message": "Remove generated Gradle log"
+    },
+    {
+      "sha": "40e0d1cd144f74961592708237529e222f618f27",
+      "date": "2026-09-26T22:14:59Z",
+      "message": "Initial Asterion Compiler Android project"
+    }
+  ],
+  "pulls": [
+    {
+      "number": 2,
+      "title": "Asterion Art: unified reference studio, graded stills and Nightmare video integration",
+      "state": "open",
+      "url": "https://github.com/Azrazieliz/AsterionCompiler/pull/2",
+      "head": "352e625f37bb8c3a376729574b11c7da049fcb8f"
+    },
+    {
+      "number": 1,
+      "title": "Rebuild phase 1: architecture-aware prompts, LoRA catalog and Local Dream token bridge",
+      "state": "open",
+      "url": "https://github.com/Azrazieliz/AsterionCompiler/pull/1",
+      "head": "008a07db3adf62252719757238de89e83384ddb3"
+    }
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/android.yml",
+      "sha": "21d39e138c3eade6601f42a835348610ee944b20",
+      "size": 1861
+    },
+    {
+      "path": ".github/workflows/fusion-b-preflight.yml",
+      "sha": "22c6d0649a7e5b59afd6963391d47a22454a3c7d",
+      "size": 749
+    },
+    {
+      "path": ".github/workflows/fusion-b-tensors.yml",
+      "sha": "b4ccb9d697e4fc81d2d2bad344b880c9a0d30fa8",
+      "size": 759
+    },
+    {
+      "path": ".gitignore",
+      "sha": "26ba5fd0082d37c801fed43c874ca96e02ef7309",
+      "size": 425
+    },
+    {
+      "path": "README.md",
+      "sha": "a985b2b7bcbc57e62b7850126883c46c5018e63a",
+      "size": 2271
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "sha": "c3ac2582f698334e160b9b912e46283e46f431b0",
+      "size": 1765
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "sha": "11f0fce154f3a98866ef25fcfe96c987658b608f",
+      "size": 1781
+    },
+    {
+      "path": "app/src/main/assets/methodology/concepts_v3.json",
+      "sha": "882848f6c85e75d9efa879f760b7a0924f795458",
+      "size": 14659
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/MainActivity.kt",
+      "sha": "ee1dc091664809d88e8ff170a18ab3cbae4ded44",
+      "size": 654
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/core/CoreResultUploader.kt",
+      "sha": "5b2e64da950098193364d781a586eac14477c82d",
+      "size": 1896
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/core/CoreSheetBridge.kt",
+      "sha": "554f3cb4352a785d1be191f5ff907c5de4f8211d",
+      "size": 2550
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/data/ArtRepository.kt",
+      "sha": "faa189e3d96c47c25fc2ff950288f0d04b14f72a",
+      "size": 12485
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/data/EditJobStore.kt",
+      "sha": "3f6e24867739b8968f67401a8c2866f60660636f",
+      "size": 1591
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/data/GeneratedImagePublisher.kt",
+      "sha": "ae652f5a451f2ba9908263d25409a79b6bd4e6e7",
+      "size": 3343
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/data/GenerationJobStore.kt",
+      "sha": "e36066c2b2547b0dd59264264cd79f860d560581",
+      "size": 3785
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/engine/GenerationPlanner.kt",
+      "sha": "c59d08b94a54ba7c5e15e55be34ec63d6f66e559",
+      "size": 11236
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/engine/LocalDreamBridge.kt",
+      "sha": "01b291f30439e379f9cbd1d03d89c030b3741010",
+      "size": 16150
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/engine/SelectiveImageEditor.kt",
+      "sha": "d2cf382a8654e398743bc91886e384c0c2dfd0bb",
+      "size": 5567
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/engine/SheetTextReader.kt",
+      "sha": "4c4dbeb452bf9e19d77ae89e1f3a1bd85eb33c95",
+      "size": 1735
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/engine/SourceReferenceEncoder.kt",
+      "sha": "a6618c306f7e07ee971ac99dac38888b8cf9c906",
+      "size": 2996
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/engine/TechnicalImageScorer.kt",
+      "sha": "0e18ccac433a5c7df99d80268f4a25b9ac85e570",
+      "size": 2768
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/enhancement/AsterionImageToolbox.kt",
+      "sha": "0ec76e3dcf3696ce11a8cb9f3e65ca8d4e39fdae",
+      "size": 5717
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/enhancement/EmbeddedRealSr.kt",
+      "sha": "897f9706b5228bd9a0e1addd35de942a77a1e41d",
+      "size": 4177
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/integrations/InstalledImageEnhancers.kt",
+      "sha": "b972140e3f5bb52899070c1bb437a93c7b6c3b37",
+      "size": 1441
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/learning/PreferenceLearning.kt",
+      "sha": "39a7408f22f148bc38349cf0d02680de07d12b3c",
+      "size": 4604
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/methodology/DetailedMethodologies.kt",
+      "sha": "99a404ac38d96d4badbbe52fea9933ff18cb055c",
+      "size": 11907
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/methodology/MethodologyRegistry.kt",
+      "sha": "87ac7a11203e97429e1333c793222b4c8f49b807",
+      "size": 6571
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/model/ArtModels.kt",
+      "sha": "b77dfb910f2b681059a155ec15f411566e821520",
+      "size": 3211
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/model/SheetLayouts.kt",
+      "sha": "91216e48b1753f19579bc571762e8ca27dceeb03",
+      "size": 2495
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/nativeengine/EmbeddedNativeRunner.kt",
+      "sha": "23cb7dc666658e675f6a8a4d1c95637943174aad",
+      "size": 6074
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/nativeengine/EmbeddedNpuEngine.kt",
+      "sha": "b0952bca348d01bb3b96162a1a58ad989d92f16b",
+      "size": 1980
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/nativeengine/ModelOutputRouting.kt",
+      "sha": "fe5a0a87338b140db81c50ec580620ff4353c227",
+      "size": 1943
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/nativeengine/NativeModelLibrary.kt",
+      "sha": "9235525fec78ba87843c77dda03f7d0e6f4737a0",
+      "size": 10475
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/nativeengine/OriginalCheckpointLibrary.kt",
+      "sha": "f2d193b50d2e2a177d726afff74cff23b648d040",
+      "size": 3565
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/render/SheetRenderer.kt",
+      "sha": "03177e85d11416b105876d72874cb43cd94961cc",
+      "size": 10579
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/AsterionArtApp.kt",
+      "sha": "745623c4ce62abc61ea655fee464f5aae5437d94",
+      "size": 44497
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/AsterionTheme.kt",
+      "sha": "f3b75cad1a8345c4e76c9cd7d147dff1d59d6fbc",
+      "size": 979
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/CoreSheetBrowser.kt",
+      "sha": "981705d0bd1e9613465c64e5ae2a6e96bface5a1",
+      "size": 5149
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/CreativeRoutes.kt",
+      "sha": "e75affe6aa6b0013be336b76a01febc4e603ba48",
+      "size": 16811
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/ImageToolboxStudio.kt",
+      "sha": "2471f2171cc6baa149a678fb7e6be460880bd915",
+      "size": 3848
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/MethodologyStudioV3.kt",
+      "sha": "1143ec0f9b39bfe49f9cd3d26fb1f3c64b0696ca",
+      "size": 14005
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/NativeModelLibraryScreen.kt",
+      "sha": "103c38d7c047588d807474007005e3431b20829c",
+      "size": 11313
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/SelectiveEditScreen.kt",
+      "sha": "502c110a8a90475f62c63d6221463f3aa734792a",
+      "size": 10275
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/ui/VideoWorkspace.kt",
+      "sha": "08bb1146d6ae26426ebf553462b3d5d7d745f04d",
+      "size": 13316
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/video/Mp4SegmentJoiner.kt",
+      "sha": "78855b9a37f4abb48e79e7ae7fbcbf3b9a31f3b0",
+      "size": 4240
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/video/NightmareVideoBridge.kt",
+      "sha": "e1abba28ece77dbf772ebfd66ac2e16e7b82a3ca",
+      "size": 5721
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/video/NoWorldExporter.kt",
+      "sha": "cb0bafcd7adf540a4a730e57c2eedd14de285599",
+      "size": 3713
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/video/VideoApiCredentials.kt",
+      "sha": "b3c5ab3b045423a9861c60c47f9bd250dc36caa5",
+      "size": 2345
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/video/VideoPlanStore.kt",
+      "sha": "4b10e7214d7d85fe6ef65f918b3bc0f2b008cecc",
+      "size": 2820
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/video/VideoPublisher.kt",
+      "sha": "f4686224da1a88041afd7991be8be18aac64109d",
+      "size": 1334
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/video/VideoResultStore.kt",
+      "sha": "189b15ef5673c4e807ac4bfccfbd0b7523fa8468",
+      "size": 1632
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/work/GenerationWorker.kt",
+      "sha": "40ebf851b988516c5292102d042f656df25c59bc",
+      "size": 19817
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/work/ImageToolboxWorker.kt",
+      "sha": "536fd2e9893abb56db0aabab86e52414dd1cd1b3",
+      "size": 3938
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/work/NativeModelImportWorker.kt",
+      "sha": "b8387798962b800452d5f4122889e6ba9db1fd77",
+      "size": 5674
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/work/NeuralEnhancementWorker.kt",
+      "sha": "56dd2189e310c7e3adc9f357f7ff449986ca0956",
+      "size": 4045
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/work/SelectiveEditWorker.kt",
+      "sha": "ff7898bb8fc665983dc4b5d618c9113c5e855b8e",
+      "size": 6893
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/work/SheetRenderWorker.kt",
+      "sha": "25cd0150d89a0174b04f3f58b9046736d11e28ee",
+      "size": 2416
+    },
+    {
+      "path": "app/src/main/java/com/asterion/art/work/VideoGenerationWorker.kt",
+      "sha": "6200dc03e479563f6f2999eceb9a1e5d63fbbed2",
+      "size": 6759
+    },
+    {
+      "path": "app/src/main/res/values/styles.xml",
+      "sha": "a52a7cf6cc9ebeb28138fa4be46b43aa3efaf646",
+      "size": 414
+    },
+    {
+      "path": "app/src/main/res/xml/loopback_network_security_config.xml",
+      "sha": "b513158113809b15562c1df6f8bef161c0f115b2",
+      "size": 289
+    },
+    {
+      "path": "app/src/test/java/com/asterion/art/ArtPoliciesTest.kt",
+      "sha": "8e4ed4d22742f0bed42ed4ccb775719e60b13c76",
+      "size": 1002
+    },
+    {
+      "path": "app/src/test/java/com/asterion/art/DetailedMethodologyContractTest.kt",
+      "sha": "b95796a90741012dbc33ea9611a6914a7fe5c57e",
+      "size": 3198
+    },
+    {
+      "path": "app/src/test/java/com/asterion/art/GenerationPlannerTest.kt",
+      "sha": "d1ea3c83ae5ce7f1a4bda812171d3e7eb0022b76",
+      "size": 2221
+    },
+    {
+      "path": "app/src/test/java/com/asterion/art/MethodologyRegistryTest.kt",
+      "sha": "9972dda76542707b660b99d733c93421bd2aa0cf",
+      "size": 3114
+    },
+    {
+      "path": "app/src/test/java/com/asterion/art/PreferenceLearningTest.kt",
+      "sha": "dc0de3cd25f6269956b4a0c7cb9694b206187e45",
+      "size": 1635
+    },
+    {
+      "path": "app/src/test/java/com/asterion/art/SheetLayoutsTest.kt",
+      "sha": "7955c5f60036b3546a3f67d78d4825280adb8563",
+      "size": 1106
+    },
+    {
+      "path": "build.gradle.kts",
+      "sha": "1b4481acf060315324230e9286ded1ced3deaaf4",
+      "size": 217
+    },
+    {
+      "path": "docs/GENERATION_COMPATIBILITY.md",
+      "sha": "8285506646bfc868398ae1383af98700afe7f5cc",
+      "size": 1652
+    },
+    {
+      "path": "docs/IMPLEMENTATION_STATUS.md",
+      "sha": "5e8347356c99f9a3cdf6bcb9e10e99422e446cc7",
+      "size": 872
+    },
+    {
+      "path": "docs/METHODOLOGY_REGISTRY.md",
+      "sha": "d2ce9bd3dfb384d5dfb4b8d17fc9c05c992fd425",
+      "size": 1293
+    },
+    {
+      "path": "fusion/FUSION_B.md",
+      "sha": "b2822d163241af75a0f251069f884acd02a6dbff",
+      "size": 2578
+    },
+    {
+      "path": "fusion/README.md",
+      "sha": "bf9c5daf4b3d4cf748ff71c76b6e386e0bc26169",
+      "size": 1071
+    },
+    {
+      "path": "fusion/check_remote_tensors.py",
+      "sha": "672a095c82a7111146b1eb216198790f428cb647",
+      "size": 3344
+    },
+    {
+      "path": "fusion/fusion_b_sources.json",
+      "sha": "a8877d17addf07b814cc8e4d49c1e5222b2dd961",
+      "size": 1477
+    },
+    {
+      "path": "fusion/merge_anima.py",
+      "sha": "63867c4fa6ee7ea96c2feda8cf8edf88e8a7c672",
+      "size": 9249
+    },
+    {
+      "path": "fusion/preflight_sources.py",
+      "sha": "ee98452c962e501fb8fc0901de9a27b0108d4008",
+      "size": 3045
+    },
+    {
+      "path": "fusion/run_private_fusion_b.py",
+      "sha": "fdd4e47f5477f59d6698894d7e8251b0b5d2d6fb",
+      "size": 4438
+    },
+    {
+      "path": "fusion/test_merge_anima.py",
+      "sha": "d3edf599bc61f39715b26dad818398848c0b2a04",
+      "size": 3342
+    },
+    {
+      "path": "gradle.properties",
+      "sha": "d92060ad9673281a51c0a5649b86570b6d5374d9",
+      "size": 184
+    },
+    {
+      "path": "native/README.md",
+      "sha": "f5f36cf01e63ffee498c64b20c7248ca44206234",
+      "size": 1889
+    },
+    {
+      "path": "native/prepare_native_runtime.py",
+      "sha": "b3688623024e89e0c92d0f14011510ac890fa8ae",
+      "size": 5670
+    },
+    {
+      "path": "native/prepare_realsr.py",
+      "sha": "5b318602a6717fdae38c099cd3da62c2937bcf35",
+      "size": 3873
+    },
+    {
+      "path": "native/test_native_bundle.py",
+      "sha": "2a1f699f1d028ae8cd5d441afccf5f01786919aa",
+      "size": 2390
+    },
+    {
+      "path": "native/verify_apk_native.py",
+      "sha": "ed8f5e36341605a237b9cf5065a856326df79343",
+      "size": 2166
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha": "111507702064f75649f676f09ff0ad04d2db5610",
+      "size": 284
+    }
+  ]
+}

@@ -1,0 +1,1439 @@
+{
+  "date": "2026-10-26",
+  "repo": "Azrazieliz/Asterion-Core",
+  "main": "7d7ab3318cfdd829b28faa301568cedc8b100961",
+  "branches": [
+    {
+      "name": "asterion-art-sheet-bridge-20261023",
+      "sha": "a36ef4c46cbcc62849db8ec4bd87356eeb74bb9c"
+    },
+    {
+      "name": "asterion-character-resolver-v1",
+      "sha": "fd934ab3ed9c00391a68c1e5a4c3d39beb1047d5"
+    },
+    {
+      "name": "asterion-core-freeze-validation",
+      "sha": "55cac981d01c27664ab17b0c87cc0191f4efae1e"
+    },
+    {
+      "name": "asterion-final-role-binding-fix",
+      "sha": "295d3859e1211f9abf03550f0540fa4cdc6e0172"
+    },
+    {
+      "name": "asterion-import-pass1",
+      "sha": "b739355e4ff38c731766bb6790457decca8c2658"
+    },
+    {
+      "name": "audit/asterioncore-20261011",
+      "sha": "01de9fe52587944361cc5fd69dde303da62ea9bb"
+    },
+    {
+      "name": "automation-fix-2",
+      "sha": "9934e82b23e0ed807e2f686bee3fe8c83077237c"
+    },
+    {
+      "name": "build/asterion-unsigned-release-bootstrap-20261023",
+      "sha": "9b4c10a29dcb98d4953e0bd7e2782c19de691e17"
+    },
+    {
+      "name": "build/unsigned-production-artifact-20261023",
+      "sha": "2f3e03cbdd328f7c9e0dbd8d151e6ed852a48492"
+    },
+    {
+      "name": "cloud-model-import-fix",
+      "sha": "773d9fe6ea816c3dfbd0d13169fd7df927072532"
+    },
+    {
+      "name": "develop",
+      "sha": "ed70777b5679bfef47b5827010f0064bde4fb041"
+    },
+    {
+      "name": "feature/asterion-batch-300k-20261023",
+      "sha": "212241419ad6ce4908a98f34bfb3c86f32a23474"
+    },
+    {
+      "name": "feature/automation-300k-checkpointed-pages-20261023",
+      "sha": "46d5a7780f74d235cd50956a7fa7ef40025e0a32"
+    },
+    {
+      "name": "feature/roundsync-terabox-cloud-browser-20261019",
+      "sha": "d816f7cc477abfa9e76abf2c1eada3638df118b4"
+    },
+    {
+      "name": "fix/android-automation-memory-budget-20261023",
+      "sha": "032752d97ab38717f0b799c5010b2a91959da7d7"
+    },
+    {
+      "name": "fix/asterion-role-aware-bindings",
+      "sha": "8fe03551e8feaddbde9ed5759eb8624c2fdac6e7"
+    },
+    {
+      "name": "fix/automation-memory-models-ui-v208-20261024",
+      "sha": "dccf2f372c8e75b90443e0a6ed12edd070f19550"
+    },
+    {
+      "name": "fix/automation-startup-dual-failure-20261023",
+      "sha": "c40544eeae50efe54955c8e9307cf331f2947b05"
+    },
+    {
+      "name": "fix/persistent-android-release-signing-20261023",
+      "sha": "9f67613985142447ee3733fff8bb64454e5da643"
+    },
+    {
+      "name": "fix/pin-asterion-update-signature-20261023",
+      "sha": "f5cfd9a054c1017e1625460b32f822ea540a1e0a"
+    },
+    {
+      "name": "fix/qwen-bitmap-bounds-and-image-input-20261024",
+      "sha": "6f07fb62b443ff45126c22db3a7e477befea4e1a"
+    },
+    {
+      "name": "fix/qwen-mtmd-native-prefill-v2010-20261024",
+      "sha": "8fb91ccc2674187711a010d072b78238a9d76067"
+    },
+    {
+      "name": "fix/release-only-apk-20261023",
+      "sha": "ddae77ce797a5a16ab3f98b99c4421476256f295"
+    },
+    {
+      "name": "fix/terabox-model-import-staging-20261023",
+      "sha": "2245b6076cc6d19b0adbcd99140e222009835289"
+    },
+    {
+      "name": "fix-automation-knowledge-2",
+      "sha": "766d637f63a50e0d3c9e89d962680a7538cdb21b"
+    },
+    {
+      "name": "main",
+      "sha": "7d7ab3318cfdd829b28faa301568cedc8b100961"
+    },
+    {
+      "name": "migration/asterion-art-complete-recovery-2026-10-26",
+      "sha": "2f639013d094a7865a36edb4a4905c66a86ca9fe"
+    },
+    {
+      "name": "rebuild-1-scalable-library",
+      "sha": "49038ad2dd2c3a95b73feb3c06a64767cb197207"
+    },
+    {
+      "name": "restore-fd934ab3-qwen-automation",
+      "sha": "661ffbde2a14cd021eb4024f06810995eee57fe2"
+    },
+    {
+      "name": "scale-knowledge-automation-fix",
+      "sha": "2a91ee288d6633978a5025512ebf7697bc5c4a3d"
+    },
+    {
+      "name": "standalone-android",
+      "sha": "766d637f63a50e0d3c9e89d962680a7538cdb21b"
+    },
+    {
+      "name": "terabox-share-import-splash-fix",
+      "sha": "7814485691efa5490ad998fc20e5c23a5f9d9220"
+    }
+  ],
+  "commits": [
+    {
+      "sha": "7d7ab3318cfdd829b28faa301568cedc8b100961",
+      "date": "2026-10-24T08:08:02Z",
+      "message": "Fix Qwen-VL native image prefill and context diagnostics v2.0.10"
+    },
+    {
+      "sha": "4c2ba58cd6adfd400e2f4dcd318a945cf093f4fe",
+      "date": "2026-10-24T00:05:46Z",
+      "message": "Fix Qwen-VL image decoding and memory-efficient preflight (v2.0.9)"
+    },
+    {
+      "sha": "46d44ea3d7dfff517d4b295488ba1c8b6797ff2b",
+      "date": "2026-10-23T22:16:50Z",
+      "message": "Reduce Qwen-VL phone memory and modernize model management (v2.0.8)\n\n* Reduce Qwen-VL memory and context overhead on phone; add 0/362 regression\n\n* Fix knowledge-pack layout overflow and compact resource management actions\n\n* Add searchable model inventory with status filters and responsive compact model tiles\n\n* Add safe model removal confirmation and remove duplicated, oversized knowledge lists"
+    },
+    {
+      "sha": "125635fca7f970a570c934ced1a001435426cfae",
+      "date": "2026-10-23T19:49:57Z",
+      "message": "Fix Android automation startup compatibility and memory budget (v2.0.7)\n\n* Fix Qwen-VL task registration and memory admission that halt automation before image 1\n\n* Build v2.0.7 production release for signing with retained permanent key"
+    },
+    {
+      "sha": "6b0993a72912bf6a2520c9bbfece51f5de300d7d",
+      "date": "2026-10-23T13:27:35Z",
+      "message": "Publish unsigned production APKs for private stable signing"
+    },
+    {
+      "sha": "eee0fc7fb6b50b9f550e76d26dd870f9d6332813",
+      "date": "2026-10-23T12:43:53Z",
+      "message": "Build only signed AsterionCore release APKs"
+    },
+    {
+      "sha": "8d35551d12779015fb009135857f76ac2ff1029f",
+      "date": "2026-10-23T12:32:34Z",
+      "message": "Require pinned existing Android signing certificate for every release"
+    },
+    {
+      "sha": "0915e146e2219da19f690c11a0fc56cc2a446ce4",
+      "date": "2026-10-23T11:02:53Z",
+      "message": "Scale AsterionCore Android automation to 300K+ images (v2.0.6)\n\n* Process 300K+ library with paged durable automation work and checkpoints (2.0.6)\n\n* Expose automation page cursor type to public StandaloneRuntime API\n\n* Persist automation folder lookups and filename counters for very large libraries\n\n* Add 300K image SQLite pagination and interruption regression to CI\n\n* Avoid full folder materialization on successful SAF directory lookup miss\n\n* Force indexed lower-bound keyset scans for 300K-image library"
+    },
+    {
+      "sha": "2571441afc1508785a7bd0051dce1a9ddaa3ccbc",
+      "date": "2026-10-23T10:25:33Z",
+      "message": "Add persistent GitHub Android release signing for in-place upgrades\n\n* Use permanent GitHub Secrets signing for Android in-place updates\n\n* Validate persistent signing workflow on feature branch\n\n* Smoke-test release-signing configuration without distributing test-signed APK"
+    },
+    {
+      "sha": "7751b85d44c406cb56d7ffa148275e338743d0f7",
+      "date": "2026-10-23T10:01:32Z",
+      "message": "Fix Android automation memory reservation and timeouts (v2.0.5)\n\n* Fix Android automation memory reservation and first-image execution timeouts (v2.0.5)\n\n* Clamp huge reservation estimates without long overflow\n\n* Distinguish inferred legacy 2x model RAM estimates from real peak-memory declarations"
+    },
+    {
+      "sha": "0052fd80d7fc745eb4e94fb9a7dd92a8465cc8f5",
+      "date": "2026-10-23T01:31:14Z",
+      "message": "Improve AsterionCore TeraBox model imports v2.0.4\n\n* Fix slow Round Sync model imports, model persistence, and transfer progress\n\n* Pass streamed model checksum into installer to avoid duplicate SHA-256 reads"
+    },
+    {
+      "sha": "752c40ad0e2405ec1b69a6f6c6f5939cebe6a2bf",
+      "date": "2026-10-19T12:29:32Z",
+      "message": "Add Round Sync cloud file access to AsterionCore 2.0.3"
+    },
+    {
+      "sha": "766d637f63a50e0d3c9e89d962680a7538cdb21b",
+      "date": "2026-10-06T17:21:36Z",
+      "message": "Validate individual reference JSONs through the reference parser"
+    },
+    {
+      "sha": "8e465555a56fdcb45a211854d0fb1d0228fa8fbd",
+      "date": "2026-10-06T17:19:55Z",
+      "message": "Cover duplicate canonical series recovery"
+    },
+    {
+      "sha": "0d685559157c9cd948a86efa7029b44944fdf175",
+      "date": "2026-10-06T17:19:33Z",
+      "message": "Self-heal stale library URIs before automation"
+    },
+    {
+      "sha": "53ceb2b39d520999d0bdffa443d7fc59e83c1e92",
+      "date": "2026-10-06T17:19:15Z",
+      "message": "Make automation probe tolerant of stale image rows"
+    },
+    {
+      "sha": "229b75a8bae04f009ef0f287ed241e7ab2a4e8c6",
+      "date": "2026-10-06T17:18:42Z",
+      "message": "Record imported Knowledge JSONs as installed packages"
+    },
+    {
+      "sha": "09abc0cc58783188885210c2000b2a2f89b92465",
+      "date": "2026-10-06T17:17:47Z",
+      "message": "Migrate stale duplicate series codes to imported canonical series"
+    },
+    {
+      "sha": "7662bd572445efa610a9af62e2a5f38a077395e6",
+      "date": "2026-10-06T17:17:28Z",
+      "message": "Do not reject Knowledge imports for stale duplicate series titles"
+    },
+    {
+      "sha": "2a91ee288d6633978a5025512ebf7697bc5c4a3d",
+      "date": "2026-10-06T14:40:37Z",
+      "message": "Show live canonical Knowledge totals"
+    },
+    {
+      "sha": "17fb8099a075e7b305c58eb7826e7d56164dc84f",
+      "date": "2026-10-06T14:40:12Z",
+      "message": "Keep Knowledge import status visible and current"
+    },
+    {
+      "sha": "34138bea3addde0730c808dc6870f690b1e6b814",
+      "date": "2026-10-06T14:39:50Z",
+      "message": "Expose canonical Knowledge status to the app"
+    },
+    {
+      "sha": "ca0bdb8cf8545415633bf1574f0d8876ffc438b3",
+      "date": "2026-10-06T14:39:44Z",
+      "message": "Expose live Knowledge database counts"
+    },
+    {
+      "sha": "67059ae78210f2b122304734bc907840b49cb944",
+      "date": "2026-10-06T14:37:48Z",
+      "message": "Make rescans constant-memory and incremental"
+    },
+    {
+      "sha": "e142040512fe7f6c4a616bc9b69038d43668a5c8",
+      "date": "2026-10-06T14:33:39Z",
+      "message": "Stop rebuilding full search index after every scan"
+    },
+    {
+      "sha": "8e99896a5c98ab47d4c8b509cd033c416b29f10d",
+      "date": "2026-10-06T14:33:35Z",
+      "message": "Index large-library paging and scan rename probes"
+    },
+    {
+      "sha": "4aa5bcad0df943def8ba5698ed47c628007119fc",
+      "date": "2026-10-06T14:32:08Z",
+      "message": "Keep SAF fallback traversal compatible"
+    },
+    {
+      "sha": "1a043d890941cd94d191738774794a69576c51a2",
+      "date": "2026-10-06T14:31:47Z",
+      "message": "Stream SAF directory scans instead of materializing huge folders"
+    },
+    {
+      "sha": "3576bd8d031e62765586b7d788121d553f67536f",
+      "date": "2026-10-06T14:30:43Z",
+      "message": "Stop retaining every scanned URI in memory"
+    },
+    {
+      "sha": "74f28b45e347e0008fa704bd091a1f71fbac6d68",
+      "date": "2026-10-06T14:30:38Z",
+      "message": "Make library scans constant-memory across huge collections"
+    },
+    {
+      "sha": "2ea2f85ee4ffef2479305796bd4f85d7b0ac62ee",
+      "date": "2026-10-06T14:29:11Z",
+      "message": "Bound and recycle PaddleOCR image memory"
+    },
+    {
+      "sha": "c2f5f809d3a13af29e0c16a1bbf309ea869ca5cb",
+      "date": "2026-10-06T14:26:41Z",
+      "message": "Reduce default Qwen context memory for on-device automation"
+    },
+    {
+      "sha": "ea7ffda2a07b3fcabb82fc37ae636cf59fa5ee0f",
+      "date": "2026-10-06T14:26:03Z",
+      "message": "Cover persistent Qwen model reuse"
+    },
+    {
+      "sha": "22129509fef7dc4048ef05d284ff640539dad9a5",
+      "date": "2026-10-06T14:25:59Z",
+      "message": "Use compatible saved state for library paging"
+    },
+    {
+      "sha": "53757e2c1769215d90101f248e11ae3f1acca652",
+      "date": "2026-10-06T14:24:22Z",
+      "message": "Use JSON-only Knowledge import and hide dropped TeraBox UI"
+    },
+    {
+      "sha": "c28966cc3ff8fa1146f5d348c8e1ce5525cedecd",
+      "date": "2026-10-06T14:24:00Z",
+      "message": "Stop polling unused TeraBox integration"
+    },
+    {
+      "sha": "bfdcad13ea5e8ade92dc4b7419f5b081d1eeb47c",
+      "date": "2026-10-06T14:23:56Z",
+      "message": "Disable unreliable Knowledge ZIP imports"
+    },
+    {
+      "sha": "1c3c693a6bcb7a4fa3e8aeeb9174c188db97baac",
+      "date": "2026-10-06T14:20:43Z",
+      "message": "Reuse Qwen safely and cap multimodal image memory"
+    },
+    {
+      "sha": "e0a3a74645630d03aae8419b45698fb555f0ae28",
+      "date": "2026-10-06T14:19:37Z",
+      "message": "Reset cached Qwen context between images"
+    },
+    {
+      "sha": "f593476195e7fb1dfa68e758a0722203f388ee6a",
+      "date": "2026-10-06T14:18:47Z",
+      "message": "Show skipped stale automation items separately"
+    },
+    {
+      "sha": "8070dc58f7c4c01298605b193c56128dc0dbcc51",
+      "date": "2026-10-06T14:18:17Z",
+      "message": "Preserve automation skipped count across pause and stop"
+    },
+    {
+      "sha": "ce58a204b3c1972a221db62a6a168757fa7844d4",
+      "date": "2026-10-06T14:17:54Z",
+      "message": "Separate stale/deferred images from real automation failures"
+    },
+    {
+      "sha": "e27f5043c63d286bb14e0dab52ee8fa40285e7f6",
+      "date": "2026-10-06T14:16:39Z",
+      "message": "Track deferred or stale automation items separately"
+    },
+    {
+      "sha": "568d9c081e0787b0d9d5e9a55cf3343834327404",
+      "date": "2026-10-06T14:16:08Z",
+      "message": "Recover from stale image rows instead of blocking automation"
+    },
+    {
+      "sha": "bb0c7dd58980b56d4aab177224bf2840f77c5892",
+      "date": "2026-10-06T14:15:37Z",
+      "message": "Allow stale inaccessible image rows to be retired"
+    },
+    {
+      "sha": "1df2a6650feb8ec12ac6622744757aacc6e39ac6",
+      "date": "2026-10-06T14:12:33Z",
+      "message": "Bound native model image decoding memory"
+    },
+    {
+      "sha": "e63c689f5f3ad709365ebe759d7222c62b857a1d",
+      "date": "2026-10-06T14:11:54Z",
+      "message": "Keep semantic candidate retrieval bounded"
+    },
+    {
+      "sha": "095453686a2e720a81a4767adabf6730ea56432f",
+      "date": "2026-10-06T14:11:32Z",
+      "message": "Bound runtime library queries for large collections"
+    },
+    {
+      "sha": "82efe9e150bcbb8d74839f6bf8ecf8f45599fff1",
+      "date": "2026-10-06T14:11:05Z",
+      "message": "Keep dashboard and filename search memory bounded"
+    },
+    {
+      "sha": "75b8c51a0da47ccb3c0988cef5076a005a5d56cf",
+      "date": "2026-10-06T14:10:52Z",
+      "message": "Page the library instead of loading every image into Compose"
+    },
+    {
+      "sha": "8b5e7841e3c8a024c5c09572dd21ec06f1aaf4ea",
+      "date": "2026-10-06T14:09:43Z",
+      "message": "Import Knowledge JSON files independently"
+    },
+    {
+      "sha": "d686a5210902efb7020bb159dbaa3e2e668d1b55",
+      "date": "2026-10-06T14:09:23Z",
+      "message": "Support incremental per-JSON Knowledge imports"
+    },
+    {
+      "sha": "9934e82b23e0ed807e2f686bee3fe8c83077237c",
+      "date": "2026-10-06T13:16:06Z",
+      "message": "Keep folder-imported model artifacts in permanent app storage"
+    },
+    {
+      "sha": "be528e685515ad13e0ba580b71a601afe86661ba",
+      "date": "2026-10-06T13:15:32Z",
+      "message": "Stop automation before mass fake failures"
+    },
+    {
+      "sha": "782e6115d1895155aaf1edb2196721e1974f7db7",
+      "date": "2026-10-06T13:15:05Z",
+      "message": "Probe real AI execution before processing the whole library"
+    },
+    {
+      "sha": "60a0565c011866f3f2c31386095b1ec996302fa5",
+      "date": "2026-10-06T13:14:25Z",
+      "message": "Reject stale model registrations before automation starts"
+    },
+    {
+      "sha": "661ffbde2a14cd021eb4024f06810995eee57fe2",
+      "date": "2026-10-06T10:34:11Z",
+      "message": "Cover native Qwen semantic capability contract"
+    },
+    {
+      "sha": "5b6b0a829b6a4fbf2c8a0a567eadf06976eb65ba",
+      "date": "2026-10-06T10:33:47Z",
+      "message": "Gate automation on real readiness and keep Review live"
+    },
+    {
+      "sha": "bb8a50309c85ac1f68a5a028b85c2a3174f8c7af",
+      "date": "2026-10-06T10:33:09Z",
+      "message": "Use real runtime readiness for the existing one-pass automation pipeline"
+    },
+    {
+      "sha": "b52f33292845bf42fa74b71dcca949feca9cddc2",
+      "date": "2026-10-06T10:32:27Z",
+      "message": "Repair legacy automation reviews and auto-resolve recovered items"
+    },
+    {
+      "sha": "252d6f5f80c2026cc16ce27480c68938b413b645",
+      "date": "2026-10-06T10:31:50Z",
+      "message": "Preflight model archive storage and clean failed extraction"
+    },
+    {
+      "sha": "b5769d78fa11adadaf6a55e28a96a79fca89fa6a",
+      "date": "2026-10-06T10:31:34Z",
+      "message": "Harden Qwen imports and expose real execution readiness"
+    },
+    {
+      "sha": "18da56f4adc754ba106de9320b2cc93e77053af8",
+      "date": "2026-10-06T10:30:11Z",
+      "message": "Make Qwen-VL semantic tasks executable in native llama.cpp"
+    },
+    {
+      "sha": "94ff25f520a5d0550758d33d1335ddee0e251961",
+      "date": "2026-10-06T10:29:59Z",
+      "message": "Enable multimodal Qwen semantic tasks in llama.cpp contracts"
+    },
+    {
+      "sha": "fd934ab3ed9c00391a68c1e5a4c3d39beb1047d5",
+      "date": "2026-10-03T21:47:07Z",
+      "message": "Update routing regression to Scenery semantics"
+    },
+    {
+      "sha": "d0d4674e47d980ef3d13b0b34a6ed371fbf57cd3",
+      "date": "2026-10-03T21:41:04Z",
+      "message": "Test scenery dominance over folder ownership"
+    },
+    {
+      "sha": "e9f163486da6fc913b2b30e73c4bb394bfd25a9b",
+      "date": "2026-10-03T21:40:56Z",
+      "message": "Let environment-dominant art route to Scenery even with identity metadata"
+    },
+    {
+      "sha": "5dd345a3f120227bb776167bd9743ae71abe2b5d",
+      "date": "2026-10-03T21:37:32Z",
+      "message": "Run content triage and duplicate regressions in CI"
+    },
+    {
+      "sha": "8b1a4b22cb04a8d07c7fc9b60d549b36533d936d",
+      "date": "2026-10-03T21:37:19Z",
+      "message": "Test filename-independent conservative duplicate detection"
+    },
+    {
+      "sha": "3590af1f823f985b89c0f120b566173a06cc3bf6",
+      "date": "2026-10-03T21:37:09Z",
+      "message": "Apply conservative perceptual duplicate threshold before AI"
+    },
+    {
+      "sha": "bffd43b680d589fbdec1f4aab81cf9268f3c5c71",
+      "date": "2026-10-03T21:37:00Z",
+      "message": "Detect conservative re-encoded visual duplicates"
+    },
+    {
+      "sha": "0b374262c40e2dfbb8d5c6d8071ecfb5d6d60d88",
+      "date": "2026-10-03T21:36:39Z",
+      "message": "Improve dashboard and automation ergonomics"
+    },
+    {
+      "sha": "50a5c0d7bf65a4f50d518e3d23afc494ece0a691",
+      "date": "2026-10-03T21:36:15Z",
+      "message": "Polish shared Asterion UI components"
+    },
+    {
+      "sha": "07c2038512f6916d0b653a2edb6d9454a092a8c1",
+      "date": "2026-10-03T21:35:21Z",
+      "message": "Refine Asterion visual system without changing layout"
+    },
+    {
+      "sha": "94ee325fac05030669aabd90221ae42223f778e8",
+      "date": "2026-10-03T21:34:48Z",
+      "message": "Test Scenery and junk routing"
+    },
+    {
+      "sha": "9e649e41f3d6fb4df9b5b86dd9a41c76369bb948",
+      "date": "2026-10-03T21:34:34Z",
+      "message": "Propagate Scenery routing semantics through workflow"
+    },
+    {
+      "sha": "deac5322ae6431fba85b4fe50166faf3c03c1db0",
+      "date": "2026-10-03T21:34:23Z",
+      "message": "Teach semantic routing environment dominance and Scenery"
+    },
+    {
+      "sha": "06bf8a7eb6dda97fdaf4f0979ee686c78a02c9fa",
+      "date": "2026-10-03T21:33:57Z",
+      "message": "Route environment-dominant art to Scenery"
+    },
+    {
+      "sha": "0387bee8f7e3bab5deaaf1d567503cacec763223",
+      "date": "2026-10-03T18:52:34Z",
+      "message": "Retry unreadable storage without trashing valid remote images"
+    },
+    {
+      "sha": "7f2f7d818c7cae2499e0cd29023f8b6b9d12fbdb",
+      "date": "2026-10-03T18:52:17Z",
+      "message": "Distinguish corrupt images from temporary read failures"
+    },
+    {
+      "sha": "36bc7fe903aa1ee41f9f11aa9522e74f9906c199",
+      "date": "2026-10-03T18:50:01Z",
+      "message": "Protect resolved identities from content routing drift"
+    },
+    {
+      "sha": "21e6a006276a3f728d173c72054067d0ece97555",
+      "date": "2026-10-03T18:49:53Z",
+      "message": "Never trash a resolved character because of routing count drift"
+    },
+    {
+      "sha": "6cf96f2f21c07551a904397dca5db844ff78a372",
+      "date": "2026-10-03T18:49:23Z",
+      "message": "Run content routing checks in existing automation test suite"
+    },
+    {
+      "sha": "abff6a16e8699ae301edee1351dad56fe2631c68",
+      "date": "2026-10-03T18:48:54Z",
+      "message": "Normalize semantic routing quality flags safely"
+    },
+    {
+      "sha": "474fe74599553fd298237a28b9ab1f4f0ffdbf66",
+      "date": "2026-10-03T18:48:32Z",
+      "message": "Backfill fingerprints for existing library images"
+    },
+    {
+      "sha": "70b05bd3a3be761bc4387bd99c308d7e14858994",
+      "date": "2026-10-03T18:48:01Z",
+      "message": "Test autonomous content triage routes"
+    },
+    {
+      "sha": "f315216d842ea3cd9b6da8111ad40510b157e2d2",
+      "date": "2026-10-03T18:47:34Z",
+      "message": "Delete duplicate images before model execution"
+    },
+    {
+      "sha": "6c23cea7c44afaf330d106683affb4cee29cae84",
+      "date": "2026-10-03T18:46:56Z",
+      "message": "Run image integrity and duplicate preflight before AI"
+    },
+    {
+      "sha": "8fba61abb8ac5972bdf6e7917bacd92e8e70e3b4",
+      "date": "2026-10-03T18:46:47Z",
+      "message": "Keep earliest indexed copy during duplicate cleanup"
+    },
+    {
+      "sha": "ae6a9b4e0f9e35cce4729a1b3d6d161ee77382ea",
+      "date": "2026-10-03T18:46:25Z",
+      "message": "Add exact and conservative visual image fingerprinting"
+    },
+    {
+      "sha": "a45441442b69c9530b44cb3acdcd54ae2576ed2a",
+      "date": "2026-10-03T18:44:21Z",
+      "message": "Organize landscape trash and unidentified group routes"
+    },
+    {
+      "sha": "ba492e98ea8333e394be98bd1bcd8259618060fa",
+      "date": "2026-10-03T18:44:06Z",
+      "message": "Route terminal non-character content before review"
+    },
+    {
+      "sha": "e9cc2d1e59dcd6ab0ef786719497f18cb6653a2f",
+      "date": "2026-10-03T18:43:55Z",
+      "message": "Allow terminal content routes before character knowledge"
+    },
+    {
+      "sha": "04239238b4ce418a97427a9beac240f1c6182256",
+      "date": "2026-10-03T18:42:03Z",
+      "message": "Add image fingerprint duplicate lookup store"
+    },
+    {
+      "sha": "a0ce9a155ce3034f081c22e487507feec14ffc09",
+      "date": "2026-10-03T18:41:40Z",
+      "message": "Persist exact and perceptual image fingerprints"
+    },
+    {
+      "sha": "cf21446ad681479b3881d24ea411c2efe30f8e09",
+      "date": "2026-10-03T18:41:25Z",
+      "message": "Route non-character content before character review"
+    },
+    {
+      "sha": "f63e949f07602b9ef1a84a3ec52f0402689875bb",
+      "date": "2026-10-03T18:40:55Z",
+      "message": "Forward semantic content routing into automation workflow"
+    },
+    {
+      "sha": "2bb85dd5977fe67713d4b4eeca4d1fb4c9bf66c2",
+      "date": "2026-10-03T18:40:44Z",
+      "message": "Add semantic content routing to Qwen image pass"
+    },
+    {
+      "sha": "736becf0d81afd0f8045d53b4d79e321066fd326",
+      "date": "2026-10-03T18:40:23Z",
+      "message": "Add autonomous content triage policy"
+    },
+    {
+      "sha": "2a63e70aa60a405c8eca6ca31bf5914f23a71e5a",
+      "date": "2026-10-03T17:11:20Z",
+      "message": "Add regressions for null parents and mixed taxonomy categories"
+    }
+  ],
+  "runs": [
+    {
+      "id": 40335426421,
+      "sha": "2f639013d094a7865a36edb4a4905c66a86ca9fe",
+      "date": "2026-10-26T13:59:05Z",
+      "conclusion": "success",
+      "name": "Asterion-Core immutable migration source snapshot",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40335426421"
+    },
+    {
+      "id": 40076846353,
+      "sha": "7d7ab3318cfdd829b28faa301568cedc8b100961",
+      "date": "2026-10-24T08:08:05Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40076846353"
+    },
+    {
+      "id": 40076410236,
+      "sha": "8fb91ccc2674187711a010d072b78238a9d76067",
+      "date": "2026-10-24T08:01:23Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40076410236"
+    },
+    {
+      "id": 40043236656,
+      "sha": "4c2ba58cd6adfd400e2f4dcd318a945cf093f4fe",
+      "date": "2026-10-24T00:05:49Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40043236656"
+    },
+    {
+      "id": 40042928254,
+      "sha": "6f07fb62b443ff45126c22db3a7e477befea4e1a",
+      "date": "2026-10-24T00:02:20Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40042928254"
+    },
+    {
+      "id": 40032876689,
+      "sha": "a36ef4c46cbcc62849db8ec4bd87356eeb74bb9c",
+      "date": "2026-10-23T22:19:43Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40032876689"
+    },
+    {
+      "id": 40032575255,
+      "sha": "46d44ea3d7dfff517d4b295488ba1c8b6797ff2b",
+      "date": "2026-10-23T22:16:53Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40032575255"
+    },
+    {
+      "id": 40032334098,
+      "sha": "dccf2f372c8e75b90443e0a6ed12edd070f19550",
+      "date": "2026-10-23T22:14:42Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40032334098"
+    },
+    {
+      "id": 40032313096,
+      "sha": "e8b910ce1dd9fdbe62650a3424e8ffcdfaacabe6",
+      "date": "2026-10-23T22:14:30Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40032313096"
+    },
+    {
+      "id": 40032284235,
+      "sha": "561cbd3cf3a02ceede6cb7f9c7c9d06dd6855912",
+      "date": "2026-10-23T22:14:13Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40032284235"
+    },
+    {
+      "id": 40032168801,
+      "sha": "1b9466328217378b3be64f68641ffca9f0de672a",
+      "date": "2026-10-23T22:13:11Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40032168801"
+    },
+    {
+      "id": 40030777603,
+      "sha": "f6fa529a456baa803f320a25f7775e03481029a0",
+      "date": "2026-10-23T22:00:45Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40030777603"
+    },
+    {
+      "id": 40014508800,
+      "sha": "125635fca7f970a570c934ced1a001435426cfae",
+      "date": "2026-10-23T19:50:00Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40014508800"
+    },
+    {
+      "id": 40013735540,
+      "sha": "c40544eeae50efe54955c8e9307cf331f2947b05",
+      "date": "2026-10-23T19:44:05Z",
+      "conclusion": "success",
+      "name": "Asterion v2.0.7 Unsigned Release for Stable Offline Signing",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40013735540"
+    },
+    {
+      "id": 40013735385,
+      "sha": "c40544eeae50efe54955c8e9307cf331f2947b05",
+      "date": "2026-10-23T19:44:05Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40013735385"
+    },
+    {
+      "id": 40013535628,
+      "sha": "1878526621928f477f9f4a5a120c5f47ee3cf4b7",
+      "date": "2026-10-23T19:42:35Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/40013535628"
+    },
+    {
+      "id": 39961379208,
+      "sha": "6b0993a72912bf6a2520c9bbfece51f5de300d7d",
+      "date": "2026-10-23T13:27:39Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39961379208"
+    },
+    {
+      "id": 39961276063,
+      "sha": "2f3e03cbdd328f7c9e0dbd8d151e6ed852a48492",
+      "date": "2026-10-23T13:26:54Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39961276063"
+    },
+    {
+      "id": 39960431903,
+      "sha": "9b4c10a29dcb98d4953e0bd7e2782c19de691e17",
+      "date": "2026-10-23T13:20:50Z",
+      "conclusion": "success",
+      "name": "Bootstrap AsterionCore Unsigned Release",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39960431903"
+    },
+    {
+      "id": 39955536063,
+      "sha": "eee0fc7fb6b50b9f550e76d26dd870f9d6332813",
+      "date": "2026-10-23T12:43:55Z",
+      "conclusion": "failure",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39955536063"
+    },
+    {
+      "id": 39955426600,
+      "sha": "ddae77ce797a5a16ab3f98b99c4421476256f295",
+      "date": "2026-10-23T12:43:04Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39955426600"
+    },
+    {
+      "id": 39954103411,
+      "sha": "8d35551d12779015fb009135857f76ac2ff1029f",
+      "date": "2026-10-23T12:32:37Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39954103411"
+    },
+    {
+      "id": 39953811877,
+      "sha": "f5cfd9a054c1017e1625460b32f822ea540a1e0a",
+      "date": "2026-10-23T12:30:21Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39953811877"
+    },
+    {
+      "id": 39943342093,
+      "sha": "0915e146e2219da19f690c11a0fc56cc2a446ce4",
+      "date": "2026-10-23T11:02:55Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39943342093"
+    },
+    {
+      "id": 39942192316,
+      "sha": "212241419ad6ce4908a98f34bfb3c86f32a23474",
+      "date": "2026-10-23T10:52:53Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39942192316"
+    },
+    {
+      "id": 39941834917,
+      "sha": "8e886710c46ee9e75300f86f4d2fa70a0ba6df9f",
+      "date": "2026-10-23T10:49:47Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39941834917"
+    },
+    {
+      "id": 39941762969,
+      "sha": "f53e6e48060fa937e91967a983d8a12303247198",
+      "date": "2026-10-23T10:49:09Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39941762969"
+    },
+    {
+      "id": 39941398807,
+      "sha": "b3f1bbf5d76e08286410c8daea0e3a0bbf563310",
+      "date": "2026-10-23T10:45:57Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39941398807"
+    },
+    {
+      "id": 39941018127,
+      "sha": "aabbc83e5bd482ede45f32fd07753d26c5364383",
+      "date": "2026-10-23T10:42:42Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39941018127"
+    },
+    {
+      "id": 39940756516,
+      "sha": "5e15134bd8e3b60dc8f064dc92d46fc0f196f375",
+      "date": "2026-10-23T10:40:24Z",
+      "conclusion": "failure",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39940756516"
+    },
+    {
+      "id": 39940098675,
+      "sha": "46d5a7780f74d235cd50956a7fa7ef40025e0a32",
+      "date": "2026-10-23T10:34:44Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39940098675"
+    },
+    {
+      "id": 39939803028,
+      "sha": "90d43ac3e05ad598cf9633ecc8ca21eac31cb8f5",
+      "date": "2026-10-23T10:32:14Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39939803028"
+    },
+    {
+      "id": 39939263563,
+      "sha": "cce902565f972006e5276cbe111132d911f73f5d",
+      "date": "2026-10-23T10:27:44Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39939263563"
+    },
+    {
+      "id": 39939045454,
+      "sha": "c3e83fc3dc016bbc5df53b340e81bde6ed87defc",
+      "date": "2026-10-23T10:25:52Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39939045454"
+    },
+    {
+      "id": 39939014859,
+      "sha": "2571441afc1508785a7bd0051dce1a9ddaa3ccbc",
+      "date": "2026-10-23T10:25:36Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39939014859"
+    },
+    {
+      "id": 39938927919,
+      "sha": "ff46c42a3cc55fc28c0f9a6a77c8174dfc92caa4",
+      "date": "2026-10-23T10:24:54Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39938927919"
+    },
+    {
+      "id": 39938588865,
+      "sha": "83e5c079e2fc24676491a902efa93298f1bcc6b0",
+      "date": "2026-10-23T10:22:06Z",
+      "conclusion": "failure",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39938588865"
+    },
+    {
+      "id": 39937277399,
+      "sha": "9f67613985142447ee3733fff8bb64454e5da643",
+      "date": "2026-10-23T10:11:04Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39937277399"
+    },
+    {
+      "id": 39937134744,
+      "sha": "7185043e739a38a6b016409311ae737ef3f67e75",
+      "date": "2026-10-23T10:09:55Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39937134744"
+    },
+    {
+      "id": 39935231301,
+      "sha": "032752d97ab38717f0b799c5010b2a91959da7d7",
+      "date": "2026-10-23T09:54:14Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39935231301"
+    },
+    {
+      "id": 39935108778,
+      "sha": "bf2068518a3f7c92bf9dd0fbbc4ff4734b1c0fdd",
+      "date": "2026-10-23T09:53:14Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39935108778"
+    },
+    {
+      "id": 39935052313,
+      "sha": "1219f8bc5b6af75dc103a8a655a5faa106c19986",
+      "date": "2026-10-23T09:52:46Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39935052313"
+    },
+    {
+      "id": 39883737422,
+      "sha": "2245b6076cc6d19b0adbcd99140e222009835289",
+      "date": "2026-10-23T01:23:40Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39883737422"
+    },
+    {
+      "id": 39883603644,
+      "sha": "c3e82c091ae1253d4554d81821b5af3901b20a49",
+      "date": "2026-10-23T01:22:17Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39883603644"
+    },
+    {
+      "id": 39251677410,
+      "sha": "d816f7cc477abfa9e76abf2c1eada3638df118b4",
+      "date": "2026-10-19T12:23:25Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/39251677410"
+    },
+    {
+      "id": 38091998128,
+      "sha": "e4d44e897301cbcdc5376131638a1d17aed850f5",
+      "date": "2026-10-10T22:35:29Z",
+      "conclusion": "success",
+      "name": "Temporary Asterion audit APK delivery",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/38091998128"
+    },
+    {
+      "id": 37968504000,
+      "sha": "5797a65e90eac2cacf6cc2cd23fef10e1dc3b213",
+      "date": "2026-10-09T17:45:22Z",
+      "conclusion": "success",
+      "name": "Temporary Asterion APK delivery",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37968504000"
+    },
+    {
+      "id": 37502966179,
+      "sha": "766d637f63a50e0d3c9e89d962680a7538cdb21b",
+      "date": "2026-10-06T17:21:53Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37502966179"
+    },
+    {
+      "id": 37502753712,
+      "sha": "8e465555a56fdcb45a211854d0fb1d0228fa8fbd",
+      "date": "2026-10-06T17:20:15Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37502753712"
+    },
+    {
+      "id": 37481316029,
+      "sha": "2a91ee288d6633978a5025512ebf7697bc5c4a3d",
+      "date": "2026-10-06T14:43:10Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37481316029"
+    },
+    {
+      "id": 37480622928,
+      "sha": "67059ae78210f2b122304734bc907840b49cb944",
+      "date": "2026-10-06T14:38:13Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37480622928"
+    },
+    {
+      "id": 37480024238,
+      "sha": "e142040512fe7f6c4a616bc9b69038d43668a5c8",
+      "date": "2026-10-06T14:33:56Z",
+      "conclusion": "failure",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37480024238"
+    },
+    {
+      "id": 37479811296,
+      "sha": "4aa5bcad0df943def8ba5698ed47c628007119fc",
+      "date": "2026-10-06T14:32:24Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37479811296"
+    },
+    {
+      "id": 37479391622,
+      "sha": "2ea2f85ee4ffef2479305796bd4f85d7b0ac62ee",
+      "date": "2026-10-06T14:29:26Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37479391622"
+    },
+    {
+      "id": 37479044535,
+      "sha": "c2f5f809d3a13af29e0c16a1bbf309ea869ca5cb",
+      "date": "2026-10-06T14:26:58Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37479044535"
+    },
+    {
+      "id": 37469571419,
+      "sha": "9934e82b23e0ed807e2f686bee3fe8c83077237c",
+      "date": "2026-10-06T13:16:59Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37469571419"
+    },
+    {
+      "id": 37450687985,
+      "sha": "661ffbde2a14cd021eb4024f06810995eee57fe2",
+      "date": "2026-10-06T10:34:35Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37450687985"
+    },
+    {
+      "id": 37448449891,
+      "sha": "7699d4138bff1125e80e411539488ba6b098fc3c",
+      "date": "2026-10-06T10:14:24Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37448449891"
+    },
+    {
+      "id": 37446110987,
+      "sha": "7814485691efa5490ad998fc20e5c23a5f9d9220",
+      "date": "2026-10-06T09:53:52Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37446110987"
+    },
+    {
+      "id": 37445676968,
+      "sha": "5b2b34a5c049f45cdec843b585859c523ac07bb3",
+      "date": "2026-10-06T09:50:03Z",
+      "conclusion": "failure",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37445676968"
+    },
+    {
+      "id": 37440937221,
+      "sha": "773d9fe6ea816c3dfbd0d13169fd7df927072532",
+      "date": "2026-10-06T09:08:44Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37440937221"
+    },
+    {
+      "id": 37440667611,
+      "sha": "259e1ad7680c20b531c7ac98f549dd5d3a75ee6b",
+      "date": "2026-10-06T09:06:27Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37440667611"
+    },
+    {
+      "id": 37430807311,
+      "sha": "7699d4138bff1125e80e411539488ba6b098fc3c",
+      "date": "2026-10-06T07:37:18Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37430807311"
+    },
+    {
+      "id": 37158064811,
+      "sha": "7b4ff3c30c3afdd329384d85dda5ffb248a37ecd",
+      "date": "2026-10-03T22:19:52Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37158064811"
+    },
+    {
+      "id": 37156276936,
+      "sha": "fd934ab3ed9c00391a68c1e5a4c3d39beb1047d5",
+      "date": "2026-10-03T21:47:10Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37156276936"
+    },
+    {
+      "id": 37155968327,
+      "sha": "d0d4674e47d980ef3d13b0b34a6ed371fbf57cd3",
+      "date": "2026-10-03T21:41:07Z",
+      "conclusion": "failure",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155968327"
+    },
+    {
+      "id": 37155959707,
+      "sha": "e9f163486da6fc913b2b30e73c4bb394bfd25a9b",
+      "date": "2026-10-03T21:40:58Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155959707"
+    },
+    {
+      "id": 37155759965,
+      "sha": "5dd345a3f120227bb776167bd9743ae71abe2b5d",
+      "date": "2026-10-03T21:37:35Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155759965"
+    },
+    {
+      "id": 37155746066,
+      "sha": "8b1a4b22cb04a8d07c7fc9b60d549b36533d936d",
+      "date": "2026-10-03T21:37:22Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155746066"
+    },
+    {
+      "id": 37155735636,
+      "sha": "3590af1f823f985b89c0f120b566173a06cc3bf6",
+      "date": "2026-10-03T21:37:11Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155735636"
+    },
+    {
+      "id": 37155726955,
+      "sha": "bffd43b680d589fbdec1f4aab81cf9268f3c5c71",
+      "date": "2026-10-03T21:37:02Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155726955"
+    },
+    {
+      "id": 37155707671,
+      "sha": "0b374262c40e2dfbb8d5c6d8071ecfb5d6d60d88",
+      "date": "2026-10-03T21:36:41Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155707671"
+    },
+    {
+      "id": 37155683711,
+      "sha": "50a5c0d7bf65a4f50d518e3d23afc494ece0a691",
+      "date": "2026-10-03T21:36:17Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155683711"
+    },
+    {
+      "id": 37155630812,
+      "sha": "07c2038512f6916d0b653a2edb6d9454a092a8c1",
+      "date": "2026-10-03T21:35:23Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155630812"
+    },
+    {
+      "id": 37155595335,
+      "sha": "94ee325fac05030669aabd90221ae42223f778e8",
+      "date": "2026-10-03T21:34:50Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155595335"
+    },
+    {
+      "id": 37155582660,
+      "sha": "9e649e41f3d6fb4df9b5b86dd9a41c76369bb948",
+      "date": "2026-10-03T21:34:37Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155582660"
+    },
+    {
+      "id": 37155572265,
+      "sha": "deac5322ae6431fba85b4fe50166faf3c03c1db0",
+      "date": "2026-10-03T21:34:25Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155572265"
+    },
+    {
+      "id": 37155546353,
+      "sha": "06bf8a7eb6dda97fdaf4f0979ee686c78a02c9fa",
+      "date": "2026-10-03T21:33:59Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37155546353"
+    },
+    {
+      "id": 37145840819,
+      "sha": "0387bee8f7e3bab5deaaf1d567503cacec763223",
+      "date": "2026-10-03T18:52:36Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145840819"
+    },
+    {
+      "id": 37145825540,
+      "sha": "7f2f7d818c7cae2499e0cd29023f8b6b9d12fbdb",
+      "date": "2026-10-03T18:52:20Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145825540"
+    },
+    {
+      "id": 37145684285,
+      "sha": "36bc7fe903aa1ee41f9f11aa9522e74f9906c199",
+      "date": "2026-10-03T18:50:03Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145684285"
+    },
+    {
+      "id": 37145675806,
+      "sha": "21e6a006276a3f728d173c72054067d0ece97555",
+      "date": "2026-10-03T18:49:55Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145675806"
+    },
+    {
+      "id": 37145645798,
+      "sha": "6cf96f2f21c07551a904397dca5db844ff78a372",
+      "date": "2026-10-03T18:49:26Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145645798"
+    },
+    {
+      "id": 37145614500,
+      "sha": "abff6a16e8699ae301edee1351dad56fe2631c68",
+      "date": "2026-10-03T18:48:57Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145614500"
+    },
+    {
+      "id": 37145592576,
+      "sha": "474fe74599553fd298237a28b9ab1f4f0ffdbf66",
+      "date": "2026-10-03T18:48:34Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145592576"
+    },
+    {
+      "id": 37145561587,
+      "sha": "70b05bd3a3be761bc4387bd99c308d7e14858994",
+      "date": "2026-10-03T18:48:03Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145561587"
+    },
+    {
+      "id": 37145536403,
+      "sha": "f315216d842ea3cd9b6da8111ad40510b157e2d2",
+      "date": "2026-10-03T18:47:36Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145536403"
+    },
+    {
+      "id": 37145495555,
+      "sha": "6c23cea7c44afaf330d106683affb4cee29cae84",
+      "date": "2026-10-03T18:46:59Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145495555"
+    },
+    {
+      "id": 37145485680,
+      "sha": "8fba61abb8ac5972bdf6e7917bacd92e8e70e3b4",
+      "date": "2026-10-03T18:46:49Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145485680"
+    },
+    {
+      "id": 37145463512,
+      "sha": "ae6a9b4e0f9e35cce4729a1b3d6d161ee77382ea",
+      "date": "2026-10-03T18:46:27Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145463512"
+    },
+    {
+      "id": 37145330415,
+      "sha": "a45441442b69c9530b44cb3acdcd54ae2576ed2a",
+      "date": "2026-10-03T18:44:24Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145330415"
+    },
+    {
+      "id": 37145313345,
+      "sha": "ba492e98ea8333e394be98bd1bcd8259618060fa",
+      "date": "2026-10-03T18:44:08Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145313345"
+    },
+    {
+      "id": 37145303414,
+      "sha": "e9cc2d1e59dcd6ab0ef786719497f18cb6653a2f",
+      "date": "2026-10-03T18:43:58Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145303414"
+    },
+    {
+      "id": 37145188759,
+      "sha": "04239238b4ce418a97427a9beac240f1c6182256",
+      "date": "2026-10-03T18:42:06Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145188759"
+    },
+    {
+      "id": 37145164272,
+      "sha": "a0ce9a155ce3034f081c22e487507feec14ffc09",
+      "date": "2026-10-03T18:41:43Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145164272"
+    },
+    {
+      "id": 37145148564,
+      "sha": "cf21446ad681479b3881d24ea411c2efe30f8e09",
+      "date": "2026-10-03T18:41:28Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145148564"
+    },
+    {
+      "id": 37145119231,
+      "sha": "f63e949f07602b9ef1a84a3ec52f0402689875bb",
+      "date": "2026-10-03T18:40:58Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145119231"
+    },
+    {
+      "id": 37145105850,
+      "sha": "2bb85dd5977fe67713d4b4eeca4d1fb4c9bf66c2",
+      "date": "2026-10-03T18:40:46Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145105850"
+    },
+    {
+      "id": 37145081382,
+      "sha": "736becf0d81afd0f8045d53b4d79e321066fd326",
+      "date": "2026-10-03T18:40:25Z",
+      "conclusion": "cancelled",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37145081382"
+    },
+    {
+      "id": 37139588977,
+      "sha": "2a63e70aa60a405c8eca6ca31bf5914f23a71e5a",
+      "date": "2026-10-03T17:11:22Z",
+      "conclusion": "success",
+      "name": "Asterion Core Android Build",
+      "url": "https://github.com/Azrazieliz/Asterion-Core/actions/runs/37139588977"
+    }
+  ]
+}

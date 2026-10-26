@@ -1,0 +1,26 @@
+name: Asterion Art full conversation recovery source snapshot
+on:
+  push:
+    branches:
+      - 'migration/asterion-art-conversation-backup-20261026'
+  workflow_dispatch:
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record immutable source and recovery metadata
+        run: |
+          git rev-parse HEAD > RECOVERY_COMMIT_SHA.txt
+          git ls-files -s > RECOVERY_TRACKED_FILES.txt
+          git archive --format=zip -o Asterion-Art-Conversation-Migration-Source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Asterion-Art-Convo-Recovery-Source-20261026
+          path: |
+            Asterion-Art-Conversation-Migration-Source.zip
+            RECOVERY_COMMIT_SHA.txt
+            RECOVERY_TRACKED_FILES.txt
+          retention-days: 90
