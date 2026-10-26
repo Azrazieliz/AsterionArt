@@ -11,16 +11,30 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Record immutable source and recovery metadata
+        with:
+          fetch-depth: 0
+      - name: Fetch all branch history without changing production code
+        run: |
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: Record source and complete Git branch history
         run: |
           git rev-parse HEAD > RECOVERY_COMMIT_SHA.txt
           git ls-files -s > RECOVERY_TRACKED_FILES.txt
+          git show-ref > RECOVERY_ALL_GIT_REFS.txt
+          git log --all --date=iso-strict --format='%H|%P|%ad|%an|%s' > RECOVERY_ALL_GIT_COMMITS.txt
           git archive --format=zip -o Asterion-Art-Conversation-Migration-Source.zip HEAD
+          git bundle create Asterion-Art-ALL-BRANCHES-HISTORY.bundle --all
+          git bundle verify Asterion-Art-ALL-BRANCHES-HISTORY.bundle
+          sha256sum Asterion-Art-Conversation-Migration-Source.zip Asterion-Art-ALL-BRANCHES-HISTORY.bundle > RECOVERY_SOURCE_HASHES.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: Asterion-Art-Convo-Recovery-Source-20261026
           path: |
             Asterion-Art-Conversation-Migration-Source.zip
+            Asterion-Art-ALL-BRANCHES-HISTORY.bundle
             RECOVERY_COMMIT_SHA.txt
             RECOVERY_TRACKED_FILES.txt
+            RECOVERY_ALL_GIT_REFS.txt
+            RECOVERY_ALL_GIT_COMMITS.txt
+            RECOVERY_SOURCE_HASHES.sha256
           retention-days: 90
