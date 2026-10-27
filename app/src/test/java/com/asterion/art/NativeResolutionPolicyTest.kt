@@ -6,7 +6,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NativeResolutionPolicyTest {
-    private fun native(resolutions:List<Pair<Int,Int>>=emptyList())=
+    private fun native(resolutions:List<Pair<Int,Int>> = emptyList())=
         DreamModel("installed","Anima checkpoint",1024,true,false,true,"",resolutions)
     @Test fun everyUserRatioWorksWithoutNativeSizeManifest() {
         val selected=listOf("1:1","3:4","4:3","9:16","2:3","3:2","16:9")
