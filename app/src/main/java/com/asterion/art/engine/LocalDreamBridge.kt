@@ -6,6 +6,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CancellationException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
 /** Local-only compatibility layer; a native embedded engine will implement the same interface. */
@@ -203,7 +204,26 @@ class LocalDreamBridge(private val generationPort: Int = 8081) : StillImageEngin
             }
         }
         val conn = URL(generation + "/generate").openConnection() as HttpURLConnection
+        // Cancellation must interrupt a blocked HTTP read or request upload,
+        // not merely wait for the next SSE progress event (which may never arrive).
+        val finished = AtomicBoolean(false)
+        val cancellationWatcher = Thread {
+            try {
+                while (!finished.get()) {
+                    if (cancelled()) {
+                        conn.disconnect()
+                        break
+                    }
+                    Thread.sleep(250L)
+                }
+            } catch (_: InterruptedException) { }
+        }.apply {
+            name = "asterion-image-generation-cancel"
+            isDaemon = true
+            start()
+        }
         try {
+            if (cancelled()) throw CancellationException("Generation cancelled")
             conn.requestMethod = "POST"
             conn.connectTimeout = 8_000
             conn.readTimeout = 900_000
@@ -248,8 +268,17 @@ class LocalDreamBridge(private val generationPort: Int = 8081) : StillImageEngin
             }
             throw BackendUnavailable("Native image generation stream ended without a result")
         } catch (e: java.net.ConnectException) {
+            if (cancelled()) throw CancellationException("Generation cancelled")
             throw BackendUnavailable("On-device generator port unavailable")
-        } finally { conn.disconnect() }
+        } catch (e: java.io.IOException) {
+            if (cancelled()) throw CancellationException("Generation cancelled")
+            throw BackendUnavailable("Native generator connection failed: " +
+                (e.message ?: e.javaClass.simpleName))
+        } finally {
+            finished.set(true)
+            cancellationWatcher.interrupt()
+            conn.disconnect()
+        }
     }
 }
 
