@@ -17,10 +17,10 @@ data class VisionWeight(
 object VisionCatalog {
     val language=VisionWeight(
         "Qwen3VL-2B-Instruct-Q4_K_M.gguf",1_107_409_952L,
-        "06fb8948e506b2e751a0f81f6e365382a3b9ea5f304ade3c77a814adc9543109")
+        "089d75c52f4b7ffc56ba998ffc50aae89fcafc755f9e7208aacca281dca6c2ae")
     val projector=VisionWeight(
         "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf",445_053_216L,
-        "df4d5f12ac5349b780b8a2d5033e9b529c14a82a30c5b69bbdcef52b79a56ff3")
+        "f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82")
     val all=listOf(language,projector)
 }
 data class VisionInstalledPair(val language:File,val projector:File)
