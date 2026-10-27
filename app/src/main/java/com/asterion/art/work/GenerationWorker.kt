@@ -297,6 +297,14 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             // never a full multi-character catalogue or only its saved prompt.
             val originalSource=job.designReferenceUris.singleOrNull()
                 ?:extraOriginal?.sourceUris?.firstOrNull()
+                // Anima/SDXL cannot consume multi-reference images as a
+                // separate conditioning tensor. Keep the actual primary
+                // character pixels as an img2img source rather than silently
+                // replacing the selected character with prose alone.
+                ?:if(job.creationMode==null)
+                    sheets.firstOrNull{it.role==SheetRole.CHARACTER}
+                        ?.sourceUris?.firstOrNull()
+                  else null
             val originalImage=originalSource?.let {
                 SourceReferenceEncoder.encodeUris(applicationContext,listOf(it)).single()
             }
@@ -438,7 +446,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         denoise=if(job.designReferenceUris.isNotEmpty() ||
                             job.sourceImageUri!=null)candidateSettings.denoise
                             else stage.denoise)
-                    
+                    else if(job.creationMode==null && stage.number==1 &&
+                        current!=null && model.ditKind !in listOf("qwen21","klein")) {
+                        // One real source image provides visual identity on
+                        // Anima/SDXL. Denoise=1.0 would erase that authority.
+                        stage.copy(denoise=0.72f)
+                    }
                     else if(characterPlan!=null)
                         stage.copy(positive=characterPlan.prompts[candidate-1],
                             negative=CharacterPhaseOne.NEGATIVE)
