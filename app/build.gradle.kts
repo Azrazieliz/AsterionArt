@@ -37,6 +37,11 @@ android {
             isShrinkResources = false
         }
     }
+    lint {
+        // Android Lint's NonNullableMutableLiveDataDetector crashes against
+        // this Kotlin analysis API; disable only that buggy rule, not lint.
+        disable += "NullSafeMutableLiveData"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

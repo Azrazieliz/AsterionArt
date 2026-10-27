@@ -20,7 +20,6 @@ import com.asterion.art.render.SheetMasterPrompts
 import com.asterion.art.vision.VisionModelStore
 import com.asterion.art.vision.ReferenceVisualInterpreter
 import com.asterion.art.engine.SheetTextReader
-import com.asterion.art.data.GenerationJobStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -71,9 +70,8 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             val encoded=SourceReferenceEncoder.encodeUris(app,sources)
             val observations=if(VisionModelStore(app).installed()!=null){
                 foreground("Analyzing actual reference pixels")
-                val reader=SheetTextReader(app)
                 val evidence=ReferenceVisualInterpreter(app).enrich(
-                    listOf(sheet),listOf(reader.read(sheet)),onProgress={
+                    listOf(sheet),listOf(SheetTextReader.read(app,sheet)),onProgress={
                         repo.updateTaskProgress(task,0,0,it)
                     })
                 evidence.single().all().joinToString(" ")

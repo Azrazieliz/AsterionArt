@@ -278,7 +278,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 SheetRecord(role=SheetRole.CHARACTER,label="Original source image",
                     sourceUris=listOf(uri),referenceSlots=listOf("PRIMARY"))
             }
-            val combinedSourceUris=sheets.flatMap { it.sourceUris }+
+            // The GENERATED authoritative master sheet must reach the
+            // neural reference-conditioning path. Keep original source pixels
+            // available as secondary evidence, without replacing the master.
+            val combinedSourceUris=sheets.flatMap { sheet ->
+                listOfNotNull(sheet.outputUri)+sheet.sourceUris
+            }.distinct()+
                 listOfNotNull(extraOriginal?.sourceUris?.firstOrNull())+
                 job.designReferenceUris
             val referenceInputs = if (model.ditKind == "qwen21" ||

@@ -519,11 +519,12 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                         navigate(Page.JOBS)
                     }.onFailure { note = it.message }
                 }
-            ) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Build sheet in background") }
+            ) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Generate complete AI master sheet") }
         }
         item {
             Text(
-                "Source images are kept at their original URIs. No silent cropping, fake character traits or AI-generated annotations.",
+                "Your source image stays intact. Generation reconstructs the full sheet "+
+                    "with new canonical views rather than copying source crops.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Mist
             )

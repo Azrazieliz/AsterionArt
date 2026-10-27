@@ -47,7 +47,6 @@ import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.TaskKind
 import com.asterion.art.video.MotionPreset
 import com.asterion.art.video.NightmareVideoBridge
-import com.asterion.art.video.NoWorldExporter
 import com.asterion.art.video.VideoApiCredentials
 import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.video.VideoResultStore
@@ -331,17 +330,6 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                             }
                             context.startActivity(intent)
                         }) { Text("Play") }
-                        if(!result.engine.startsWith("Offline")) OutlinedButton(onClick={
-                            scope.launch {
-                                diagnostic=withContext(Dispatchers.IO) {
-                                    runCatching { NoWorldExporter.export(context,result) }
-                                        .fold(
-                                            onSuccess={ "NoWorld pending package saved to Downloads" },
-                                            onFailure={ "NoWorld export failed: "+it.message }
-                                        )
-                                }
-                            }
-                        }) { Text("NoWorld export") }
                     }
                 }
             }
