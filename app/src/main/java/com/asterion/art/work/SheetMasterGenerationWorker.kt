@@ -126,8 +126,11 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
                 if(sequence.mode=="single_pass") "One-shot full-image inference"
                 else "Scheduling "+sequence.chunks.size+
                     " verified image-conditioning passes without discarding details")
+            // Preserve the user's checkpoint-specific sampler settings.
+            // Raising every model to 25 steps overrides distilled QNN defaults
+            // and can degrade quality as well as generation time.
             val selected=repo.settings.copy(batch=1,ratio="9:16",
-                automatic=false,steps=repo.settings.steps.coerceAtLeast(25))
+                automatic=false)
             val referencePixels=if(primary.ditKind in setOf("qwen21","klein"))
                 encoded else emptyList()
             val previous=if(referencePixels.isEmpty()) {
