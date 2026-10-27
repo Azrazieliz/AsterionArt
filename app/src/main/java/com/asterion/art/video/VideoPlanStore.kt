@@ -31,21 +31,24 @@ data class VideoPlan(
     val createdAt: Long,
     val direction: String = "",
     val positivePrompt: String = "",
-    val negativePrompt: String = ""
+    val negativePrompt: String = "",
+    val totalSegments: Int = imageUris.size
 )
 
 class VideoPlanStore(context: Context) {
     private val appContext=context.applicationContext
     private val root=File(appContext.filesDir,"video-plans").also { it.mkdirs() }
     fun create(images: List<String>, preset: MotionPreset, seconds: Int = 2,
-               direction: String = ""): VideoPlan {
+               direction: String = "",totalSegments: Int = images.size): VideoPlan {
         require(images.size in 1..8) { "Choose between one and eight reference images" }
         require(images.distinct().size == images.size)
         require(seconds in 1..5)
+        require(totalSegments in 1..24)
+        require(images.size==1 || totalSegments==images.size)
         val prompts=compileMotion(preset,direction,ConceptTaxonomy(appContext))
         val plan=VideoPlan(UUID.randomUUID().toString(),images,preset,seconds,24,
             System.currentTimeMillis().and(0x7FFFFFFFL),System.currentTimeMillis(),
-            direction.trim(),prompts.first,prompts.second)
+            direction.trim(),prompts.first,prompts.second,totalSegments)
         val data=JSONObject().apply {
             put("schema_version",1)
             put("id",plan.id)
@@ -58,6 +61,7 @@ class VideoPlanStore(context: Context) {
             put("direction",plan.direction)
             put("positive_prompt",plan.positivePrompt)
             put("negative_prompt",plan.negativePrompt)
+            put("total_segments",plan.totalSegments)
         }
         GeneratedImagePublisher.atomicWrite(File(root,plan.id+".json"),
             data.toString(2).toByteArray(Charsets.UTF_8))
@@ -87,6 +91,7 @@ class VideoPlanStore(context: Context) {
                     data.optString("direction","")).first },
             data.optString("negative_prompt","").ifBlank {
                 compileMotion(MotionPreset.valueOf(data.getString("preset")),
-                    data.optString("direction","")).second })
+                    data.optString("direction","")).second },
+            data.optInt("total_segments",list.length()))
     }
 }

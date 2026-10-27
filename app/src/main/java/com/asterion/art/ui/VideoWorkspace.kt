@@ -67,6 +67,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
     var images by remember { mutableStateOf<List<String>>(emptyList()) }
     var preset by remember { mutableStateOf(MotionPreset.CINEMATIC) }
     var seconds by remember { mutableStateOf(2) }
+    var repeatSegments by remember { mutableStateOf(1) }
     var customMotion by remember { mutableStateOf("") }
     var showPromptReview by remember { mutableStateOf(false) }
     var resultsNonce by remember { mutableStateOf(0) }
@@ -102,7 +103,8 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         confirmButton={TextButton(onClick={
             showPromptReview=false
             runCatching {
-                val plan=VideoPlanStore(context).create(images,preset,seconds,customMotion)
+                val plan=VideoPlanStore(context).create(images,preset,seconds,customMotion,
+                    if(images.size==1)repeatSegments else images.size)
                 val task=repo.recordTask(plan.id,TaskKind.VIDEO)
                 VideoGenerationWorker.enqueue(context,plan.id,task.id)
             }.onSuccess { onQueued() }.onFailure { diagnostic=it.message }
@@ -217,6 +219,15 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                 Slider(value=seconds.toFloat(),
                     onValueChange={seconds=it.roundToInt()},
                     valueRange=1f..5f,steps=3)
+                if(images.size==1) {
+                    Text("Consecutive segments: "+repeatSegments,color=Gold)
+                    Slider(value=repeatSegments.toFloat(),
+                        onValueChange={repeatSegments=it.roundToInt()},
+                        valueRange=1f..8f,steps=6)
+                    Text("After the first clip, each new clip starts from the " +
+                        "last decoded frame of the preceding clip. This improves " +
+                        "continuation but cannot guarantee seamless motion.",color=Mist)
+                }
             }
         }
         item {

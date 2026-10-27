@@ -19,6 +19,8 @@ import com.asterion.art.video.Mp4SegmentJoiner
 import com.asterion.art.video.NightmareVideoBridge
 import com.asterion.art.video.VideoApiCredentials
 import com.asterion.art.video.VideoPlanStore
+import com.asterion.art.video.VideoContinuitySchedule
+import com.asterion.art.video.VideoFrameContinuation
 import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.learning.CreativeMemoryStore
@@ -91,35 +93,47 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             val bridge=NightmareVideoBridge(applicationContext,token)
             require(bridge.available()) { "Wan/Neodragon video model not installed or available" }
             val folder=File(applicationContext.filesDir,"video-cache/"+id).also { it.mkdirs() }
-            repo.updateTaskProgress(task,0,plan.imageUris.size,"Preparing video")
+            val timeline=VideoContinuitySchedule.plan(plan.imageUris.size,
+                plan.secondsPerSegment,plan.seed,
+                plan.imageUris.size==1 && plan.totalSegments>1,plan.totalSegments)
+            repo.updateTaskProgress(task,0,timeline.size,"Preparing video")
             val segments=mutableListOf<File>()
             val runs=mutableListOf<String>()
-            for((index,frame) in plan.imageUris.withIndex()) {
+            for(segment in timeline) {
+                val index=segment.index
+                val frame=plan.imageUris[if(segment.usePreviousEndFrame)0 else index]
                 if(isStopped)throw CancellationException()
                 setForeground(ForegroundInfo(7225,
-                    notification("Generating segment "+(index+1)+"/"+plan.imageUris.size),
+                    notification("Generating segment "+(index+1)+"/"+timeline.size),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
                 val file=File(folder,"segment_"+index+".mp4")
                 if(file.isFile && file.length()>1024) {
                     segments+=file
                     runs+="recovered"
-                    repo.updateTaskProgress(task,index+1,plan.imageUris.size,"Recovered segment")
+                    repo.updateTaskProgress(task,index+1,timeline.size,"Recovered segment")
                     continue
                 }
                 repo.updateTaskProgress(task,index,0,
                     "Rendering segment "+(index+1)+"/"+plan.imageUris.size+
                     " · model progress unavailable")
+                val source=if(segment.usePreviousEndFrame) {
+                    val preceding=File(folder,"segment_"+(index-1)+".mp4")
+                    val anchor=File(folder,"continuation_"+index+".png")
+                    if(anchor.isFile && anchor.length()>128)Uri.fromFile(anchor)
+                    else VideoFrameContinuation.extractEndFrame(
+                        applicationContext,preceding,anchor)
+                } else Uri.parse(frame)
                 val result=bridge.generate(
-                    Uri.parse(frame),inferredMotion,
-                    plan.seed+index*1009L,plan.secondsPerSegment,
+                    source,inferredMotion,
+                    segment.seed,segment.expectedSeconds,
                     file,{isStopped})
                 segments+=result.file
                 runs+=result.runId
-                repo.updateTaskProgress(task,index+1,plan.imageUris.size,"Segment " + (index+1) + " complete")
+                repo.updateTaskProgress(task,index+1,timeline.size,"Segment " + (index+1) + " complete")
                 setProgress(Data.Builder().putInt("segment",index+1)
-                    .putInt("total",plan.imageUris.size).build())
+                    .putInt("total",timeline.size).build())
             }
-            require(segments.size==plan.imageUris.size)
+            require(segments.size==timeline.size)
             val combined=File(folder,"assembled.mp4")
             repo.updateTaskProgress(task,0,0,
                 "Assembling MP4 · backend progress unavailable")
@@ -140,6 +154,10 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 put("reference_count",plan.imageUris.size)
                 put("inference_mode","independent first-frame conditioned clips")
                 put("native_multi_keyframe_conditioning",false)
+                put("continuation_mode",if(timeline.any{it.usePreviousEndFrame})
+                    "previous_clip_end_frame" else "independent_reference_frames")
+                put("motion_continuity_verified",false)
+                put("total_segment_count",timeline.size)
                 put("assembled_mp4",uri.toString())
                 put("nightmare_run_ids",JSONArray(runs))
                 put("clip_is_approved",false)
