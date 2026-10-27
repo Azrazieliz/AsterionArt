@@ -196,6 +196,32 @@ data class FrozenCharacter(
         .lowercase().replace(Regex("\\s+")," ").trim()
 }
 object CharacterSheetCompiler {
+    /** Complete character-specific visual state for controlled Alter/Fuse revisions. */
+    fun individual(design:FrozenCharacter):String {
+        design.validate()
+        return buildString {
+            append("One self-contained 9:16 clinical anatomical reference of a ")
+            append("complete unclothed original female anime/manhwa character; ")
+            append("dominant neutral full-body exact true-front and smaller exact ")
+            append("90-degree profile and direct rear of identical frozen anatomy. ")
+            append("Pure white field, no clothing or reference underlayer.\n")
+            append(CharacterPhaseOne.DRAWING).append("\n")
+            append("FROZEN CHARACTER ").append(design.id).append("\n")
+            append("ANATOMY: ").append(design.anatomy).append("\n")
+            append("FACE / EYES / HAIR: ").append(design.faceEyesHair).append("\n")
+            append("TOPOLOGY AND APPENDAGES: ").append(design.topology).append("\n")
+            append("CONCEPT FUSION: ").append(design.fusion).append("\n")
+            design.pairwise.forEach{physical->
+                append("JOINT PHYSICAL STRUCTURE: ").append(physical.mechanism)
+                    .append("\n")
+            }
+            if(design.higherOrder.isNotBlank())
+                append("HIGHER-ORDER COMPLETE-SET STRUCTURE: ")
+                    .append(design.higherOrder).append("\n")
+            append("MATERIAL AND PALETTE: ").append(design.materials).append("\n")
+            append("FINAL VISUAL CHARACTER: ").append(design.renderDescription)
+        }
+    }
     fun audit(roster:List<FrozenCharacter>,sheets:Int):List<String> {
         require(roster.size==CharacterPhaseOne.count(sheets))
         val errors=mutableListOf<String>()
