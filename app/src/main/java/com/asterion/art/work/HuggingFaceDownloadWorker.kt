@@ -75,13 +75,30 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
                     (expected==null||it.sha256.equals(expected,true))
             }
             val app=applicationContext
+            // Do not download multi-GB weights again if the app has already
+            // verified and installed the exact catalog component.
+            val existingBrain=brain?.let{BrainModelStore(app).location(it)}
+            val existingVision=vision?.let{VisionModelStore(app).path(it)}
+            if(existingBrain!=null || existingVision!=null) {
+                repo.updateTaskProgress(task,100,100,
+                    "Model already installed and verified; no download required")
+                repo.updateTask(task,TaskStatus.COMPLETED)
+                return@withContext Result.success()
+            }
             // Choose an app-owned volume with enough space before downloading
             // multi-gigabyte original checkpoints; never duplicate existing weights.
             val candidateRoots=(app.getExternalFilesDirs(null).filterNotNull()
                 .map{File(it,"hf-library")}+
                 File(app.filesDir,"hf-library"))
             val required=if(size>0)size+128L*1024*1024 else 512L*1024*1024
-            val root=candidateRoots.firstOrNull {
+            val storedName=UUID.nameUUIDFromBytes(path.toByteArray()).toString()+
+                "-"+fileName
+            // Resuming an existing partial must not select a different volume
+            // just because its free space changed during the first transfer.
+            val root=candidateRoots.firstOrNull{
+                val stored=File(it,rev+"/"+id+"/"+storedName)
+                stored.isFile || File(stored.path+".partial").isFile
+            } ?: candidateRoots.firstOrNull {
                 (it.parentFile?.usableSpace?:0L)>required
             }?:error("No app-owned volume has enough space for this model")
             check(root.mkdirs()||root.isDirectory)
@@ -93,12 +110,50 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
             val target=when {
                 brain!=null->BrainModelStore(applicationContext).target(brain)
                 vision!=null->VisionModelStore(applicationContext).target(vision)
-                else->File(folder,UUID.nameUUIDFromBytes(
-                    path.toByteArray()).toString()+"-"+fileName)
+                else->File(folder,storedName)
             }
             val partial=File(target.path+".partial")
+            // The completed file and its manifest are both app-owned. Reuse
+            // only exact pinned-revision/filename/size/hash matches.
+            if(brain==null && vision==null && target.isFile) {
+                val metadata=runCatching{
+                    JSONObject(File(target.path+".json").readText())
+                }.getOrNull()
+                val recorded=metadata?.optString("sha256").orEmpty()
+                val matches=metadata?.optString("repo")==id &&
+                    metadata.optString("revision")==rev &&
+                    metadata.optString("file")==path &&
+                    metadata.optLong("size")==target.length() &&
+                    (size<=0L || target.length()==size) &&
+                    recorded.matches(Regex("[a-fA-F0-9]{64}")) &&
+                    (expected==null || recorded.equals(expected,true))
+                if(matches) {
+                    // Verify bytes again before trusting the previous manifest.
+                    val digest=MessageDigest.getInstance("SHA-256")
+                    target.inputStream().use{stream->
+                        val buffer=ByteArray(256*1024)
+                        while(true) {
+                            if(isStopped)throw CancellationException()
+                            val n=stream.read(buffer)
+                            if(n<0)break
+                            digest.update(buffer,0,n)
+                        }
+                    }
+                    val hash=digest.digest().joinToString(""){"%02x".format(it)}
+                    if(hash.equals(recorded,true)) {
+                        OriginalCheckpointLibrary(app).registerDownloaded(target,id+"/"+path)
+                        repo.updateTaskProgress(task,100,100,
+                            "Existing verified model reused; no download required")
+                        repo.updateTask(task,TaskStatus.COMPLETED)
+                        return@withContext Result.success()
+                    }
+                }
+                // Never silently replace or delete a user's existing weights.
+                error("Existing model cannot be verified; resolve the conflicting file before downloading")
+            }
             check(target.parentFile?.mkdirs()==true||target.parentFile?.isDirectory==true)
             val manager=applicationContext.getSystemService(NotificationManager::class.java)
+            val notificationId=task.hashCode().and(Int.MAX_VALUE).coerceAtLeast(1)
             manager.createNotificationChannel(NotificationChannel(CHANNEL,
                 "Hugging Face model downloads",NotificationManager.IMPORTANCE_LOW))
             fun stage(message:String,received:Long=0L) {
@@ -109,9 +164,9 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
                     .setSmallIcon(android.R.drawable.stat_sys_download)
                     .setContentTitle(fileName.take(60)).setContentText(message)
                     .setOngoing(true).build()
-                manager.notify(7246,notification)
+                manager.notify(notificationId,notification)
             }
-            setForeground(ForegroundInfo(7246,Notification.Builder(applicationContext,CHANNEL)
+            setForeground(ForegroundInfo(notificationId,Notification.Builder(applicationContext,CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setContentTitle("Downloading model from Hugging Face")
                 .setContentText(fileName.take(60)).build(),
