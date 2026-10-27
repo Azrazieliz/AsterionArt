@@ -60,16 +60,18 @@ object Mp4SegmentJoiner {
             require(formats.any{mime(it).startsWith("video/")}) {
                 "No video track in first segment"
             }
-            muxer=MediaMuxer(temp.absolutePath,MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-            val specs=formats.map {Expected(it,muxer.addTrack(it))}
+            val output=MediaMuxer(temp.absolutePath,MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            muxer=output
+            val specs=formats.map {Expected(it,output.addTrack(it))}
             val metadata=MediaMetadataRetriever()
             try {
                 metadata.setDataSource(parts.first().absolutePath)
                 val rotation=metadata.extractMetadata(
                     MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull()
-                if(rotation in listOf(90,180,270)) muxer.setOrientationHint(rotation!!)
+                if(rotation!=null && rotation in listOf(90,180,270))
+                    output.setOrientationHint(rotation)
             } finally {metadata.release()}
-            muxer.start()
+            output.start()
             started=true
             val buffer=ByteBuffer.allocateDirect(8*1024*1024)
             val info=MediaCodec.BufferInfo()
@@ -120,7 +122,7 @@ object Mp4SegmentJoiner {
                         info.size=bytes
                         info.presentationTimeUs=time
                         info.flags=extractor.sampleFlags
-                        muxer.writeSampleData(specs[logical].muxTrack,buffer,info)
+                        output.writeSampleData(specs[logical].muxTrack,buffer,info)
                         segmentEndUs=maxOf(segmentEndUs,time)
                         wrote++
                         if(!extractor.advance())break
@@ -132,15 +134,15 @@ object Mp4SegmentJoiner {
                         ?.coerceIn(1,240)?:24
                     val audioExtra=specs.filter{mime(it.format).startsWith("audio/")}
                         .mapNotNull{integer(it.format,MediaFormat.KEY_SAMPLE_RATE)}
-                        .maxOfOrNull{(1024L*1_000_000L/it).coerceAtLeast(1L)}?:0L
+                        .maxOfOrNull{(1024L*1_000_000L/it.coerceAtLeast(1)).coerceAtLeast(1L)}?:0L
                     timelineOffsetUs=VideoTimelineMath.nextStart(
                         timelineOffsetUs,segmentEndUs,
                         maxOf(1_000_000L/videoFps,audioExtra))
                 } finally {extractor.release()}
             }
-            muxer.stop()
+            output.stop()
             started=false
-            muxer.release()
+            output.release()
             muxer=null
             require(temp.length()>1024L){"MP4 join produced an empty result"}
             if(target.exists())check(target.delete())
