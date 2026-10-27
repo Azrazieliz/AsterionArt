@@ -267,4 +267,169 @@ class NativeModelLibrary(private val context: Context) {
             throw e
         }
     }
+
+    /**
+     * Install an APK-contained, checksum-pinned preconverted QNN archive directly
+     * into the existing model library. No network, SAF chooser, or spare ZIP copy.
+     * The archive digest is checked BEFORE atomically publishing its tensors.
+     * This supplements, rather than changes, the user's optional SAF importer.
+     */
+    @Synchronized
+    fun installEmbeddedArchive(
+        label:String,
+        backend:String,
+        archiveSha256:String,
+        archiveBytes:Long,
+        openArchive:()->InputStream,
+        progress:(Long,Long)->Unit,
+        stopped:()->Boolean
+    ):InstalledQnnModel {
+        require(archiveSha256.matches(Regex("[0-9a-f]{64}")))
+        require(archiveBytes in 100_000_000L..12_000_000_000L)
+        require(backend in markers.values)
+        val present=list().firstOrNull { model ->
+            runCatching {
+                JSONObject(File(root,model.id+"/asterion_model.json").readText())
+                    .optString("embedded_archive_sha256")==archiveSha256
+            }.getOrDefault(false)
+        }
+        if(present!=null)return present
+        val id="qnn_"+UUID.randomUUID().toString().replace("-","").take(24)
+        val stage=File(root,id+".partial").also { it.mkdirs() }
+        val sourceDigest=MessageDigest.getInstance("SHA-256")
+        val contentDigest=MessageDigest.getInstance("SHA-256")
+        var unpacked=0L
+        var files=0
+        try {
+            openArchive().use { source ->
+                val counted=object:FilterInputStream(source) {
+                    var bytesRead=0L
+                    override fun read():Int {
+                        val v=super.read()
+                        if(v>=0) {
+                            bytesRead++
+                            sourceDigest.update(v.toByte())
+                        }
+                        return v
+                    }
+                    override fun read(b:ByteArray,off:Int,len:Int):Int {
+                        val n=super.read(b,off,len)
+                        if(n>0) {
+                            bytesRead+=n
+                            sourceDigest.update(b,off,n)
+                        }
+                        return n
+                    }
+                }
+                // ZipInputStream stops at the central directory. Do not close
+                // the counted stream until we also hash its trailing ZIP bytes.
+                val nonClosing=object:FilterInputStream(counted) {
+                    override fun close() {}
+                }
+                ZipInputStream(nonClosing).use { zip ->
+                    while(true) {
+                        if(stopped())throw java.util.concurrent.CancellationException()
+                        val entry=zip.nextEntry?:break
+                        if(entry.isDirectory)continue
+                        val path=entry.name.replace('\\','/')
+                        require(path.isNotBlank() && !path.startsWith("/") &&
+                            path.split('/').none{it==".."||it=="."} &&
+                            path.length<=1024 && path.split('/').size<=32) {
+                            "Unsafe embedded QNN archive entry"
+                        }
+                        val bits=path.split('/')
+                        val name=if(bits.size>1 &&
+                            bits.first() in listOf("model","models","package","checkpoint"))
+                            bits.drop(1).joinToString("/") else path
+                        val output=File(stage,name).canonicalFile
+                        require(output.path.startsWith(stage.canonicalPath+File.separator)) {
+                            "Embedded checkpoint path escapes app storage"
+                        }
+                        require(!output.exists()) {
+                            "Duplicate embedded checkpoint entry: "+name
+                        }
+                        output.parentFile?.mkdirs()
+                        var memberBytes=0L
+                        val memberDigest=MessageDigest.getInstance("SHA-256")
+                        FileOutputStream(output).use { target ->
+                            val buffer=ByteArray(256*1024)
+                            while(true) {
+                                if(stopped())throw java.util.concurrent.CancellationException()
+                                val n=zip.read(buffer)
+                                if(n<0)break
+                                unpacked+=n
+                                memberBytes+=n
+                                require(unpacked<18_000_000_000L &&
+                                    memberBytes<12_000_000_000L) {
+                                    "Embedded model decompression exceeds safety limits"
+                                }
+                                target.write(buffer,0,n)
+                                memberDigest.update(buffer,0,n)
+                                if(unpacked%(256L*1024*1024)<n) {
+                                    require(StatFs(root.absolutePath).availableBytes >
+                                        256L*1024*1024) {
+                                        "Insufficient local storage for the included image model"
+                                    }
+                                }
+                            }
+                            target.fd.sync()
+                        }
+                        contentDigest.update(name.toByteArray(Charsets.UTF_8))
+                        contentDigest.update(memberDigest.digest())
+                        files++
+                        require(files<=350){"Embedded model has too many files"}
+                        progress(counted.bytesRead,archiveBytes)
+                        zip.closeEntry()
+                    }
+                }
+                val trailer=ByteArray(256*1024)
+                while(true) {
+                    if(stopped())throw java.util.concurrent.CancellationException()
+                    val n=counted.read(trailer)
+                    if(n<0)break
+                }
+                require(counted.bytesRead==archiveBytes) {
+                    "Embedded QNN source ZIP is incomplete or contains unexpected bytes"
+                }
+                require(sourceDigest.digest().joinToString("") {
+                    "%02x".format(it)
+                }==archiveSha256) {
+                    "Embedded QNN source ZIP SHA-256 mismatch"
+                }
+            }
+            progress(archiveBytes,archiveBytes)
+            val report=QnnPackageInspector.inspect(stage.walkTopDown().map{item->
+                QnnPackageInspector.Member(
+                    stage.toPath().relativize(item.toPath()).toString(),
+                    if(item.isFile)item.length() else 0L,item.isDirectory)
+            }.asIterable())
+            val actual=QnnPackageInspector.validate(report,backend)
+            require(actual==backend){"Wrong embedded image checkpoint backend"}
+            val folder=report.markerParent?.let{File(stage,it)}?:stage
+            require(folder.isDirectory){"Included image model has no valid root"}
+            val relative=stage.toPath().relativize(folder.toPath()).toString()
+            val fingerprint=contentDigest.digest().joinToString(""){
+                "%02x".format(it)
+            }
+            File(stage,"asterion_model.json").writeText(JSONObject().apply{
+                put("schema",2)
+                put("label",label)
+                put("backend",actual)
+                put("bytes",unpacked)
+                put("content_sha256",fingerprint)
+                put("embedded_archive_sha256",archiveSha256)
+                put("installed_at",System.currentTimeMillis())
+                put("model_subdir",relative)
+            }.toString(2))
+            check(stage.renameTo(File(root,id))) {
+                "Unable to atomically publish included QNN checkpoint"
+            }
+            return requireNotNull(list().firstOrNull{it.id==id}) {
+                "Included image checkpoint not registered in native library"
+            }
+        } catch(e:Throwable) {
+            stage.deleteRecursively()
+            throw e
+        }
+    }
 }
