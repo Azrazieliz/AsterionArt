@@ -14,8 +14,22 @@ android {
         versionCode = 2
         versionName = "0.2.0"
     }
+    signingConfigs {
+        create("persistentRelease") {
+            val store = System.getenv("ASTERION_RELEASE_KEYSTORE")
+            val pass = System.getenv("ASTERION_RELEASE_PASSWORD")
+            if(!store.isNullOrBlank() && !pass.isNullOrBlank()) {
+                storeFile = file(store)
+                storePassword = pass
+                keyAlias = "asterion-art-release"
+                keyPassword = pass
+                storeType = "pkcs12"
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("persistentRelease")
             isMinifyEnabled = false
             isShrinkResources = false
         }
