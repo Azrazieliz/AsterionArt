@@ -130,7 +130,7 @@ object UniversalCreativePlanner {
             "character identity drift, inconsistent perspective, unsupported props, missing source features"
     }
 
-    fun interpret(intent: DesignIntent): CompiledIntent {
+    fun interpret(intent: DesignIntent, resolver:ConceptResolver?=null): CompiledIntent {
         val selected=normalize(intent.concepts)
         val (policy,rejections)=specification(intent.domain)
         val authority=intent.referenceRoles.distinct().map { role ->
@@ -150,8 +150,9 @@ object UniversalCreativePlanner {
                 CreativeDomain.ART_STYLE_SHEET -> "line, shadow, color and rendering grammar"
                 else -> "anatomy, construction and visual materials"
             }
+            val fact=resolver?.find(name)
             "Concept " + (i+1) + " (" + name + ") contributes to " + domain +
-                " through " + semantics(name) + "."
+                " through " + (fact?.physicalInstruction(intent.domain) ?: semantics(name)) + "."
         }
         val fusion=if(selected.size>1)
             "Fuse all selected systems reciprocally: each modifies another system's geometry, " +
@@ -169,8 +170,9 @@ object UniversalCreativePlanner {
 
     /** Preserve upstream methodology and provenance; augment rather than replace. */
     fun enrich(recipe: GenerationRecipe, creation: CreationMode?, concepts: List<String>,
-               references: List<SourceEvidence>): GenerationRecipe {
-        val plan=interpret(DesignIntent(domain(creation),concepts,references.map { it.role }))
+               references: List<SourceEvidence>,resolver:ConceptResolver?=null): GenerationRecipe {
+        val plan=interpret(DesignIntent(domain(creation),concepts,references.map { it.role }),
+            resolver)
         val passes=recipe.passes.map { pass ->
             val positive=pass.positive + "\n\n" + plan.positive
             val negative=listOf(pass.negative,plan.negative).filter { it.isNotBlank() }
@@ -207,7 +209,8 @@ object UniversalCreativePlanner {
                 "\nPreserve all selected systems: " + concepts.joinToString(" × ")
     }
 
-    fun motion(preset:String, userDirection:String=""): CompiledIntent =
+    fun motion(preset:String, userDirection:String="",
+               resolver:ConceptResolver?=null): CompiledIntent =
         interpret(DesignIntent(CreativeDomain.VIDEO,
-            listOf(preset,userDirection).filter { it.isNotBlank() }))
+            listOf(preset,userDirection).filter { it.isNotBlank() }),resolver)
 }

@@ -3,6 +3,8 @@ package com.asterion.art.video
 import android.content.Context
 import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.engine.ConceptResolver
+import com.asterion.art.engine.ConceptTaxonomy
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -39,7 +41,7 @@ class VideoPlanStore(context: Context) {
         require(images.size in 1..8) { "Choose between one and eight reference images" }
         require(images.distinct().size == images.size)
         require(seconds in 1..5)
-        val prompts=compileMotion(preset,direction)
+        val prompts=compileMotion(preset,direction,ConceptTaxonomy(context))
         val plan=VideoPlan(UUID.randomUUID().toString(),images,preset,seconds,24,
             System.currentTimeMillis().and(0x7FFFFFFFL),System.currentTimeMillis(),
             direction.trim(),prompts.first,prompts.second)
@@ -61,8 +63,9 @@ class VideoPlanStore(context: Context) {
         return plan
     }
     companion object {
-        fun compileMotion(preset: MotionPreset, direction: String = ""): Pair<String,String> {
-            val compiled=UniversalCreativePlanner.motion(preset.title,direction)
+        fun compileMotion(preset: MotionPreset, direction: String = "",
+                          resolver: ConceptResolver?=null): Pair<String,String> {
+            val compiled=UniversalCreativePlanner.motion(preset.title,direction,resolver)
             val base=preset.instruction + if(direction.isBlank()) "" else
                 ". Requested motion: " + direction.trim()
             return (base + ". " + compiled.positive) to compiled.negative

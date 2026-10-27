@@ -1,5 +1,8 @@
 package com.asterion.art.methodology
 
+import com.asterion.art.engine.ConceptResolver
+import com.asterion.art.engine.CreativeDomain
+
 /** Structured design decisions precede any image-model call. Not a trained reasoning model. */
 data class DesignBlueprint(
     val number: Int,
@@ -66,7 +69,9 @@ object DesignBlueprintEngine {
         "rib-to-tail support structure with continuous tendons",
         "paired horn roots and intrinsic channel networks"
     )
-    private fun interpretation(name: String): String {
+    private fun interpretation(name: String, resolver:ConceptResolver?=null): String {
+        val record=resolver?.find(name)
+        if(record!=null) return record.physicalInstruction(CreativeDomain.CHARACTER)
         val word=name.lowercase()
         return when {
             "antimatter" in word -> "contained matter-discontinuities, load-bearing boundary rings and inverted internal density"
@@ -88,7 +93,8 @@ object DesignBlueprintEngine {
                 " constructed as actual body systems rather than motifs"
         }
     }
-    fun population(concepts: List<String>, count: Int = 15): List<DesignBlueprint> {
+    fun population(concepts: List<String>, count: Int = 15,
+                   resolver:ConceptResolver?=null): List<DesignBlueprint> {
         val names=concepts.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         require(names.size >= 2) { "Select two or more different concepts" }
         require(count in 1..60)
@@ -102,19 +108,22 @@ object DesignBlueprintEngine {
                     3->"tail and back appendages"
                     else->"skin and internal body material"
                 }
-                names[index] + " reshapes " + region + " through " + interpretation(names[index])
+                names[index] + " reshapes " + region + " through " +
+                    interpretation(names[index],resolver)
             }
             DesignBlueprint(i+1,names,bodyPlans[i%bodyPlans.size],
                 faces[(i*7)%faces.size],mechanics[(i*3)%mechanics.size],fusion)
         }
     }
-    fun sheetPrompt(concepts:List<String>, sheet:Int):String {
+    fun sheetPrompt(concepts:List<String>, sheet:Int,
+                    resolver:ConceptResolver?=null):String {
         require(sheet in 0..2)
         return "Premium 2D anime/manhwa orthographic five-character board, continuous clean white 16:9. " +
             "Five unique complete uncropped female identities from left to right, each with dominant " +
             "standing front and smaller true 90-degree side and direct rear views of the exact same body; " +
             "all feet visible; body-owned concept materialization, not outfits, icons or backgrounds.\n" +
-            population(concepts).drop(sheet*5).take(5).joinToString("\n") { it.render() } +
+            population(concepts,resolver=resolver).drop(sheet*5).take(5)
+                .joinToString("\n") { it.render() } +
             "\nCoherent illustrated materials, differentiated characters, consistent anatomy in every view."
     }
     fun negative():String = "cropped body, missing legs, duplicated design, identical figures, " +

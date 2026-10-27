@@ -62,7 +62,8 @@ object GenerationPlanner {
         settings: GeneratorSettings,
         creation: CreationMode? = null,
         concepts: List<String> = emptyList(),
-        sourceIllustration: Boolean = false
+        sourceIllustration: Boolean = false,
+        resolver:ConceptResolver?=null
     ): GenerationRecipe {
         enforceRoles(sources,creation,concepts,sourceIllustration)
         require(sources.all { it.all().isNotEmpty() }) {
@@ -122,7 +123,7 @@ object GenerationPlanner {
         }
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings),
-            creation,concepts,sources)
+            creation,concepts,sources,resolver)
     }
 
     /**
@@ -136,7 +137,8 @@ object GenerationPlanner {
         settings: GeneratorSettings,
         creation: CreationMode? = null,
         concepts: List<String> = emptyList(),
-        sourceIllustration: Boolean = false
+        sourceIllustration: Boolean = false,
+        resolver:ConceptResolver?=null
     ): GenerationRecipe {
         enforceRoles(sources,creation,concepts,sourceIllustration)
         val groups=sources.groupBy { it.role }
@@ -180,7 +182,7 @@ object GenerationPlanner {
         }
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode,passes,sources.map { it.sheetId },settings),
-            creation,concepts,sources)
+            creation,concepts,sources,resolver)
     }
 
 
@@ -189,7 +191,8 @@ object GenerationPlanner {
      * The selected, frozen user concepts are the authoritative task input.
      */
     fun compileConcepts(concepts: List<String>, creation: CreationMode,
-                        mode: RenderMode, settings: GeneratorSettings): GenerationRecipe {
+                        mode: RenderMode, settings: GeneratorSettings,
+                        resolver:ConceptResolver?=null): GenerationRecipe {
         require(creation==CreationMode.CHARACTER || creation==CreationMode.CREATURE)
         enforceRoles(emptyList(),creation,concepts,false)
         val specification=MethodologyRegistry.modes.getValue(creation)
@@ -207,7 +210,7 @@ object GenerationPlanner {
         }
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode,passes,emptyList(),settings),
-            creation,concepts,emptyList())
+            creation,concepts,emptyList(),resolver)
     }
 
     fun selectModelId(models: List<Pair<String, String>>, mode: RenderMode): String? {

@@ -42,6 +42,7 @@ fun MethodologyStudioV3(
     val coroutineScope = rememberCoroutineScope()
     val spec = DetailedMethodologies.all.getValue(method)
     val canonical = remember { ConceptCatalog.load(context) }
+    val taxonomy=remember { com.asterion.art.engine.ConceptTaxonomy(context) }
     val isCharacter = method == CreationMode.CHARACTER
     var showMethodDetails by remember(method) { mutableStateOf(false) }
     var selectedConcepts by remember(method) { mutableStateOf<Set<String>>(emptySet()) }
@@ -276,22 +277,22 @@ fun MethodologyStudioV3(
                     runCatching {
                         if(method==CreationMode.CHARACTER)
                             (0..2).joinToString("\n\n===== SHEET =====\n\n") {
-                                DesignBlueprintEngine.sheetPrompt(names,it)
+                                DesignBlueprintEngine.sheetPrompt(names,it,taxonomy)
                             } to DesignBlueprintEngine.negative()
                         else {
                             val settings=repo.settings.copy(
                                 ratio=if(geometry.preserveOriginalFraming)repo.settings.ratio
                                     else geometry.ratio,batch=geometry.imageCount)
                             val recipe=if(method==CreationMode.CREATURE)
-                                GenerationPlanner.compileConcepts(names,method,media,settings)
+                                GenerationPlanner.compileConcepts(names,method,media,settings,taxonomy)
                             else {
                                 val evidence=chosen.map { SheetTextReader.read(context,it) }
                                 runCatching {
                                     GenerationPlanner.compile(evidence,media,settings,method,names,
-                                        illustration!=null)
+                                        illustration!=null,taxonomy)
                                 }.getOrElse {
                                     GenerationPlanner.compileVisual(evidence,media,settings,method,names,
-                                        illustration!=null)
+                                        illustration!=null,taxonomy)
                                 }
                             }
                             recipe.passes.joinToString("\n\n") { it.positive } to

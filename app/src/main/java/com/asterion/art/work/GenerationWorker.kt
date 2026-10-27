@@ -31,6 +31,7 @@ import com.asterion.art.learning.PreferenceLearning
 import com.asterion.art.learning.CreativeMemoryStore
 import com.asterion.art.learning.SavedDesign
 import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.methodology.DetailedMethodologies
 import com.asterion.art.engine.GenerationRecipe
 import com.asterion.art.engine.GenerationPass
@@ -97,15 +98,16 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 job.sourceImageUri != null) {
                 "Style correction requires a source illustration, not just a style sheet."
             }
+            val taxonomy=ConceptTaxonomy(applicationContext)
             val compilerAttempt = runCatching {
                 if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,job.designPrompt,
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
-                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
+                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
                 else GenerationPlanner.compile(evidence,job.mode,job.settings,
-                    job.creationMode,job.concepts,job.sourceImageUri!=null)
+                    job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
             }
             val engine = EmbeddedEngineFactory.open(applicationContext)
             currentEngine = engine
@@ -127,9 +129,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
-                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
+                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
                 else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
-                    job.creationMode,job.concepts,job.sourceImageUri!=null)
+                    job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
             }
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = if (job.settings.ratio == "16:9")
@@ -159,9 +161,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
-                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
+                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
                 else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
-                    job.creationMode,job.concepts,job.sourceImageUri!=null)
+                    job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
                 size = model.generationSize.coerceIn(512, 1536)
                 resolution = if(job.settings.ratio=="16:9")
                     model.resolutions.firstOrNull { (w,h)->w*9==h*16 } ?: (1024 to 576)
@@ -187,7 +189,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
             if (job.creationMode == CreationMode.CHARACTER) {
                 val capsules = JSONArray()
-                DesignBlueprintEngine.population(job.concepts).forEach { design ->
+                DesignBlueprintEngine.population(job.concepts,resolver=taxonomy).forEach { design ->
                     capsules.put(JSONObject().apply {
                         put("id", design.id)
                         put("index", design.number)
@@ -244,7 +246,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     val methodStage = if(!job.designPrompt.isNullOrBlank()) stage
                     else if (job.creationMode==CreationMode.CHARACTER)
                         stage.copy(
-                            positive=DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1),
+                            positive=DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1,taxonomy),
                             negative=DesignBlueprintEngine.negative())
                     else stage
                     // Validate the *actual* model input, including page-specific
@@ -287,7 +289,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     } ?: 1
                 val memory=CreativeMemoryStore(applicationContext)
                 val blueprints=if(job.creationMode==CreationMode.CHARACTER &&
-                    job.designPrompt==null) DesignBlueprintEngine.population(job.concepts)
+                    job.designPrompt==null) DesignBlueprintEngine.population(job.concepts,resolver=taxonomy)
                     else emptyList()
                 for(index in 0 until perSheet) {
                     val ordinal=(candidate-1)*perSheet+index+1
@@ -317,7 +319,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     put("prompt_positive", if (job.designPrompt!=null)
                         job.designPrompt
                         else if (job.creationMode==CreationMode.CHARACTER)
-                        DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1)
+                        DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1,taxonomy)
                         else stageSequence.joinToString("\n\n") { it.positive })
                     put("prompt_negative", if(job.designPrompt!=null)
                         job.designNegative.orEmpty()

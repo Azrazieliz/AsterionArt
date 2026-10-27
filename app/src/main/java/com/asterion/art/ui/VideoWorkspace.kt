@@ -61,6 +61,7 @@ import kotlin.math.roundToInt
 fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
     val context=LocalContext.current
     val credential=remember { VideoApiCredentials(context) }
+    val taxonomy=remember { com.asterion.art.engine.ConceptTaxonomy(context) }
     var connected by remember { mutableStateOf(credential.read()!=null) }
     var diagnostic by remember { mutableStateOf<String?>(null) }
     var images by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -89,7 +90,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         }
     }
     val results=remember(resultsNonce) { VideoResultStore(context).list() }
-    val prompts=VideoPlanStore.compileMotion(preset,customMotion)
+    val prompts=VideoPlanStore.compileMotion(preset,customMotion,taxonomy)
     if(showPromptReview) AlertDialog(
         onDismissRequest={showPromptReview=false},
         title={Text("Review motion instructions")},

@@ -22,6 +22,7 @@ import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.UniversalCreativePlanner
 import com.asterion.art.engine.DesignIntent
+import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.StillImageEngine
@@ -77,7 +78,8 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
                 repo.sheets.firstOrNull { it.id == key } ?: error("Source sheet unavailable")
             }
             val evidence = sheets.map { SheetTextReader.read(applicationContext,it) }
-            val recipe = GenerationPlanner.compile(evidence, source.mode, source.settings)
+            val recipe = GenerationPlanner.compile(evidence, source.mode, source.settings,
+                resolver=ConceptTaxonomy(applicationContext))
             val editSpec = UniversalCreativePlanner.interpret(DesignIntent(
                 CreativeDomain.IMAGE_EDIT, referenceRoles=evidence.map { it.role }))
 
