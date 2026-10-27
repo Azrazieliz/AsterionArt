@@ -14,9 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkManager
 import com.asterion.art.brain.BrainCatalog
-import com.asterion.art.modelpack.EmbeddedModelInstallWorker
-import com.asterion.art.modelpack.EmbeddedModelPack
-import com.asterion.art.modelpack.EmbeddedImageModelPack
+import com.asterion.art.brain.BrainDownloadWorker
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.brain.BrainAdapterLibrary
 import kotlinx.coroutines.launch
@@ -36,11 +34,20 @@ fun BrainModelSection() {
     var installed by remember { mutableStateOf(store.installed()) }
     var selected by remember { mutableStateOf(store.selected()?.id) }
     var contextTokens by remember { mutableIntStateOf(store.contextTokens()) }
+    var importId by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf("") }
-    var bundledProgress by remember { mutableIntStateOf(0) }
-    var bundleError by remember { mutableStateOf<String?>(null) }
-    val packaged=remember{EmbeddedModelPack(context).packaged() &&
-        EmbeddedImageModelPack(context).packaged()}
+    var progress by remember { mutableStateOf<Map<String,Int>>(emptyMap()) }
+    val picker=rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()) { uri ->
+        val chosen=importId
+        if(uri!=null&&chosen!=null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                BrainDownloadWorker.enqueue(context,chosen,uri.toString())
+            }.onFailure{message=it.message.orEmpty()}
+        }
+    }
     val adapterPicker=rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()) { uri ->
         val base=selected
@@ -64,16 +71,17 @@ fun BrainModelSection() {
         while(true){
             installed=store.installed()
             selected=store.selected()?.id
-            val info=withContext(Dispatchers.IO) {
-                runCatching{
+            progress=withContext(Dispatchers.IO) {
+                runCatching {
                     WorkManager.getInstance(context)
-                        .getWorkInfosByTag(EmbeddedModelInstallWorker.TAG).get()
-                        .maxByOrNull{it.id.toString()}
-                }.getOrNull()
+                        .getWorkInfosByTag("asterion-brain-download").get()
+                        .filter { !it.state.isFinished }
+                        .associate {
+                            val model=it.tags.firstOrNull{tag->tag.startsWith("qwen3_")}.orEmpty()
+                            model to it.progress.getInt("percent",0)
+                        }
+                }.getOrDefault(emptyMap())
             }
-            bundledProgress=info?.progress?.getInt("percent",0)?:0
-            bundleError=info?.takeIf{it.state==androidx.work.WorkInfo.State.FAILED}
-                ?.outputData?.getString("error")
             delay(1500)
         }
     }
@@ -82,28 +90,9 @@ fun BrainModelSection() {
             verticalArrangement=Arrangement.spacedBy(9.dp)) {
             Text("ASTERION DESIGN BRAIN",color=Gold,
                 style=MaterialTheme.typography.titleMedium)
-            Text("The full offline package includes Qwen3 reasoning, Qwen3-VL "+
-                "vision/projector and Rin Anima/QNN image-generation weights. "+
-                "They are prepared automatically from signed local package assets; "+
-                "no mandatory model download or external inference is used. "+
-                "Actual native inference and image quality remain untested.",
+            Text("Local, real Qwen3 reasoning. It interprets concepts and methods before " +
+                "any image or video model runs. The image model retains its own text limit.",
                 color=Mist,style=MaterialTheme.typography.bodySmall)
-            if(!packaged){
-                Text("THIS BUILD IS MISSING AN INCLUDED REASONING, VISION, OR "+
-                    "IMAGE-GENERATION WEIGHT PACK. It is not the complete offline "+
-                    "package.",color=Red)
-            }else if(!EmbeddedModelPack(context).allReady()){
-                Text("Preparing included model files · "+bundledProgress+"%",
-                    color=Gold)
-                LinearProgressIndicator(
-                    progress={bundledProgress/100f},
-                    modifier=Modifier.fillMaxWidth())
-                bundleError?.let{Text(it,color=Red)}
-                OutlinedButton(onClick={
-                    EmbeddedModelInstallWorker.enqueue(context)
-                    message="Retrying local extraction from this APK. No network used."
-                }){Text("Retry offline model preparation")}
-            }
             Text("Context: "+contextTokens+" native LLM tokens",color=Gold)
             LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                 items(listOf(4096,8192,16384,32768)) { n ->
@@ -115,9 +104,7 @@ fun BrainModelSection() {
             Text("32K requires enough free RAM; choosing a larger context does not " +
                 "increase the diffusion text encoder's capacity.",
                 color=Mist,style=MaterialTheme.typography.bodySmall)
-            BrainCatalog.models.filter{
-                it.id=="qwen3_17_q4"||installed.any{ready->ready.id==it.id}
-            }.forEach { model ->
+            BrainCatalog.models.forEach { model ->
                 val ready=installed.any { it.id==model.id }
                 Text(model.label+(if(ready)" · Installed" else
                     " · "+(model.bytes/1048576)+" MiB"),
@@ -131,10 +118,19 @@ fun BrainModelSection() {
                             Text(if(selected==model.id)"Active" else "Use model")
                         }
                     } else {
-                        Text("Included checkpoint awaiting offline extraction",
-                            color=Mist,style=MaterialTheme.typography.bodySmall)
+                        Button(onClick={
+                            BrainDownloadWorker.enqueue(context,model.id)
+                            message="Downloading "+model.label
+                        }) { Text("Get from Hugging Face") }
+                        OutlinedButton(onClick={
+                            importId=model.id
+                            picker.launch(arrayOf("application/octet-stream","*/*"))
+                        }){ Text("Import GGUF") }
                     }
                 }
+                val value=progress[model.id]
+                if(value!=null)LinearProgressIndicator(
+                    progress={value/100f},modifier=Modifier.fillMaxWidth())
             }
             if(selected!=null) {
                 HorizontalDivider()

@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.asterion.art.nativeengine.EmbeddedNativeRunner
-import com.asterion.art.modelpack.EmbeddedImageModelPack
 import com.asterion.art.nativeengine.NativeModelLibrary
 import com.asterion.art.nativeengine.OriginalCheckpointLibrary
 import com.asterion.art.data.ArtRepository
@@ -120,17 +119,9 @@ fun NativeModelLibraryScreen() {
                 style=MaterialTheme.typography.labelLarge)
             Text("Phone-side QNN checkpoints",
                 style=MaterialTheme.typography.headlineMedium)
-            Text("Rin Anima/QNN weights are included in the complete offline "+
-                "package and automatically extracted into this native model "+
-                "library. Other model imports remain optional; no required "+
-                "download or external generation service.",
+            Text("Model archives are streamed directly into permanent Asterion Art storage. "+
+                "An extra ZIP copy is not made. Native processing uses this app's own executable.",
                 color=Mist)
-            val imagePack=EmbeddedImageModelPack(context)
-            Text(when {
-                !imagePack.packaged() -> "Included Rin image model: NOT IN THIS BUILD"
-                imagePack.installed() -> "Included Rin image model: prepared locally"
-                else -> "Included Rin image model: awaiting local extraction"
-            },color=if(imagePack.installed()) Green else Gold)
         }
         item { BrainModelSection() }
         item {

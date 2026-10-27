@@ -1,20 +1,57 @@
-# Verification gates
+# Asterion Art — implementation status and verification gates
 
-| Component | Implementation | Verified |
+**Last source review:** 2026-10-27 — branch `research/model-capabilities-no-build-20261027`.  
+**Evidence:** reviewed Kotlin/Java/C++/Python source and UI navigation in GitHub. This is not a device audit. **No APK compilation, installation, or Android inference run is established for this branch.** Source present != feature working.  
+**Owner directives:** EUR 0, GitHub only, no PC access, **no APK builds until development is complete**, offline creation except loading AI models, **owner installs models directly from inside the app on first use**. No unsolicited checkpoint choice, embedded-weight delivery, outside-service requirement, or change to other Originals' methodology.
+
+## Application-wide inventory
+
+| Area | Current source coverage | Missing / not proven |
 | --- | --- | --- |
-| From-scratch Android project | yes | CI pending |
-| Touch-first navigation and sheet selection | yes | device pending |
-| Deterministic sheet renderer | yes | device pending |
-| Background sheet rendering | yes | device pending |
-| Persistent local sheet/job/catalog store | yes | device pending |
-| Local image grading | yes | device pending |
-| Asterion Core secured bridge | no | no |
-| Embedded Local Dream QNN native backend | no | no |
-| Five real inference passes | no | no |
-| Rin + MiaoMiao model fusion | no | no |
-| Image editing/inpainting/upscaling | no | no |
-| Integrated Nightmare-like video | no | no |
-| NoWorld asset export integration | no | no |
-| Signed Android release | no | no |
+| Android shell and navigation | Compose screens for Home, Sheet Creation, Artwork Creation, Originals, Video, Models, Core, Edit, Toolbox, Design Library, Grading, settings and history; WorkManager tasks | No compilation, device navigation, lifecycle, crash or responsiveness evidence |
+| **Sheet Creation — Character, Art Style, Theme, Element** | Four reference roles, typed panel slots, multiple source-image selection, stable local URI references, fixed layouts and background Canvas composition to PNG | Device output, correct cropping/layout across real inputs, persistence, and intelligent interpretation of imported references unverified; this is primarily deterministic composition, not AI filling of absent reference detail |
+| Sheet Library | Stored sheet records, thumbnails, output URIs, task states and local sheet browser | Long-term persistence, large-library responsiveness, permissions and corrupted/missing-media recovery unverified |
+| **Artwork Creation** | Role-based sheet selection (Character/Art Style/Theme; Element optional), parameters, planner, still-generation jobs, stored PNG outputs | No demonstrated AI render, faithful multi-sheet conditioning, aesthetic quality, identity consistency, reproducibility or successful mixed-reference workflows |
+| **Originals — Character Creation Phase 1** | Dedicated 1–30 sheets; five independently resolved and frozen identities per sheet; X wildcard; front/90-degree side/rear view specifications; per-character rendering/compositing; direct Validate & Generate, optional frozen prompt inspection | No tested complete sheet, 15-view consistency, anatomy, full fusion, differentiation, exact views or specific 2D grammar; native runtime and model conditioning unverified |
+| **Originals — Outfit Creation** | Dedicated methodology and controls; ten-design catalogue, separate selected-design routes, preservation instructions | Actual morphology preservation, independent outfit differentiation, output format and preview not device/visually validated |
+| **Originals — Weapon Creation** | Separate methodology/controls, ten-design catalogue, geometry and character/outfit requirements | Generated isolated weapons, category geometry, detail, downstream preview and source adherence unverified |
+| **Originals — Transformation Creation** | Separate five-design workflow and frozen identity contract | Structural transformation, identity retention and outputs unverified |
+| **Originals — Mutation Creation** | Separate five-design workflow and specified controlled mutation contract | Anatomical change, differentiation and identity retention unverified |
+| **Originals — Creature Creation** | Separate workflow and morphology/locomotion/fusion requirements | Actual coherent five-creature results and concept integration unverified |
+| **Originals — Alternate Universe** | Separate five-design workflow and source-identity requirements | Original character preservation across worlds and authentic design variation unverified |
+| **Originals — Feminisation** | Separate single-image methodology and source-preservation contract | Real anatomical redesign, visual consistency and output unverified |
+| **Originals — Art Style Correction** | Source artwork + target Art Style sheet required; replacement/preservation contract and generation route | Reliable full style replacement without contaminating identity, pose, scene or crop unverified |
+| Design Library | Per-design extraction, candidate selection, alteration, regeneration and multi-design fusion intent; no automatic Keep/Reject training | Visual fusion and preservation not proven; prompt-level fusion is not evidence of neural feature fusion |
+| **Video / Animation** | Keyframe picker, presets, local job plans, first-frame segment requests, previous-clip end-frame continuation, MP4 segment joining, results | **Not self-contained:** depends on a separately running local Nightmare-compatible Wan/Neodragon API with token. No embedded local video runtime, no true simultaneous multi-keyframe conditioning, no verified continuity/export/performance |
+| Selective image editing | Edit jobs, user masks, native inpaint request, preservation-oriented final composite | Native inpainting and faithful masked content repair unverified; boundary artifacts not measured |
+| Image Toolbox / Neural enhancement | Brightness/contrast/saturation/sharpen processing; RealSR/Real-ESRGAN native integration and workers | Device execution, visual fidelity, performance and available native artifacts unverified |
+| **Advanced Grading** | Detailed user-saved grades by feature/region, local evidence crops and checksums, preservation/correction requests, selective re-edit routing | Real vision-based feature accuracy and correction effect unverified; technical pixel score is **not** semantic grading |
+| **Intelligence / reasoning** | Qwen3 local GGUF store/import/download paths, context limits, prompt paging, methodology and taxonomy-based planners; existing LoRA import | Native compilation and real reasoning accuracy not tested; generic prompting alone does not prove deep taxonomy understanding |
+| **Qwen3-VL visual assessment** | Language GGUF/projector source catalogue, native image audit, separate Character Creation feature evidence and explicit uncertainty | Device inference, pixel interpretation quality, hallucination rate, correct region/character matching unverified |
+| **Self-learning** | User-grade-linked local pixel-feature heads, preference parameter suggestions, evidence corpus/ZIP export, optional text-LoRA training recipe | **Not genuine end-to-end semantic learning yet:** no trained, validated visual adapter, no automatically improved vision/image-generation weights, no measured improvements over held-out generations |
+| **Model installation / selection** | Models screen, on-device QNN ZIP importer, GGUF brain store and user-triggered vision download, checksum validation and architecture selection | Owner-directed first-launch model UX needs device testing. **No APK-embedded AI weights are required or provided**; installing selected models is a manual in-app action, not an automatic startup extraction. QNN compatibility remains model/device-dependent |
+| Asterion Core bridge | Content-provider search/import contract and result uploader source | Matching Core provider/permissions, actual secure cross-app search and result exchange unverified |
+| NoWorld export | Exporter/data handling source exists | Actual downstream compatibility and user workflow unverified |
+| Local/offline boundary | Image and reasoning adapters target local processes, app-owned files and local assets | Runtime must be audited: separate video host and optional legacy image host still exist; no claim that all creative functions work standalone once models are loaded |
+| Tests, packaging, release | Kotlin test sources, Python fusion/native test sources, build scripts, native preparation recipes | **No tests/builds executed in this development turn.** No verified Android compilation, full model setup, installable APK, persistent signing, or end-to-end device acceptance |
 
-This table is source-level status until confirmed by GitHub CI and device tests.
+## Critical functionality gaps
+
+1. **Real source-to-image generation:** confirm that the app's own QNN runtime can load a user-selected compatible model and produce high-quality images, including faithful use of actual sheet pixels and the existing taxonomy. Existing source is not proof.
+2. **Complete methodology execution:** exercise Sheet Creation, Artwork Creation, **each** named Original independently, and Character Creation's Phase 1 render contract. Do not change another Original's approved methodology without consent.
+3. **Self-contained video:** currently only a local client of a separate Nightmare video host. A true integrated video runtime and tested generation path remain missing.
+4. **Intelligence beyond prompts and pixel scores:** genuine multimodal observations, evidence-grounded grading, owner-approved corrections, and measured subsequent improvement need a working training/evaluation loop.
+5. **User-controlled first-launch models:** retain the existing in-app import/install workflows. Do not bundle or automatically extract models; no manual external tooling should be assigned to the user.
+6. **App integration and reliability:** verify saved media, background jobs, restoration after process death, permissions, native dependencies, Core interchange, editing and enhancement.
+7. **Proof before completion claims:** Android compile, real-device inference, 15-view character sheet, video output, image edits, quality comparisons and stability evidence are still absent. No APK build until owner permission.
+
+## State and rules
+
+- **Source implemented:** means code and a screen/worker/contract exist; does not imply a native engine was run.
+- **Unverified:** no runtime or device evidence provided. Do not convert to *complete* based on assertions or mock tests.
+- **Keep/Reject removed from active grading:** user-approved detailed Advanced Grading is the explicit evaluation source. Historical status migration is not a current user-facing methodology.
+- **Character Creation:** Phase 1 only; 1–30 sheets with five independently authored, clinical unclothed anatomical identities each, exact front/side/rear, strong concept fusion, X wildcard, completed frozen plans and user Validate & Generate action.
+- **Other Originals:** their independent contracts stay untouched unless the owner explicitly changes them.
+- **Model setup:** owner chooses/installs models inside the app after opening; network permitted solely for model loading; use the models locally afterward.
+- **No assumed publication:** this is the owner's private application; do not invent distribution requirements.
+- **No APK build, paid services or PC access** during current development.

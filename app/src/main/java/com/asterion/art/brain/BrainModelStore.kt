@@ -45,7 +45,7 @@ class BrainModelStore(context:Context) {
         }?:privateRoot
         root.mkdirs()
         require(root.usableSpace>model.bytes+256L*1024*1024){
-            "Not enough free app storage to install embedded Qwen3 weights"
+            "Not enough free app storage to install the selected Qwen3 model"
         }
         return File(root,model.filename)
     }

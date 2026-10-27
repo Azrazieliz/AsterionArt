@@ -47,8 +47,8 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     var plan by remember{mutableStateOf<CharacterPhaseOnePlan?>(null)}
     var error by remember{mutableStateOf<String?>(null)}
     var review by remember{mutableStateOf(false)}
-    // First launch extracts bundled GGUFs asynchronously; a remembered
-    // snapshot would remain null after installation finishes.
+    // The owner installs or loads the chosen reasoning model through Models.
+    // Refresh while this screen is open so manual installation is detected.
     var model by remember(context) {
         mutableStateOf(BrainModelStore(context).selected())
     }
@@ -81,8 +81,8 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
         runCatching {
             CharacterPhaseOne.validateSlots(slots)
             require(model!=null) {
-                "The included Qwen3 reasoning model is still preparing, or this " +
-                    "build does not contain its verified offline checkpoint."
+                "Select and install a verified local Qwen3 reasoning model under " +
+                    "Models before resolving Character Creation designs."
             }
             val created=store.create(slots,sheets,System.currentTimeMillis())
             activePlanId=created.id

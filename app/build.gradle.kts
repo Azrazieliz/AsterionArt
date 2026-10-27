@@ -43,16 +43,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
-    // Large model assets are generated at packaging time, not committed to Git
-    // and never fetched by the installed application.
-    sourceSets {
-        getByName("main") {
-            assets.srcDir(layout.buildDirectory.dir("generated/embeddedModelsAssets"))
-        }
-    }
-    androidResources {
-        noCompress += "chunk"
-    }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
         jniLibs {
@@ -76,57 +66,4 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
-}
-
-/**
- * A release lacking the complete preverified model assets is not release-ready.
- * Debug and unit-test tasks may run without the expensive binary model package.
- */
-val verifyOfflineEmbeddedModels by tasks.registering {
-    doLast {
-        val manifest=layout.buildDirectory.file(
-            "generated/embeddedModelsAssets/asterion_bundle/manifest.json"
-        ).get().asFile
-        check(manifest.isFile && manifest.length()>1000L) {
-            "Release requires pinned GGUF weight embedding. " +
-                "Run modelpack/prepare_embedded_models.py in the build job first."
-        }
-        // Verify the actual staged bytes, not just a JSON manifest. This
-        // deliberately adds a full streaming SHA-256 pass to release assembly
-        // so a stale, truncated or tampered chunk cannot pass the source gate.
-        val python=System.getenv("ASTERION_PYTHON")?.takeIf { it.isNotBlank() }
-            ?: "python3"
-        val checkProcess=ProcessBuilder(
-            python,"modelpack/prepare_embedded_models.py",
-            "--output",manifest.parentFile.parentFile.absolutePath,
-            "--verify-only"
-        ).directory(rootProject.projectDir)
-            .redirectErrorStream(true).start()
-        val report=checkProcess.inputStream.bufferedReader().use { it.readText() }
-        check(checkProcess.waitFor()==0) {
-            "Release neural-model byte verification failed before asset merge:\n"+
-                report.takeLast(4000)
-        }
-        // Mandatory image-generation checkpoint: refuse incomplete packages.
-        val imageManifest=manifest.parentFile.parentFile.resolve(
-            "asterion_image_bundle/manifest.json")
-        check(imageManifest.isFile) {
-            "Release requires the full preconverted Rin Anima image weights. " +
-                "Stage modelpack/prepare_embedded_image.py first."
-        }
-        val imageCheck=ProcessBuilder(
-            python,"modelpack/prepare_embedded_image.py",
-            "--output",manifest.parentFile.parentFile.absolutePath,
-            "--verify-only"
-        ).directory(rootProject.projectDir)
-            .redirectErrorStream(true).start()
-        val imageReport=imageCheck.inputStream.bufferedReader().use{it.readText()}
-        check(imageCheck.waitFor()==0) {
-            "Release image-model byte verification failed before asset merge:\n"+
-                imageReport.takeLast(4000)
-        }
-    }
-}
-tasks.matching { it.name=="mergeReleaseAssets" }.configureEach {
-    dependsOn(verifyOfflineEmbeddedModels)
 }

@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.ui.AsterionArtApp
-import com.asterion.art.modelpack.EmbeddedModelInstallWorker
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: ArtRepository
@@ -13,7 +12,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         repository = ArtRepository(applicationContext)
-        EmbeddedModelInstallWorker.enqueue(applicationContext)
         setContent { AsterionArtApp(repository) }
     }
 

@@ -2,10 +2,9 @@
 brain/.cxx/
 **/.cxx/
 
-# Generated Android artifacts and heavyweight model data: build-time assets only.
+# Keep build artifacts and private model weights outside Git.
 .gradle/
 **/build/
-app/src/main/assets/asterion_bundle/
 **/*.gguf
 **/*.gguf.partial
 *.apk

@@ -4,7 +4,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 
 ## (1) Visual intelligence / corrected self-learning
 
-- **Updated packaging instruction:** The full offline APK is configured to bundle Qwen3 1.7B reasoning (Q4_K_M), Qwen3-VL 2B vision language (Q4_K_M), and matching Q8 mmproj. These 2,659,872,640 bytes of Apache-2.0 weights are downloaded and SHA-256 checked ONLY on the authorized build host, then included as chunked assets. First launch reconstructs them onto app-owned storage offline and checks every part and full-model hash. No user-side model download/import and no large weights checked into Git.
+- **Owner-controlled model setup:** AI weights are NOT bundled in the APK. The owner installs/loads selected Qwen3 reasoning, Qwen3-VL vision + projector, and compatible image-generation model archives from the application's Models area on first use. Existing installers verify model signatures/checksums where the catalogue defines them. Model loading is the sole permitted network exception; image/video generation must run locally. No model checkpoint is silently selected or required to be embedded.
 - The pinned `llama.cpp` v0.7.0 `mtmd` C API is compiled alongside the existing JNI runtime. `asterion-vision` is an independent Android-native CPU inference engine and consumes actual RGB pixels. It never sends images to a remote provider.
 - User-approved Advanced Grading remains the only labeled training source. Per-image-region numeric grading trains a small local score model by mode/dimension, with no false claims of semantic understanding. Keep/Reject are not used.
 - A new multilayer Qwen3-VL visual audit inspects actual generated pixels and each frozen character's anatomy, physical concept fusion, view identity and illustrated 2D grammar separately, preserving all frozen authority across pages. It distinguishes visible evidence, concerns, unknowns and inconclusive responses. It never issues an invented grade or overwrites the frozen design.
@@ -25,37 +25,31 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 
 - 1–30 sheets selected by user; five original anatomical identities per sheet, all independently authored and frozen before the user authorizes any image generation.
 - Full physical pairwise concept fusion, higher-order fusion for three-plus concepts, independent female character authorship, clinical unclothed anatomy, distinct design, aesthetic quality, specific hand-illustrated 2D anime/manhwa language and true-front/exact-profile/direct-rear references remain mandatory.
-- Character-specific model-facing prompts shown to the user before Validate & Generate now correspond to the actual individual render path.
+- Character-specific frozen prompts remain available for optional inspection; Validate & Generate directly authorizes rendering without requiring an extra approval dialogue.
 - Design Direction, sub-concepts and former character outfit/weapon/assembly phases remain absent. Outfit and Weapon are separate modes.
 
 ## Integrity and limitations
 
-- NO APK/build or test has been run since this branch diverged from main. Source-level changes and test cases exist, not runtime proof.
-- The embedded Qwen3 1.7B + Qwen3-VL + projector require ~2.66 GB APK assets, plus at least ~2.66 GB of temporary or persistent app-owned filesystem space after first launch (and additional device RAM for model execution); mobile throughput is unmeasured. The actual APK size and ability to install a >2GB APK are unverified.
-- **Updated source integration:** A pinned approximately 4.85 GB Rin Flanime v1 Turbo Anima/QNN archive is now staged through `image_sources.json` and `prepare_embedded_image.py`, with published SHA-256 and streaming first-launch installer, separate from the GGUF assets. No physical checkpoint bytes have yet been downloaded into a built artifact; Android packaging and runtime compatibility are NOT proven. This is a private-use integration, not redistribution clearance.
-- GitHub Releases limits each downloadable binary asset to <2 GiB. The full model-embedded APK may exceed this. Distribution through a direct single download has not been established and must not be claimed.
-- New heavy model packaging is manual-only, never launched by push or ordinary CI. Existing release signing identity is not available in GitHub; a persistent installable signed update has not been delivered.
-- `llama.cpp` multimodal `mtmd` is an experimental API and native compatibility with this device/model remains to be demonstrated.
-- A Qwen3-VL visual observation is a probabilistic model output, not guaranteed anatomical verification. It is explicit review evidence, not an unreviewed quality grade.
-- Separate per-identity rendering improves the conditioning problem structurally but does not prove that a generative diffusion model can render three geometrically consistent views.
-- Real simultaneous native image-context expansion would require changes to and tested exports of the underlying image text-encoder and diffusion graphs. This project currently provides VERIFIED SEQUENTIAL conditioning, not a new longer-context checkpoint.
-- Neural LoRA adaptation and benchmark-based visual-quality improvements remain unverified until usable training data, compute and image generation are available; no paid GPU is authorized.
-- No user methodology rules were discarded or added by these engineering changes.
+- All work on this research branch is source-only: no APK assembled, Kotlin/NDK compilation verified, Android installation demonstrated, or real generation/device inference tested. Assertions of functional/visual quality are premature.
+- Reasoning weights, Qwen3-VL language/projector weights and converted QNN image-generation checkpoints are owner-selected and loaded **from within the app**, not automatically extracted from APK assets. The app's model selectors and import paths exist; completion of the first-run setup workflow has not been device-tested.
+- Qwen3-VL native `mtmd` remains experimental, and inference reliability, latency, memory requirements and device compatibility are unverified.
+- The local trained image-feature scoring heads are not semantic vision learning or LoRA fine-tuning. Only explicitly approved Advanced Grading is an authoritative label; the training/evaluation loop for improved generative quality is incomplete.
+- Sequential inference is not an expanded simultaneous diffusion text context. The compatibility of native model resolutions, image input semantics, true exact-profile views, and cross-view consistency is unverified.
+- Artwork generation, Sheet Creation, other Originals, video, editing, library, and Core integration all have separate implementation/verification gaps; see `docs/IMPLEMENTATION_STATUS.md` for the cross-application status. Video currently needs a separate phone-local Nightmare-compatible process; no self-contained integrated video backend is proven.
+- The old automatically embedded model packaging and source-only model-packaging workflows have been removed because they contradicted the owner's first-run installation decision. No assumption of public distribution is made.
 
-## Next verification gates before release builds
+## Next engineering and verification gates (owner authorization required before APK builds)
 
-1. Android CMake/JNI compilation and Kotlin unit-test execution **only when the owner lifts the no-build restriction**.
-2. Authorize packaging and verify all FOUR APK-embedded checkpoints (three GGUF components plus preconverted Anima QNN image archive); let first-launch model preparation finish without network; start/stop real native vision inference and measure memory/latency.
-3. Generate an approved 1-sheet/five-character Phase-1 test; verify all 15 actual front/side/rear images, anatomical correctness, backgrounds, concept embodiment and differentiation.
-4. Submit detailed user-approved grades for failing regions; verify the exact masked correction was applied while unmasked pixels remain bit-identical.
-5. Benchmark multiple generation attempts against prior output before claiming higher visual quality or release readiness.
+1. Confirm that manual setup in the app loads reasoning, visual and QNN image checkpoints, with correct routing and clear failure states; do not require user-side shell commands or external app installations.
+2. Verify Kotlin/CMake/JNI compilation and installation only when the owner permits builds.
+3. Generate and inspect representative reference sheets, artworks, each separate Original, Character Creation five-character/15-view sheets, targeted image edits, and video jobs against their specifications.
+4. Verify actual semantic visual observation, independent user-confirmed grading, masked corrections and measurable improvement to later generations.
+5. Verify all creative features are device-local after the owner finishes loading the models. Remove unintended external-service dependencies rather than conflating local loopback with an integrated native engine.
+6. Reconcile source code with `docs/IMPLEMENTATION_STATUS.md` using tested evidence rather than updating a green status based on source presence.
 
-## 2026-10-27 additional source-level integration corrections
+## Preserved source-only corrections
 
-- Character Creation now observes asynchronous bundled Qwen3 readiness instead of retaining a stale initial “not installed” snapshot; no manual model import is required by this route.
-- When native conditioning selects a fallback image engine, the generation resolver retains the per-character upright triptych resolution policy instead of accidentally using the final sheet’s 16:9 landscape policy. The existing five-column white final composition and clinical Phase 1 specification are unchanged.
-- These are source corrections only. No APK/native compilation, device output, anatomy, or image-quality validation was performed.
-
-## Additional integrated QNN packaging source (same day)
-
-The new source path keeps all mandatory model weights inside package preparation: direct-from-APK streaming, exact image ZIP checksum before committing a recognized Anima model to `NativeModelLibrary`, and no mandatory post-install download. The current manual packaging workflow is now **strictly source-only**, with no Android build task. Since the complete weights exceed 7 GB, single-APK installation remains an explicit technical blocker, not a reason to omit image weights. No other Original methodology was modified.
+- Character Creation detects the reasoning model after the owner installs it without requiring a screen restart.
+- Validate & Generate directly authorizes frozen Character Creation images. Full prompt inspection is optional.
+- The character-specific upright triptych-resolution preference remains intact on fallback image routes; the final output remains five identities per 16:9 sheet.
+- Other Originals' methodology definitions and the existing full taxonomy were not modified.

@@ -36,7 +36,7 @@ class VisionModelStore(context:Context) {
         if(existing!=null)return existing
         val root=roots.firstOrNull{
             (it.parentFile?.usableSpace?:0L)>weight.bytesMax+256L*1024*1024
-        } ?:error("Not enough app-owned storage to unpack bundled vision weights")
+        } ?:error("Not enough app-owned storage to install the selected Qwen3-VL weights")
         root.mkdirs()
         return File(root,weight.name)
     }
