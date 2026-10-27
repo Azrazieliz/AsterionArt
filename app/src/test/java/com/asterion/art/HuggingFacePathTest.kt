@@ -70,4 +70,15 @@ class HuggingFacePathTest {
                 "https://huggingface.co.evil.example/api/models?search=qwen3")
         }.isFailure)
     }
+    @Test fun downloadsForSameRevisionAndPathShareOneWorker() {
+        val revision="a".repeat(40)
+        val otherRevision="b".repeat(40)
+        val first=HubPath.downloadWorkName("user/model",revision,"weights/model.gguf")
+        assertEquals(first,
+            HubPath.downloadWorkName("user/model",revision,"weights/model.gguf"))
+        assertNotEquals(first,
+            HubPath.downloadWorkName("user/model",otherRevision,"weights/model.gguf"))
+        assertNotEquals(first,
+            HubPath.downloadWorkName("user/model",revision,"weights/tokenizer.json"))
+    }
 }
