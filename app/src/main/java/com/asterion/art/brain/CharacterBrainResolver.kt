@@ -69,7 +69,7 @@ class CharacterBrainResolver(context:Context) {
                 plan.slots,plan.sheets,taxonomy.list(),Random(plan.seed))
             val engine=AiChat.getInferenceEngine(app)
             val context=memoryContext()
-            val completed=mutableListOf<FrozenCharacter>()
+            val completed=plan.frozen.toMutableList()
             suspend fun answer(question:String,maxOutput:Int):String {
                 engine.restartConversation(SYSTEM)
                 val tokens=engine.countTokens(question)+engine.countTokens(SYSTEM)
@@ -118,6 +118,7 @@ class CharacterBrainResolver(context:Context) {
                     return evidence
                 }
                 for((index,selection) in selections.withIndex()) {
+                    if(index<completed.size)continue
                     progress(index,plan.total,"Designing "+selection.id)
                     val descriptions=mutableListOf<String>()
                     for(p in selection.concepts)descriptions+=conceptEvidence(p)
@@ -162,6 +163,13 @@ class CharacterBrainResolver(context:Context) {
                         "2D visual reconstruction covering EVERY named primary concept, " +
                         "without outfits, props, scenes or semantic labels as substitutes. " +
                         "Audit evidence must be concrete rather than a generic PASS. " +
+                        "Return pairwise as an array of JSON objects with exact concept " +
+                        "names first and second and a physical mechanism 65+ characters " +
+                        "long for EVERY unordered pair. Each mechanism must be a shared " +
+                        "consequential body structure, not a theme or metaphor. " +
+                        "For 3+ concepts add higher_order (110+ characters) describing " +
+                        "a single complete-set structure requiring all concepts. " +
+                        "For two primary concepts set higher_order to empty string. " +
                         "No Markdown, no surrounding prose."
                     suspend fun author(extra:String):FrozenCharacter {
                         val input=format+"\nCHARACTER "+selection.id+"\nPRIMARY: "+
@@ -174,7 +182,14 @@ class CharacterBrainResolver(context:Context) {
                             data.getString("anatomy"),data.getString("face_eyes_hair"),
                             data.getString("topology"),data.getString("fusion"),
                             data.getString("materials"),data.getString("differentiation"),
-                            data.getString("render_description"),data.getString("audit_evidence"))
+                            data.getString("render_description"),data.getString("audit_evidence"),
+                            data.getJSONArray("pairwise").let{pairs->
+                                (0 until pairs.length()).map{i->
+                                    val p=pairs.getJSONObject(i)
+                                    PairwisePhysicalFusion(p.getString("first"),
+                                        p.getString("second"),p.getString("mechanism"))
+                                }
+                            },data.getString("higher_order"))
                             .also{it.validate()}
                     }
                     var resolved=runCatching{author("")}
