@@ -44,4 +44,11 @@ class GenerationPlannerTest {
         assertEquals("rin_flanime_1", GenerationPlanner.selectModelId(models, RenderMode.ANIME))
         assertFalse(GenerationPlanner.selectModelId(emptyList(), RenderMode.ANIME) != null)
     }
+    @Test fun embeddedReadableRinLabelResolvesEvenWithRandomQnnId() {
+        val nativeModels=listOf(
+            "qnn_123456789012345678901234" to "Rin Flanime v1 Turbo (Anima QNN)",
+            "qnn_abcdefabcdefabcdefabcdef" to "MiaoMiao v1.4 (Anima QNN)")
+        assertEquals("qnn_123456789012345678901234",
+            GenerationPlanner.selectModelId(nativeModels,RenderMode.ANIME))
+    }
 }

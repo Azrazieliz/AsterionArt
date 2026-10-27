@@ -223,9 +223,15 @@ object GenerationPlanner {
                 listOf("cyberrealistic", "realism", "sam_anima_realistic", "rin_flanime")
             RenderMode.OTHER -> emptyList()
         }
+        // Imported QNN IDs are randomized. Match their actual labels even
+        // when upstream uses spaces, hyphens or underscores for one family.
+        // This preserves the owner's existing model-quality preference order.
+        fun normalized(value:String):String =
+            value.lowercase().replace(Regex("[^a-z0-9]+"),"_").trim('_')
         return rank.firstNotNullOfOrNull { needle ->
             models.firstOrNull { (id, name) ->
-                id.contains(needle, true) || name.contains(needle, true)
+                normalized(id).contains(needle) ||
+                    normalized(name).contains(needle)
             }?.first
         }
     }
