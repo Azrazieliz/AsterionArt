@@ -26,6 +26,10 @@ interface InferenceEngine {
     suspend fun loadAdapter(adapterPath: String)
 
     suspend fun setSystemPrompt(systemPrompt: String)
+    /** Counts tokens with the actual loaded Qwen3 tokenizer, not word heuristics. */
+    suspend fun countTokens(text: String): Int
+    /** Reset KV state and reestablish system authority without unloading weights. */
+    suspend fun restartConversation(systemPrompt: String)
 
     /**
      * Sends a user prompt to the loaded model and returns a Flow of generated tokens.

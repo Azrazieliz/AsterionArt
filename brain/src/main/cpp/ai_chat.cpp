@@ -290,6 +290,7 @@ static llama_pos current_position;
 
 static void reset_long_term_states(const bool clear_kv_cache = true) {
     chat_msgs.clear();
+    if(g_sampler != nullptr) common_sampler_reset(g_sampler);
     system_prompt_position = 0;
     current_position = 0;
 

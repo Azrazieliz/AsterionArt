@@ -64,7 +64,7 @@ class AsterionReasoner(context:Context) {
             if(record==null) "CONCEPT: "+name else
                 "CANONICAL CONCEPT: "+record.name+" ("+record.id+")\n"+
                     record.physicalInstruction(domain)+"\n"+
-                    "AUTHORITY DETAILS:\n"+record.fullRecord.take(6800)
+                    "AUTHORITY DETAILS:\n"+record.fullRecord
         }
         return entries.joinToString("\n\n")
     }
@@ -149,17 +149,64 @@ class AsterionReasoner(context:Context) {
             engine.setSystemPrompt(SYSTEM)
             val canonical=section(domain,concepts)
             val guidance=learnedExamples(domain)
-            onStage("Layer 1 · concept and authority interpretation")
-            val first=answer(
-                "Interpret the following AUTHORITATIVE task. Do not skip or summarize " +
-                "its physical constraints. Return explicit physical/morphological properties, " +
-                "construction and relationships by concept. No final image prompt yet.\n" +
-                "DOMAIN: "+domain.name+"\nMETHOD:\n"+canonicalMethod.take(11000)+
-                "\nCONCEPTS:\n"+canonical.take(26000)+
-                "\nSOURCE EVIDENCE:\n"+sheetSources.joinToString("\n").take(6000)+
-                "\nORIGINAL POSITIVE CONTRACT:\n"+basePositive.take(6000)+
-                "\nORIGINAL NEGATIVE CONTRACT:\n"+baseNegative.take(2500)+
-                "\n/no_think",1250)
+            onStage("Layer 1 · complete paged authority interpretation")
+            val authority=listOf(
+                "DOMAIN:\n"+domain.name,
+                "FULL METHODOLOGY:\n"+canonicalMethod,
+                "CANONICAL CONCEPT RECORDS:\n"+canonical,
+                "SOURCE EVIDENCE:\n"+sheetSources.joinToString("\n"),
+                "POSITIVE AUTHORITY:\n"+basePositive,
+                "NEGATIVE AUTHORITY:\n"+baseNegative
+            ).joinToString("\n\n")
+            // Reserve native KV space for role templates and generated output.
+            // Paging counts the exact loaded tokenizer, not words or characters.
+            val pages=BrainEvidencePager.pages(authority,
+                (contextSize-2200).coerceAtLeast(256)){text->
+                engine.countTokens(text)
+            }
+            val notes=mutableListOf<String>()
+            for(page in pages) {
+                engine.restartConversation(SYSTEM)
+                onStage("Layer 1 · authority page "+page.index+"/"+pages.size)
+                notes+=answer(
+                    "Extract every critical identity, physical mechanism, " +
+                        "construction rule, concept interaction, prohibitions and " +
+                        "output requirement in this authority page. " +
+                        "Quote exact numbered constraints and preserve source names. " +
+                        "Do not design yet. PAGE "+page.index+"/"+pages.size+"\n" +
+                        page.text+"\n/no_think",700)
+            }
+            // Hierarchical consolidation is explicit. Full source pages remain
+            // preserved in a manifest; the learned interpretation is compressed.
+            var consolidated=notes.toList()
+            repeat(5) { level ->
+                val joined=consolidated.joinToString("\n\n")
+                if(engine.countTokens(joined)<contextSize/3)
+                    return@repeat
+                val groups=BrainEvidencePager.pages(joined,
+                    (contextSize/2).coerceAtLeast(256)){text->
+                    engine.countTokens(text)
+                }
+                val newer=mutableListOf<String>()
+                for(group in groups) {
+                    engine.restartConversation(SYSTEM)
+                    newer+=answer(
+                        "Consolidate these already-interpreted constraints " +
+                            "without losing named identities, required counts, " +
+                            "construction mechanisms and forbidden changes. " +
+                            "Keep each mandatory condition checkable.\n"+
+                            group.text+"\n/no_think",1100)
+                }
+                require(newer.joinToString("").length<joined.length) {
+                    "Neural consolidation is not reducing context; refusing source loss"
+                }
+                consolidated=newer
+            }
+            val first=consolidated.joinToString("\n\n")
+            require(engine.countTokens(first)<contextSize/2) {
+                "Full authority could not be safely condensed into the design context"
+            }
+            engine.restartConversation(SYSTEM)
             onStage("Layer 2 · distinct structural synthesis")
             val second=answer(
                 "Construct "+candidateCount+" genuinely distinct production-quality "+
@@ -170,8 +217,7 @@ class AsterionReasoner(context:Context) {
                     "palette, attach points and differentiating features. " +
                     "Return NO generic boilerplate and no image model prompt yet.\n" +
                     "INTERPRETATION:\n"+first+"\nPREFERENCES:\n"+guidance+
-                    "\nREQUIRED OUTPUT:\n"+canonicalMethod.take(5000)+
-                    "\n/no_think",if(candidateCount>=10)3800 else 1700)
+                    "\nREQUIRED OUTPUT: follow every explicit constraint above.\n/no_think",if(candidateCount>=10)3800 else 1700)
             onStage("Layer 3 · model-facing prompt compilation")
             val request=if(domain==CreativeDomain.CHARACTER && candidateCount==15)
                 "Produce THREE exact complete sheet prompts. Each has five different " +
@@ -183,12 +229,20 @@ class AsterionReasoner(context:Context) {
             else "Produce exactly one fully detailed POSITIVE model-facing image/video " +
                 "prompt and one NEGATIVE prompt. Output [POSITIVE]...[/POSITIVE] " +
                 "[NEGATIVE]...[/NEGATIVE]. Mention all unique construction mechanisms."
-            val third=answer(
-                request+"\nOUTPUT CONTRACT:\n"+canonicalMethod.take(6000)+
-                    "\nDESIGNS:\n"+second+
-                    "\nPRESERVE ORIGINAL REQUEST:\n"+basePositive.take(5000)+
-                    "\nFAILURES TO AVOID:\n"+baseNegative.take(2200)+
-                    "\n/no_think",if(candidateCount>=10)4500 else 2200)
+            engine.restartConversation(SYSTEM)
+            val predict=if(candidateCount>=10)4500 else 2200
+            val baseline=request+"\nFULL INTERPRETATION (from all "+pages.size+
+                " authority page(s)):\n"+first+
+                "\nDESIGNS:\n"+second+
+                "\n/no_think"
+            require(engine.countTokens(baseline)+predict+512<contextSize) {
+                "Compiled design synthesis exceeds configured neural context"
+            }
+            val additional="\nEXACT ORIGINAL POSITIVE CONTRACT:\n"+basePositive+
+                "\nEXACT ORIGINAL NEGATIVE CONTRACT:\n"+baseNegative
+            val complete=if(engine.countTokens(baseline+additional)+predict+512<contextSize)
+                baseline+additional else baseline
+            val third=answer(complete,predict)
             val sheets=(1..3).map{parsePart(third,"SHEET_"+it)}
                 .filter{it.isNotBlank()}
             val result=NeuralDesignPlan(
@@ -208,6 +262,11 @@ class AsterionReasoner(context:Context) {
                 put("final_positive",result.positive)
                 put("final_negative",result.negative)
                 put("sheets",JSONArray(result.sheetPrompts))
+                put("authority_pages",pages.size)
+                put("authority_chars",authority.length)
+                put("all_authority_pages_processed",notes.size==pages.size)
+                put("original_source_evidence",authority)
+                put("hierarchical_consolidation",notes.size>1)
                 put("model_training_applied",false)
                 put("learning_method","contextual preferences from stored KEEP/REJECT decisions")
             }
