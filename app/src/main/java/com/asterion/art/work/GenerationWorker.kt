@@ -548,10 +548,22 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                             UniversalCreativePlanner.domain(job.creationMode),
                             job.concepts,index+(candidate-1)*perSheet,
                             stageSequence.first().positive)
-                    val preview=runCatching {
-                        DesignPreviewCrops.generate(applicationContext,image,job.id,
-                            ordinal,index,columns,rows)
-                    }.getOrNull()
+                    // Character v3 already rendered each identity independently
+                    // at full native resolution. Preserve THAT complete original
+                    // rather than downsampling or cropping the five-design sheet.
+                    val preview=if(characterPlan!=null) {
+                        val design=requireNotNull(frozen.getOrNull(ordinal-1)) {
+                            "Missing frozen Character Creation identity D"+ordinal
+                        }
+                        val full=File(intermediate,
+                            "sheet_"+candidate+"_"+design.id+"_triptych.png")
+                        require(full.isFile&&full.length()>1024L) {
+                            "Full-resolution character image missing: "+design.id
+                        }
+                        android.net.Uri.fromFile(full).toString()
+                    } else DesignPreviewCrops.generate(
+                        applicationContext,image,job.id,ordinal,
+                        index,columns,rows)
                     memory.upsert(SavedDesign(
                         id=job.id+"-D"+ordinal.toString().padStart(3,'0'),
                         jobId=job.id,mode=job.mode,creationMode=job.creationMode,
