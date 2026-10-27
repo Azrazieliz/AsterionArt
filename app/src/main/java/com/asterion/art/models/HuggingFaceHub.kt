@@ -149,7 +149,8 @@ internal object HubPagination {
         val parsed=java.net.URI(url)
         require(parsed.scheme=="https" && parsed.host=="huggingface.co" &&
             parsed.port==-1 && parsed.rawUserInfo==null &&
-            parsed.rawFragment==null && parsed.path.startsWith("/api/models/")) {
+            parsed.rawFragment==null && (parsed.path=="/api/models" ||
+                parsed.path.startsWith("/api/models/"))) {
             "Only official Hugging Face model API pages are allowed"
         }
     }
