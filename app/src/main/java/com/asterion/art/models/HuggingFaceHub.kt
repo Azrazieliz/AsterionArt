@@ -53,7 +53,9 @@ object HubPath {
         return listOf(".zip",".gguf",".ggml",".safetensors",".ckpt",".bin",
             ".onnx",".pt",".pth",".model",".json",".yaml",".yml",
             ".tiktoken",".spm",".vocab",".merges",".bpe",".onnx_data")
-            .any{lower.endsWith(it)}
+            .any{lower.endsWith(it)} ||
+            lower.substringAfterLast('/') in
+                setOf("merges.txt","vocab.txt","tokenizer.txt")
     }
 
     fun downloadWorkName(id:String,revision:String,path:String):String {
