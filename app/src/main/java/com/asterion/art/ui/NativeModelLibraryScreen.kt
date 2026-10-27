@@ -124,6 +124,7 @@ fun NativeModelLibraryScreen() {
                 color=Mist)
         }
         item { BrainModelSection() }
+        item { HuggingFaceModelBrowser(selectedFamily) }
         item {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(15.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
