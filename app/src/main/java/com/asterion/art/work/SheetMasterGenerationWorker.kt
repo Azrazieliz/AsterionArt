@@ -88,7 +88,15 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             val resolutions=primary.resolutions
             val resolution=resolutions.minByOrNull{(w,h)->
                 abs(w.toDouble()/h.toDouble()-9.0/16.0)
-            } ?: (primary.generationSize to primary.generationSize)
+            } ?: run {
+                // Existing validated QNN imports do not advertise a resolution
+                // catalogue. Anima can still be requested in portrait geometry;
+                // do NOT silently switch to a square image or discard sources.
+                val targetHeight=primary.generationSize.coerceIn(512,1536)
+                val width=((targetHeight*9.0/16.0/32.0).toInt()*32)
+                    .coerceAtLeast(256)
+                width to targetHeight
+            }
             // Do not pretend a square-only neural model rendered a 9:16
             // artwork. The output must honestly satisfy the sheet contract.
             require(abs(resolution.first.toDouble()/resolution.second-9.0/16.0)<0.16) {
