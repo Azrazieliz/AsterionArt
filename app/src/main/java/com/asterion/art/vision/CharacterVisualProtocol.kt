@@ -106,7 +106,9 @@ object CharacterVisualProtocol {
         val questions=mutableListOf<String>()
         for((name,text) in sections) {
             var index=0
-            val raw=text.trim()
+            // Do not trim full frozen descriptions: a complete visual audit
+            // must retain all source characters, including trailing spaces.
+            val raw=text
             while(index<raw.length) {
                 // All evidence is represented in ordered partitions.
                 val end=minOf(raw.length,index+3500)

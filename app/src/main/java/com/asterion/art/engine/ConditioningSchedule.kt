@@ -31,7 +31,8 @@ object ConditioningSchedule {
                 continuationHeader:String?=null):ConditioningPlan {
         require(prompt.isNotBlank())
         require(maximumPasses in 1..64)
-        val positive=prompt.trim()
+        // The source-to-pass ledger is lossless, including owner whitespace.
+        val positive=prompt
         val negativeClean=negative.trim()
         val negativeCount=if(negativeClean.isBlank())null else tokenizer(negativeClean).also {
             require(it.fits && it.limit>0){"Negative prompt exceeds native conditioning capacity"}

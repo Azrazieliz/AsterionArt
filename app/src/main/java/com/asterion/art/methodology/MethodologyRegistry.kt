@@ -25,7 +25,8 @@ object MethodologyRegistry {
             "Character Creation Phase 1 is an independent, model-authored "+
                 "clinical anatomical female character population. The user selects "+
                 "1–30 exact 16:9 sheets, five independent identities per sheet, "+
-                "with full-body true-front, exact 90-degree profile and direct rear "+
+                "with FIFTEEN full-body depictions per sheet: five identities each with "+
+                "full-body true-front, exact 90-degree side profile and direct rear "+
                 "for every anatomy-frozen identity. All characters must be fully "+
                 "authored, refined and independently differentiated before rendering. "+
                 "Strong coherent complete concept fusion, skeletal and morphological "+
