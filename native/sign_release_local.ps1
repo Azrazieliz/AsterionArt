@@ -4,9 +4,9 @@ param([Parameter(Mandatory=$true)][string]$UnsignedApk,[switch]$Install)
 $ErrorActionPreference='Stop'
 $source=(Resolve-Path -LiteralPath $UnsignedApk).Path
 if(-not $source.ToLowerInvariant().EndsWith('.apk')){throw 'Input must be an APK'}
-$root=Join-Path $env:LOCALAPPDATA 'AsterionArt'
-$keystore=Join-Path $root 'release-keystore.p12'
-$credential=Join-Path $root 'signing-credentials.dpapi'
+$root='D:\AsterionArtSigning'
+$keystore=Join-Path $root 'asterion-art-release.p12'
+$credential=Join-Path $root 'release-pass.dpapi'
 if(-not(Test-Path $keystore) -or -not(Test-Path $credential)){
     throw 'Existing persistent signing identity missing; refusing rotation'
 }
@@ -15,7 +15,7 @@ $tools=Get-ChildItem -LiteralPath (Join-Path $env:ANDROID_HOME 'build-tools') -D
 if(-not $tools){throw 'Android build-tools missing'}
 $apksigner=Join-Path $tools.FullName 'apksigner.bat'
 if(-not(Test-Path $apksigner)){throw 'apksigner missing'}
-$protected=(Get-Content -LiteralPath $credential -Raw) | ConvertTo-SecureString
+$protected=(Get-Content -LiteralPath $credential -Raw).Trim() | ConvertTo-SecureString
 $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($protected)
 $output=Join-Path (Split-Path -Parent $source) 'asterion-art-release-signed.apk'
 if($source -eq $output){throw 'Refusing in-place overwrite'}
