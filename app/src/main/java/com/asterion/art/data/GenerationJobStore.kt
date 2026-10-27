@@ -24,7 +24,9 @@ data class GenerationJob(
     val parentDesignIds: List<String> = emptyList(),
     val characterPlanId: String? = null,
     val designReferenceUris: List<String> = emptyList(),
-    val directReferenceUris: Map<SheetRole,List<String>> = emptyMap()
+    val directReferenceUris: Map<SheetRole,List<String>> = emptyMap(),
+    val userScenePrompt: String = "",
+    val userNegativePrompt: String = ""
 )
 
 class GenerationJobStore(context: Context) {
@@ -39,12 +41,14 @@ class GenerationJobStore(context: Context) {
                parentDesignIds: List<String> = emptyList(),
                characterPlanId: String? = null,
                designReferenceUris: List<String> = emptyList(),
-               directReferenceUris: Map<SheetRole,List<String>> = emptyMap()): GenerationJob {
+               directReferenceUris: Map<SheetRole,List<String>> = emptyMap(),
+               userScenePrompt:String="",userNegativePrompt:String=""): GenerationJob {
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
             settings, System.currentTimeMillis(),creationMode,sourceImageUri,
             concepts.distinct(),designPrompt,designNegative,parentDesignIds.distinct(),
             characterPlanId,designReferenceUris.distinct(),
-            directReferenceUris.mapValues{(_,uris)->uris.distinct()})
+            directReferenceUris.mapValues{(_,uris)->uris.distinct()},
+            userScenePrompt,userNegativePrompt)
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -69,6 +73,8 @@ class GenerationJobStore(context: Context) {
             put("design_negative",job.designNegative ?: JSONObject.NULL)
             put("design_parents",JSONArray(job.parentDesignIds))
             put("design_reference_images",JSONArray(job.designReferenceUris))
+            put("user_scene_prompt",job.userScenePrompt)
+            put("user_negative_prompt",job.userNegativePrompt)
             put("direct_reference_images",JSONObject().apply {
                 job.directReferenceUris.forEach { (role,uris) ->
                     put(role.name,JSONArray(uris))
@@ -128,7 +134,9 @@ class GenerationJobStore(context: Context) {
                         role to (0 until array.length()).map{array.getString(it)}
                     }
                 }.toMap()
-            }.orEmpty()
+            }.orEmpty(),
+            root.optString("user_scene_prompt",""),
+            root.optString("user_negative_prompt","")
         )
     }
 }
