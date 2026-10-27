@@ -49,16 +49,24 @@ jobs:
         run: unzip -l app/build/outputs/apk/debug/*.apk | grep "libai-chat.so"
       - name: Verify packaged engine and Qualcomm runtime checksums
         run: python3 native/verify_apk_native.py
-      - name: Build release APK for persistent local signing
+      - name: Download and verify APK-bundled offline reasoning and vision weights
+        if: github.event_name == 'workflow_dispatch'
         run: |
-          # CI must never generate or rotate an Android signing identity.
-          # The unsigned release is signed using the long-lived private key
-          # kept OFF GitHub on the owner's authorized signing computer.
+          python3 native/prepare_inference_weights.py --project .
+          test -s app/src/main/assets/inference/Qwen_Qwen3-0.6B-Q5_K_M.gguf
+          test -s app/src/main/assets/inference/Qwen3VL-2B-Instruct-Q4_K_M.gguf
+          test -s app/src/main/assets/inference/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf
+      - name: Build release APK for persistent local signing
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Only release artifacts contain embedded reasoning and vision weights.
+          # CI never creates signing keys. The persistent release key remains
+          # outside GitHub and signs the assembled APK on the owner's PC.
           gradle --no-daemon :app:assembleRelease --stacktrace
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           python3 native/verify_apk_native.py --apk app/build/outputs/apk/release/app-release-unsigned.apk
       - uses: actions/upload-artifact@v4
-        if: success()
+        if: github.event_name == 'workflow_dispatch' && success()
         with:
           name: Asterion-Art-UNSIGNED-RELEASE-requires-persistent-signature
           path: app/build/outputs/apk/release/app-release-unsigned.apk
