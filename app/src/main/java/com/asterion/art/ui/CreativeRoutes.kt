@@ -108,7 +108,7 @@ fun ImageGateway(openArtwork:()->Unit,openDefaults:()->Unit,openSheets:()->Unit)
         item { Text("Choose a workflow",style=MaterialTheme.typography.headlineLarge) }
         item { DestinationCard("Artwork creation","Combine character, style, theme and element sheets into one artwork",
             Icons.Default.Image,openArtwork) }
-        item { DestinationCard("Creation Studios","Characters, outfits, weapons, forms, creatures and artistic transformations",
+        item { DestinationCard("Originals","Original characters, outfits, weapons, forms and transformations",
             Icons.Default.AutoAwesome,openDefaults) }
         item { DestinationCard("Sheet creation","Build normalized Character, Art Style, Theme and Element reference sheets",
             Icons.Default.Image,openSheets) }
@@ -119,8 +119,8 @@ fun ImageGateway(openArtwork:()->Unit,openDefaults:()->Unit,openSheets:()->Unit)
 fun MethodologyGateway(onSelect:(CreationMode)->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),
         verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { Text("CREATION STUDIOS",color=Gold,style=MaterialTheme.typography.labelMedium) }
-        item { Text("Choose your studio",style=MaterialTheme.typography.headlineMedium) }
+        item { Text("ORIGINALS",color=Gold,style=MaterialTheme.typography.labelMedium) }
+        item { Text("Choose an Original",style=MaterialTheme.typography.headlineMedium) }
         items(CreationMode.entries.toList()) { mode ->
             val spec=MethodologyRegistry.modes.getValue(mode)
             val layout=spec.layout
@@ -128,7 +128,7 @@ fun MethodologyGateway(onSelect:(CreationMode)->Unit) {
                 if(mode==CreationMode.STYLE_CORRECTION)
                     "One target style sheet and the illustration to modify"
                 else if(mode==CreationMode.CHARACTER)
-                    "Concept-driven · 15 distinct characters · 3 sheets of 5"
+                    "Phase 1 · independent unclothed anatomical originals · 5 characters per sheet"
                 else layout.totalDesigns.toString()+" designs · exact "+layout.ratio+
                     " analytical catalogue",
                 Icons.Default.AutoAwesome) { onSelect(mode) }

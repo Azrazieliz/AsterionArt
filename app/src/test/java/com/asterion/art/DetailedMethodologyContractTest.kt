@@ -16,7 +16,17 @@ class DetailedMethodologyContractTest {
         assertEquals(5,layout.designsPerImage)
         assertTrue(layout.frontAndRearViews)
     }
-    @Test fun styleCorrectionOnlyNeedsArtworkAndTargetStyle() {
+    @Test fun characterSheetsAreConfigurableWithoutOtherPhaseDependencies() {
+        val input=MethodologyRequest(CreationMode.CHARACTER,
+            conceptIds=listOf("Oni","X"),characterSheets=30)
+        val geometry=DetailedMethodologies.geometry(input)
+        assertEquals(30,geometry.imageCount)
+        assertEquals(5,geometry.designsPerImage)
+        assertEquals(150,geometry.designsPerImage*geometry.imageCount)
+        assertTrue(DetailedMethodologies.validate(input).isEmpty())
+        assertTrue(DetailedMethodologies.validate(input.copy(characterSheets=31)).isNotEmpty())
+    }
+        @Test fun styleCorrectionOnlyNeedsArtworkAndTargetStyle() {
         val request=MethodologyRequest(CreationMode.STYLE_CORRECTION,
             sheetRoles=setOf(SheetRole.ART_STYLE),sourceIllustrationPresent=true)
         assertTrue(DetailedMethodologies.validate(request).isEmpty())

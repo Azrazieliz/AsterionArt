@@ -20,7 +20,8 @@ data class GenerationJob(
     val concepts: List<String> = emptyList(),
     val designPrompt: String? = null,
     val designNegative: String? = null,
-    val parentDesignIds: List<String> = emptyList()
+    val parentDesignIds: List<String> = emptyList(),
+    val characterPlanId: String? = null
 )
 
 class GenerationJobStore(context: Context) {
@@ -32,10 +33,12 @@ class GenerationJobStore(context: Context) {
                concepts: List<String> = emptyList(),
                designPrompt: String? = null,
                designNegative: String? = null,
-               parentDesignIds: List<String> = emptyList()): GenerationJob {
+               parentDesignIds: List<String> = emptyList(),
+               characterPlanId: String? = null): GenerationJob {
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
             settings, System.currentTimeMillis(),creationMode,sourceImageUri,
-            concepts.distinct(),designPrompt,designNegative,parentDesignIds.distinct())
+            concepts.distinct(),designPrompt,designNegative,parentDesignIds.distinct(),
+            characterPlanId)
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -59,6 +62,7 @@ class GenerationJobStore(context: Context) {
             put("design_prompt",job.designPrompt ?: JSONObject.NULL)
             put("design_negative",job.designNegative ?: JSONObject.NULL)
             put("design_parents",JSONArray(job.parentDesignIds))
+            put("character_phase1_plan",job.characterPlanId ?: JSONObject.NULL)
             put("settings", s)
         }
         val tmp = File(folder, job.id + ".tmp")
@@ -101,7 +105,8 @@ class GenerationJobStore(context: Context) {
                 else root.optString("design_negative","").takeIf { it.isNotBlank() },
             root.optJSONArray("design_parents")?.let { arr ->
                 (0 until arr.length()).map { arr.getString(it) }
-            }.orEmpty()
+            }.orEmpty(),
+            root.optString("character_phase1_plan","").takeIf { it.isNotBlank() && it!="null" }
         )
     }
 }

@@ -20,7 +20,8 @@ import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.core.CoreResultUploader
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
-import com.asterion.art.methodology.DesignBlueprintEngine
+import com.asterion.art.methodology.CharacterPlanStore
+import com.asterion.art.methodology.CharacterPhaseOne
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.StillImageEngine
 import com.asterion.art.nativeengine.EmbeddedEngineFactory
@@ -83,6 +84,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
         try {
             foreground("Reading generation plan")
             val job = GenerationJobStore(applicationContext).load(jobId)
+            val characterPlan=if(job.creationMode==CreationMode.CHARACTER &&
+                job.designPrompt.isNullOrBlank()) {
+                CharacterPlanStore(applicationContext).requireAuthorized(
+                    job.characterPlanId ?: error("Resolve all characters before generation"),
+                    job.id)
+            } else null
             require(job.mode != RenderMode.ANIMATION) {
                 "Animation needs the video backend, not the still generator"
             }
@@ -103,7 +110,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             }
             val taxonomy=ConceptTaxonomy(applicationContext)
             val compilerAttempt = runCatching {
-                if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
+                if(characterPlan!=null) GenerationRecipe(
+                    job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
+                        CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
+                else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,job.designPrompt,
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
@@ -127,7 +137,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 model = visualModel ?: error(
                     "Text-only preferred model or authoritative text is unavailable and " +
                         "no reference-aware Qwen/Klein model is installed.")
-                recipe = if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
+                recipe = if(characterPlan!=null) GenerationRecipe(
+                    job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
+                        CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
+                else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,job.designPrompt,
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
@@ -140,7 +153,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
             val neural=AsterionReasoner(applicationContext)
-            val brainPlan=if(neural.available()) {
+            val brainPlan=if(characterPlan!=null) null else if(neural.available()) {
                 foreground("Asterion Brain · interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
                 val spec=job.creationMode?.let {
@@ -195,7 +208,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 // Don't truncate authoritative prompt text. Switch to a genuine
                 // reference-conditioned engine instead of dropping source facts.
                 model = visualModel
-                recipe = if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
+                recipe = if(characterPlan!=null) GenerationRecipe(
+                    job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
+                        CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
+                else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,job.designPrompt,
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
@@ -234,26 +250,31 @@ class GenerationWorker(context: Context, params: WorkerParameters):
 
             val intermediate = File(applicationContext.filesDir,
                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
-            if (job.creationMode == CreationMode.CHARACTER) {
-                val capsules = JSONArray()
-                DesignBlueprintEngine.population(job.concepts,resolver=taxonomy).forEach { design ->
+            if(characterPlan!=null) {
+                val capsules=JSONArray()
+                characterPlan.frozen.forEach { d ->
                     capsules.put(JSONObject().apply {
-                        put("id", design.id)
-                        put("index", design.number)
-                        put("concepts", JSONArray(design.concepts))
-                        put("morphology", design.morphology)
-                        put("face_and_hair", design.faceAndHair)
-                        put("mechanics", design.internalMechanics)
-                        put("fusion", design.conceptFusion)
-                        put("renderer_description", design.render())
-                        put("frozen", false)
+                        put("id",d.id)
+                        put("index",d.number)
+                        put("concepts",JSONArray(d.primary.map{it.name}))
+                        put("anatomy",d.anatomy)
+                        put("face_eyes_hair",d.faceEyesHair)
+                        put("topology",d.topology)
+                        put("fusion",d.fusion)
+                        put("materials",d.materials)
+                        put("differentiation",d.differentiation)
+                        put("render_description",d.renderDescription)
+                        put("audit_evidence",d.auditEvidence)
+                        put("frozen",true)
                     })
                 }
                 GeneratedImagePublisher.atomicWrite(
                     File(applicationContext.filesDir,
-                        "generation-plans/" + job.id + "-capsules.json"),
-                    JSONObject().put("schema", "asterion.design-capsules.v1")
-                        .put("job_id", job.id).put("designs", capsules)
+                        "generation-plans/"+job.id+"-capsules.json"),
+                    JSONObject().put("schema","asterion.character-frozen.v2")
+                        .put("job_id",job.id)
+                        .put("design_plan_id",characterPlan.id)
+                        .put("designs",capsules)
                         .toString(2).toByteArray(Charsets.UTF_8))
             }
             val out = mutableListOf<JSONObject>()
@@ -261,7 +282,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             var technicalLeader: ByteArray? = null
             var technicalLeaderUri: android.net.Uri? = null
             val count = if(!job.designPrompt.isNullOrBlank()) 1
-                else job.settings.batch.coerceIn(1, 8)
+                else characterPlan?.sheets ?: job.settings.batch.coerceIn(1,8)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
             val oneShotCharacterSheet = job.creationMode == CreationMode.CHARACTER ||
@@ -291,13 +312,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
                     val methodStage = if(!job.designPrompt.isNullOrBlank()) stage
-                    else if (job.creationMode==CreationMode.CHARACTER)
-                        stage.copy(
-                            positive=brainPlan?.sheetPrompts?.takeIf { list ->
-                                list.size==3 && list.all { it.length>180 }
-                            }?.get(candidate-1)
-                                ?: DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1,taxonomy),
-                            negative=DesignBlueprintEngine.negative())
+                    else if(characterPlan!=null)
+                        stage.copy(positive=characterPlan.prompts[candidate-1],
+                            negative=CharacterPhaseOne.NEGATIVE)
                     else stage
                     // Measure native conditioning after the exact final
                     // methodology and sheet prompt has been compiled.
@@ -371,6 +388,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 // slots from sheets produced by any Creative Studio. The sheet
                 // remains a reference until separately regenerated as one image.
                 val perSheet=if(job.designPrompt!=null) 1
+                    else if(characterPlan!=null) CharacterPhaseOne.PER_SHEET
                     else job.creationMode?.let {
                         DetailedMethodologies.all[it]?.catalogue?.designsPerImage
                     } ?: 1
@@ -379,12 +397,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     DetailedMethodologies.all[it]?.catalogue }
                 val columns=layout?.columns ?: 1
                 val rows=layout?.rows ?: 1
-                val blueprints=if(job.creationMode==CreationMode.CHARACTER &&
-                    job.designPrompt==null) DesignBlueprintEngine.population(job.concepts,resolver=taxonomy)
-                    else emptyList()
+                val frozen=characterPlan?.frozen.orEmpty()
                 for(index in 0 until perSheet) {
                     val ordinal=(candidate-1)*perSheet+index+1
-                    val specification=blueprints.getOrNull(ordinal-1)?.render()
+                    val specification=frozen.getOrNull(ordinal-1)?.renderDescription
                         ?: if(job.designPrompt!=null) job.designPrompt
                         else UniversalCreativePlanner.individual(
                             UniversalCreativePlanner.domain(job.creationMode),
@@ -398,8 +414,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         id=job.id+"-D"+ordinal.toString().padStart(3,'0'),
                         jobId=job.id,mode=job.mode,creationMode=job.creationMode,
                         ordinal=ordinal,sheetNumber=candidate,prompt=specification,
-                        negative=if(job.creationMode==CreationMode.CHARACTER &&
-                            job.designPrompt==null) DesignBlueprintEngine.negative()
+                        negative=if(characterPlan!=null) CharacterPhaseOne.NEGATIVE
                             else stageSequence.first().negative,sheetUri=uri.toString(),
                         status=if(job.designPrompt!=null)"REVISION" else "CANDIDATE",
                         parents=job.parentDesignIds,sourceSheetIds=job.sheetIds,
@@ -414,13 +429,13 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     put("uri", uri.toString())
                     put("prompt_positive", if (job.designPrompt!=null)
                         job.designPrompt
-                        else if (job.creationMode==CreationMode.CHARACTER)
-                        DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1,taxonomy)
+                        else if(characterPlan!=null)
+                        characterPlan.prompts[candidate-1]
                         else stageSequence.joinToString("\n\n") { it.positive })
                     put("prompt_negative", if(job.designPrompt!=null)
                         job.designNegative.orEmpty()
-                        else if (job.creationMode==CreationMode.CHARACTER)
-                        DesignBlueprintEngine.negative()
+                        else if(characterPlan!=null)
+                        CharacterPhaseOne.NEGATIVE
                         else stageSequence.joinToString("\n\n") { it.negative })
                     put("technical_score", technical.score)
                     put("contrast", technical.contrast)
@@ -484,6 +499,11 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("reference_model_kind", model.ditKind)
                 put("creation_methodology", job.creationMode?.name ?: JSONObject.NULL)
                 put("selected_concepts", JSONArray(job.concepts))
+                put("character_plan_id",characterPlan?.id ?: JSONObject.NULL)
+                put("frozen_character_count",characterPlan?.frozen?.size ?: 0)
+                put("full_resolution_before_render",characterPlan!=null)
+                put("visual_anatomy_audit_passed",false)
+                put("clinical_unclothed_phase1",characterPlan!=null)
                 put("source_artwork", job.sourceImageUri ?: JSONObject.NULL)
                 put("enhancement_status", enhancementStatus)
                 put("enhanced_uri", enhancedUri ?: JSONObject.NULL)

@@ -49,7 +49,8 @@ data class MethodologyRequest(
     val action: StageAction = StageAction.CATALOGUE,
     val frozenBodyRevision: String? = null,
     val frozenOutfitRevision: String? = null,
-    val frozenWeaponRevision: String? = null
+    val frozenWeaponRevision: String? = null,
+    val characterSheets: Int = 3
 )
 object DetailedMethodologies {
     private val portrait = OutputGeometry("9:16",1,1,1,1)
@@ -66,7 +67,7 @@ object DetailedMethodologies {
             OutputGeometry("16:9",5,3,5,1,frontAndRearViews=true),
             OutputGeometry("9:16",1,1,1,1,frontAndRearViews=true),
             emptySet(),setOf("Original body architecture","Face","Hair","Concept fusion"),
-            "Phase 1: one population of exactly fifteen independent authored identities. Three separate 16:9 analytical sheets, each containing exactly five distinct characters. Each identity has an uncropped true-front neutral view plus smaller exact 90-degree profile and exact rear of the SAME body. White field. Concepts must materialize intrinsically as premium 2D female characters, not as surrounding icons, props or decorations. Fifteen designs must be authored and certified before any first-sheet rendering. No outfit, weapon, environment, pose substitution, 3/4 view, collage or cropped morphology. Phase 2 outfit, Phase 3 weapon and Phase 4 assembly require explicit user approval and frozen previous phase.",
+            "Character Creation Phase 1 ONLY. User chooses 1–30 sheets; each is a continuous 16:9 clinical unclothed anatomy sheet of exactly five independently authored premium 2D anime/manhwa female characters, each with an uncropped large true front, smaller exact 90-degree profile and direct rear of the SAME body. All five times selected sheet count must be fully resolved, independently differentiated and frozen BEFORE rendering. Every concept is physically embodied in each original character; pairwise and higher-order shared fusion is mandatory. All characters require coherent skeletal and appendage roots, uniquely authored bodies, face/eyes/hair, palette/material logic, flagship aesthetic quality and specific line-led illustrated 2D rendering grammar. No clothes, anatomical covering underlayers, fashion presentation, props or scenes. Genuine skin and concept-derived body substrates remain visible anatomical matter, never garments. There are no Design Directions, secondary sub-concepts, Outfit/Weapon phases or Final Assembly within Character Creation. The user authorizes rendering using Validate and generate.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW),
             mustFreezeBeforeNextPhase=true
         ),
@@ -147,7 +148,10 @@ object DetailedMethodologies {
 
     fun geometry(request:MethodologyRequest):OutputGeometry {
         val contract=all.getValue(request.mode)
-        return if(request.action==StageAction.SINGLE_PREVIEW) contract.preview
+        return if(request.mode==CreationMode.CHARACTER && request.action==StageAction.CATALOGUE) {
+            require(request.characterSheets in 1..30)
+            contract.catalogue.copy(imageCount=request.characterSheets)
+        } else if(request.action==StageAction.SINGLE_PREVIEW) contract.preview
         else if(request.mode==CreationMode.CHARACTER && request.action==StageAction.ASSEMBLY)
             contract.preview
         else contract.catalogue
@@ -164,26 +168,13 @@ object DetailedMethodologies {
                     SheetRole.CHARACTER !in request.sheetRoles) add("Source character illustration or Character Sheet required")
                 SourcePolicy.NONE,SourcePolicy.OPTIONAL -> Unit
             }
+            if(request.mode==CreationMode.CHARACTER && request.characterSheets !in 1..30)
+                add("Choose 1–30 character sheets")
             if(request.conceptIds.distinct().size<contract.minimumConceptSlots)
                 add("Select at least "+contract.minimumConceptSlots+" distinct canonical concept slots")
             if(request.action !in contract.commands)
                 add("This methodology does not support the selected operation")
-            if (false && request.mode==CreationMode.CHARACTER) {
-                when(request.action) {
-                    StageAction.OUTFIT -> if(request.frozenBodyRevision.isNullOrBlank())
-                        add("Freeze the selected body before Phase 2")
-                    StageAction.WEAPON -> {
-                        if(request.frozenBodyRevision.isNullOrBlank()) add("Frozen body required for Phase 3")
-                        if(request.frozenOutfitRevision.isNullOrBlank()) add("Frozen outfit required for Phase 3")
-                    }
-                    StageAction.ASSEMBLY -> {
-                        if(request.frozenBodyRevision.isNullOrBlank()) add("Frozen body required for Phase 4")
-                        if(request.frozenOutfitRevision.isNullOrBlank()) add("Frozen outfit required for Phase 4")
-                        if(request.frozenWeaponRevision.isNullOrBlank()) add("Frozen weapon required for Phase 4")
-                    }
-                    else -> Unit
-                }
-            }
+
         }
     }
 }

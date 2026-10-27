@@ -38,6 +38,10 @@ fun MethodologyStudioV3(
     openParameters: () -> Unit,
     onQueued: () -> Unit
 ) {
+    if(method==CreationMode.CHARACTER) {
+        CharacterOriginalScreen(repo,onQueued)
+        return
+    }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val spec = DetailedMethodologies.all.getValue(method)
@@ -136,7 +140,7 @@ fun MethodologyStudioV3(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Text("CREATION STUDIO", color = Gold, style = MaterialTheme.typography.labelMedium)
+            Text("ORIGINALS", color = Gold, style = MaterialTheme.typography.labelMedium)
             Text(spec.name, style = MaterialTheme.typography.headlineMedium)
             Text("Selected workflow",color=Mist,style=MaterialTheme.typography.labelSmall)
         }
@@ -275,12 +279,7 @@ fun MethodologyStudioV3(
                 onClick={
                     coroutineScope.launch {
                     runCatching {
-                        if(method==CreationMode.CHARACTER)
-                            (0..2).joinToString("\n\n===== SHEET =====\n\n") {
-                                DesignBlueprintEngine.sheetPrompt(names,it,taxonomy)
-                            } to DesignBlueprintEngine.negative()
-                        else {
-                            val settings=repo.settings.copy(
+                        val settings=repo.settings.copy(
                                 ratio=if(geometry.preserveOriginalFraming)repo.settings.ratio
                                     else geometry.ratio,batch=geometry.imageCount)
                             val recipe=if(method==CreationMode.CREATURE)
@@ -297,7 +296,6 @@ fun MethodologyStudioV3(
                             }
                             recipe.passes.joinToString("\n\n") { it.positive } to
                                 recipe.passes.joinToString("\n\n") { it.negative }
-                        }
                     }.onSuccess { promptReview=it }.onFailure { message=it.message }
                     }
                 }) {

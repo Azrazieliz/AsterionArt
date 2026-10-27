@@ -45,7 +45,7 @@ class AsterionReasoner(context:Context) {
     private val memory by lazy { CreativeMemoryStore(app) }
     private val preferences by lazy { LocalPreferenceModel(app) }
     companion object {
-        private val nativeMutex=Mutex()
+        private val nativeMutex=BrainInferenceLock.mutex
         private const val SYSTEM =
             "You are Asterion Design Intelligence, an offline production design planner. " +
             "You interpret the complete methodology and canonical concept evidence. " +
