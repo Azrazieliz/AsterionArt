@@ -54,13 +54,13 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
         val manager=app.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL,
             "Neural reference sheet generation",NotificationManager.IMPORTANCE_LOW))
-        suspend fun foreground(label:String) {
+        suspend fun foreground(label:String,resetProgress:Boolean=true) {
             setForeground(ForegroundInfo(7308,Notification.Builder(app,CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_menu_gallery)
                 .setContentTitle("Generating "+sheet.role.display+" master sheet")
                 .setContentText(label).setOngoing(true).build(),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
-            repo.updateTaskProgress(task,0,0,label)
+            if(resetProgress)repo.updateTaskProgress(task,0,0,label)
         }
         var engine:com.asterion.art.engine.StillImageEngine?=null
         try {
@@ -130,7 +130,7 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
                     "/"+sequence.chunks.size+
                     " · native verified tokens "+chunk.verifiedTokens+
                     "/"+chunk.verifiedLimit
-                foreground(message)
+                foreground(message,false)
                 engine.verifyText(chunk.positive)
                 if(chunk.negative.isNotBlank())engine.verifyText(chunk.negative)
                 val output=engine.generate(
@@ -146,9 +146,9 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             }
             val output=requireNotNull(current){"Native model produced no master sheet"}
             val info=BitmapFactory.Options().apply{inJustDecodeBounds=true}
-            BitmapFactory.decodeByteArray(output.png,0,output.png.size,info)
+            BitmapFactory.decodeByteArray(output,0,output.size,info)
             require(info.outWidth>0&&info.outHeight>0){"Native model returned invalid image"}
-            val saved=GeneratedImagePublisher.publish(app,sheet.id,1,output.png)
+            val saved=GeneratedImagePublisher.publish(app,sheet.id,1,output)
             repo.finishSheet(sheet.id,saved.toString())
             repo.updateTask(task,TaskStatus.COMPLETED)
             Result.success()
