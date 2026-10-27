@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.security.MessageDigest
 
 data class CoreCharacterSheet(
     val sheetId: String,
@@ -20,6 +21,44 @@ class CoreSheetBridge(private val context: Context) {
         val listUri: Uri = Uri.Builder().scheme("content")
             .authority(AUTHORITY).appendPath("characters").build()
     }
+
+    /**
+     * Check the complete original cross-app image stream against the SHA-256
+     * advertised by Core. Never admit a mismatched or partial reference as
+     * authoritative; this operation runs on IO, not the Compose UI thread.
+     */
+    suspend fun verifySource(sheet:CoreCharacterSheet):Unit =
+        withContext(Dispatchers.IO) {
+            require(sheet.uri.scheme=="content" &&
+                sheet.uri.authority==AUTHORITY &&
+                sheet.uri.pathSegments.firstOrNull()=="image") {
+                "Untrusted Asterion Core image provider URI"
+            }
+            val expected=sheet.sha256.trim()
+            require(expected.matches(Regex("[0-9a-fA-F]{64}"))) {
+                "Asterion Core did not provide a valid reference checksum"
+            }
+            val digest=MessageDigest.getInstance("SHA-256")
+            var bytes=0L
+            requireNotNull(context.contentResolver.openInputStream(sheet.uri)) {
+                "Asterion Core reference source cannot be opened"
+            }.use { input ->
+                val buffer=ByteArray(256*1024)
+                while(true) {
+                    val read=input.read(buffer)
+                    if(read<0)break
+                    if(read>0) {
+                        digest.update(buffer,0,read)
+                        bytes+=read
+                    }
+                }
+            }
+            require(bytes>128L) {"Asterion Core reference is empty"}
+            val actual=digest.digest().joinToString(""){"%02x".format(it)}
+            require(actual.equals(expected,true)) {
+                "Asterion Core reference does not match the advertised source SHA-256"
+            }
+        }
 
     suspend fun search(query: String, limit: Int = 48): List<CoreCharacterSheet> =
         withContext(Dispatchers.IO) {

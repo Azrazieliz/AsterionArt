@@ -43,6 +43,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -449,9 +451,39 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         if (sources.isNotEmpty()) {
             item {
                 Text("Assignments", color = Gold)
-                sources.forEach { assignment ->
-                    Text(SheetLayouts.label(kind, assignment.second), color = Mist,
-                        style = MaterialTheme.typography.bodySmall)
+                sources.forEachIndexed { index,assignment ->
+                    var expanded by remember(kind,index,assignment.first) {
+                        mutableStateOf(false)
+                    }
+                    Row(
+                        modifier=Modifier.fillMaxWidth(),
+                        verticalAlignment=Alignment.CenterVertically,
+                        horizontalArrangement=Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text((index+1).toString()+". "+
+                            SheetLayouts.label(kind,assignment.second),
+                            modifier=Modifier.weight(1f),color=Mist,
+                            style=MaterialTheme.typography.bodySmall)
+                        Box {
+                            TextButton(onClick={expanded=true}){Text("Reassign")}
+                            DropdownMenu(expanded=expanded,
+                                onDismissRequest={expanded=false}) {
+                                SheetLayouts.forRole(kind).forEach { slot ->
+                                    DropdownMenuItem(
+                                        text={Text(slot.label)},
+                                        onClick={
+                                            sources=sources.mapIndexed { i,item ->
+                                                if(i==index)item.first to slot.id else item
+                                            }
+                                            expanded=false
+                                        })
+                                }
+                            }
+                        }
+                        TextButton(onClick={
+                            sources=sources.filterIndexed{i,_->i!=index}
+                        }){Text("Remove")}
+                    }
                 }
             }
         }

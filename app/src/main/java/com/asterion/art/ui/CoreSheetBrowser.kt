@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,12 +38,14 @@ import com.asterion.art.core.CoreSheetBridge
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.SheetRole
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Core sheet selection uses searching only; no trait descriptions are authored. */
 @Composable
 fun CoreSheetBrowser(repo: ArtRepository, onQueued: () -> Unit) {
     val context = LocalContext.current
     val bridge = remember { CoreSheetBridge(context) }
+    val scope=rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<CoreCharacterSheet>>(emptyList()) }
     var failure by remember { mutableStateOf<String?>(null) }
@@ -91,19 +94,22 @@ fun CoreSheetBrowser(repo: ArtRepository, onQueued: () -> Unit) {
                         Text(sheet.characterName, color = White)
                         Text(sheet.seriesCode + " · " + sheet.characterId, color = Mist)
                         Button(
-                            enabled = selecting != sheet.sheetId,
+                            enabled = selecting==null,
                             onClick = {
                                 selecting = sheet.sheetId
-                                runCatching {
-                                    repo.importCoreCharacter(
-                                        sheet.characterId, sheet.sheetId, sheet.characterName,
-                                        sheet.uri.toString(), sheet.sha256)
-                                }.onSuccess {
-                                    selecting = null
-                                    onQueued()
-                                }.onFailure {
-                                    selecting = null
-                                    failure = it.message
+                                scope.launch {
+                                    runCatching {
+                                        bridge.verifySource(sheet)
+                                        repo.importCoreCharacter(
+                                            sheet.characterId,sheet.sheetId,
+                                            sheet.characterName,sheet.uri.toString(),sheet.sha256)
+                                    }.onSuccess {
+                                        selecting=null
+                                        onQueued()
+                                    }.onFailure {
+                                        selecting=null
+                                        failure=it.message
+                                    }
                                 }
                             }
                         ) { Text("Select reference") }
