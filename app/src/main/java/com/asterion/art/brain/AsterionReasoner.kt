@@ -9,6 +9,8 @@ import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.learning.CreativeMemoryStore
+import com.asterion.art.learning.LocalPreferenceModel
+import com.asterion.art.learning.OnlinePreferenceTraining
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -41,6 +43,7 @@ class AsterionReasoner(context:Context) {
     private val models=BrainModelStore(app)
     private val taxonomy by lazy { ConceptTaxonomy(app) }
     private val memory by lazy { CreativeMemoryStore(app) }
+    private val preferences by lazy { LocalPreferenceModel(app) }
     companion object {
         private val nativeMutex=Mutex()
         private const val SYSTEM =
@@ -69,12 +72,17 @@ class AsterionReasoner(context:Context) {
         val mode=domain.name
         val all=memory.list().filter { it.creationMode?.name==mode ||
             (it.creationMode==null && domain==CreativeDomain.ARTWORK) }
-        val kept=all.filter{it.status=="KEPT"}.takeLast(4)
+        val kept=preferences.rerank(all.filter{it.status=="KEPT"}).take(4)
         val rejected=all.filter{it.status=="REJECTED"}.takeLast(4)
         return buildString {
             if(kept.isNotEmpty()) {
                 append("\nUSER-KEPT DESIGN EXAMPLES (prefer these choices where relevant):\n")
-                kept.forEach { append(it.prompt.take(1500)).append('\n') }
+                val learned=preferences.state()
+                kept.forEach { selected ->
+                    append("Learned preference score: ")
+                    append(OnlinePreferenceTraining.score(learned,selected.prompt))
+                    append(" · ").append(selected.prompt.take(1500)).append('\n')
+                }
             }
             if(rejected.isNotEmpty()) {
                 append("\nUSER-REJECTED DESIGN EXAMPLES (avoid repeating their failure patterns):\n")
