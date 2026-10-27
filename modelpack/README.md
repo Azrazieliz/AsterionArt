@@ -1,63 +1,89 @@
-# Self-contained Asterion Art neural model packaging (source-only)
+# Asterion Art — embedded, private-use offline models
 
-**Status (2026-10-27): code committed, package NOT built, NOT device tested.**
+**Source-only state: NO APK build, NO installed model, NO runtime test.**
 
-The owner requires the AI models to be contained in the installed app, not fetched from Hugging Face by the phone. The default package spec embeds *exactly* these pinned Apache-2.0 components:
+The app is being prepared for the owner's private Android use. It does not
+require distribution through Play or a public model-sharing service. The
+installed program must not download its own models or call remote inference.
 
-| Role | Model | Exact expected bytes |
-|---|---|---:|
-| Design / interpretation reasoning | Qwen3 1.7B Q4_K_M GGUF | 1,107,409,472 |
-| Real image interpretation | Qwen3-VL 2B Q4_K_M GGUF | 1,107,409,952 |
-| Image-to-visual-embeddings projector | Qwen3-VL Q8_0 mmproj GGUF | 445,053,216 |
-| **Total** | | **2,659,872,640** |
+## Pinned actual weights
 
-These GGUF checkpoints are NOT interchangeable with the separate image-generation model. The neural image-generation QNN engine is already packaged as native runtime code; its actual multi-GB diffusion checkpoint is **not** included. This remains a separate blocking deliverable.
+| Component | Upstream exact file | Upstream digest |
+|---|---|---|
+| Planning | Qwen3-1.7B-Q4_K_M.gguf (1,107,409,472 bytes) | `b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897` |
+| Pixel-conditioned vision language | Qwen3VL-2B-Instruct-Q4_K_M.gguf (1,107,409,952 bytes) | `089d75c52f4b7ffc56ba998ffc50aae89fcafc755f9e7208aacca281dca6c2ae` |
+| Vision projector | mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf (445,053,216 bytes) | `f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82` |
+| Image generation | xororz/anima-qnn/rin_flanime_v1_turbo_qnn2.28_8gen3.zip (approximately 4.85 GB) | `e99dc63e7f2d6c125a44dbf0a347c011395fc60adc9a796cc5d02f1ee9e75b8c` |
 
-## Source-authoritative integration
+The precise image ZIP byte count will be measured by the packager (never
+fabricated from the upstream rounded size). The three GGUF files total
+2,659,872,640 bytes. The image checkpoint is the existing preferred Rin
+Flanime Anima QNN model, **not** the untested Fusion B merge. No image-quality
+or on-device compatibility claim is made by selecting this package.
 
-- `modelpack/models.json` is the immutable three-model source contract: exact filenames, repository, length and SHA-256.
-- `modelpack/prepare_embedded_models.py` downloads and SHA-256 checks those weights **on the authorized GitHub packaging runner only**. No weights enter the repository. Each weight is partitioned into 64 MiB `.chunk` assets in `app/build/generated/embeddedModelsAssets/asterion_bundle/`.
-- `app/build.gradle.kts` includes the generated assets and refuses to assemble a release with the model manifest absent. Automatic debug builds remain lightweight and need no model data.
-- `EmbeddedModelInstallWorker` starts at app launch when a full offline pack is present. It reads the local APK asset chunks, verifies SHA-256 per chunk and complete GGUF, and atomically installs into app-owned files / supported SD-card app storage. It never contacts any server or asks the user to select a model file.
-- Models already installed with matching metadata are reused; on interrupted extraction incomplete `.partial` files are reset and reconstructed exclusively from the same APK, without network.
-- Reasoning and Advanced Grading UIs show embedded-model preparation and readiness, not Get from Hugging Face.
-- `modelpack/verify_apk_embedded.py` validates the ACTUAL APK payload against pinned source checksums, independent of Android compilation.
-- `.github/workflows/embedded-model-packaging.yml` is a **manual-only** verification workflow, gated by explicit owner authorization, with **no release or APK upload**. It has NOT been dispatched.
+The Qwen GGUFs identify Apache-2.0 upstream licenses. The converted Rin QNN
+repository does not publish a model card with definitive downstream reuse and
+redistribution terms; it is treated as a **private-use integration only**.
+Do not turn this source package into a public redistribution without resolving
+model and Qualcomm runtime license terms.
 
-## Distribution and installation are unresolved
-
-1. The three selected neural weights occupy 2.66 GB alone. The APK will be bigger after Kotlin, native QNN, RealSR and other resources. We have NOT verified that Android will accept this single APK.
-2. GitHub Releases permits only assets smaller than 2 GiB each. Packaging an APK does not magically make a single downloadable release file under that limit. A tested distribution mechanism is necessary.
-3. On-device first-launch materialization requires additional writable space for native GGUF file paths. The app prefers its available app-owned external/SD storage when possible; no user-managed file downloads are needed.
-4. The device's available RAM and performance have not been validated for Qwen3-VL. CPU inference is the current conservative default; no false claim of Qualcomm acceleration.
-5. Long-image-prompt cross-attention remains limited by whichever actual diffusion checkpoint is installed. This model pack does NOT implement a larger diffusion text encoder.
-6. No compatible, license-approved, *device-proven* converted SDXL/Anima/DiT checkpoint was previously approved for redistribution as the app's default. For example, published QNN checkpoints commonly exceed 3 GB EACH and require platform-version compatibility validation. Do not attach arbitrary model weights or pretend the runtime itself is an image model.
-7. Persistent release signing needs the existing trusted key, which is not available in the GitHub repository. Do not silently create a new signing identity and call it an upgrade.
-8. No money spent. No PC access. No Android build performed.
-
-## Packaging preparation (not yet authorized to run)
+## Build-host preparation (NO APK built)
 
 ```sh
 python3 -m unittest discover -s modelpack -p 'test_*.py' -v
 python3 modelpack/prepare_embedded_models.py --output app/build/generated/embeddedModelsAssets
 python3 modelpack/prepare_embedded_models.py --output app/build/generated/embeddedModelsAssets --verify-only
-# Build requires explicit owner's authorization:
-# gradle --no-daemon :app:assembleRelease
-# python3 modelpack/verify_apk_embedded.py --apk app/build/outputs/apk/release/app-release-unsigned.apk
+python3 modelpack/prepare_embedded_image.py --output app/build/generated/embeddedModelsAssets
+python3 modelpack/prepare_embedded_image.py --output app/build/generated/embeddedModelsAssets --verify-only
 ```
 
-A PASS from these scripts verifies package bytes, not model inference quality or installability.
+These scripts retrieve weights on the build host, verify their exact published
+SHA-256, and create model chunks **inside generated Android assets**, never in
+Git source. Existing Qwen assets are kept under `asterion_bundle/`. Image QNN
+archive chunks are staged under `asterion_image_bundle/`. Neither workflow
+nor script executes Gradle or downloads anything onto the installed device.
 
-## Required next engineering gates
+The Android release asset-merge task now verifies **both** full staged model
+sets and fails closed if either is incomplete. `verify_apk_embedded.py` will
+independently inspect both sets inside an actual APK **only after the no-build
+restriction is lifted**.
 
-- Choose and verify image-generation QNN checkpoint licensing, chipset and model file layout. Decide safe packaging method for multi-GB assets.
-- Verify Android native compilation, Runtime `mtmd` operation and image-model decode on actual device (only after build restriction is lifted).
-- Make a demonstrably installable, persistently signed offline distribution that fits the publishing channel's limits.
-- Run at least one full clinical Character Creation 5-character, 15-view sheet; inspect real visual fidelity and validate targeted correction.
+## First launch, no manual file management
 
-## Additional source integrity gate (2026-10-27)
+The existing worker reads the packaged Qwen models, reconstructs verified
+filesystem GGUFs, then invokes the embedded Anima installer. The image archive
+is read sequentially from the packaged 64 MiB chunks and streamed directly
+into the existing `NativeModelLibrary` QNN tensor directory. Its complete
+SHA-256 is checked **before** atomic publication. No temporary full ZIP copy,
+content-provider chooser, cloud connection or separate model download.
 
-- Android now treats a manifest without its declared model chunks as **not packaged**, instead of announcing that the neural models are included. This lightweight presence check is not an SHA-256 test; complete checksums are verified on extraction.
-- Before any manually authorized release asset merge, Gradle invokes the stdlib-only offline `--verify-only` packager to hash every staged chunk and reconstruct the pinned complete-model SHA-256. Configure `ASTERION_PYTHON` only if the packaging host does not provide `python3`. No model download or Android build is initiated by this document or commit.
-- Post-assembly verification refuses misleading claims that image diffusion weights have been included when only the reviewed reasoning/VL/projector baseline has been staged.
-- This is **not** a complete integrated image-generation distribution. Installing a QNN checkpoint still requires a separate engineering and licensing decision, and final delivery must be tested against Android/publishing-channel size limits before any release.
+Interruption or a wrong digest deletes the unpublished partial native
+checkpoint. A successfully registered model is reused on the next launch.
+The existing optional user-driven import library is preserved.
+
+## Unavoidable installation-engineering blocker
+
+A private application containing these mandatory model weights needs more
+than 7 GB of packaged assets before executable/native code. **This is too large
+to assume a single normal Android APK is installable.** The code here prepares
+the mandatory data, but does NOT prove that Android's APK ZIP processing,
+installer, Gradle packaging, device storage or signing can handle such a
+single file. APK packaging and installation strategy remains technically
+unresolved; it cannot be hidden by a build-time checksum manifest.
+
+A non-Play, fully offline split-install package is a candidate; it must be
+investigated and verified before adopting its installation behavior. The
+owner's requirement remains that all weights are supplied with installation,
+not fetched later. There is no assumption of publishing/sharing the app.
+
+## Remaining quality gates
+
+- Compilation and actual Android installation, only after owner permits builds.
+- Real decoding with the pinned Anima QNN package on the target handset; correct
+  routing, runtime libraries, thermal/storage/RAM requirements.
+- Actual Qwen3-VL multimodal vision analysis and truthful machine uncertainty.
+- Visually inspect five authored characters and all fifteen front/side/rear
+  views in a complete Phase-1 sheet; evaluate anatomy, fusion, identity, style.
+- Train, compare and validate genuine compatible adapters before claiming
+  semantic self-learning or improved aesthetic inference.
+- Preserve the original rich taxonomy and other Originals' methodologies.

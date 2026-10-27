@@ -32,7 +32,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 
 - NO APK/build or test has been run since this branch diverged from main. Source-level changes and test cases exist, not runtime proof.
 - The embedded Qwen3 1.7B + Qwen3-VL + projector require ~2.66 GB APK assets, plus at least ~2.66 GB of temporary or persistent app-owned filesystem space after first launch (and additional device RAM for model execution); mobile throughput is unmeasured. The actual APK size and ability to install a >2GB APK are unverified.
-- **Critical gap:** The 6+ GB native image-generation QNN checkpoints remain unbundled; the build-time vision/LLM models alone do not make actual image generation self-contained. The project does not currently have a verified redistribution-safe, handset-compatible image checkpoint source.
+- **Updated source integration:** A pinned approximately 4.85 GB Rin Flanime v1 Turbo Anima/QNN archive is now staged through `image_sources.json` and `prepare_embedded_image.py`, with published SHA-256 and streaming first-launch installer, separate from the GGUF assets. No physical checkpoint bytes have yet been downloaded into a built artifact; Android packaging and runtime compatibility are NOT proven. This is a private-use integration, not redistribution clearance.
 - GitHub Releases limits each downloadable binary asset to <2 GiB. The full model-embedded APK may exceed this. Distribution through a direct single download has not been established and must not be claimed.
 - New heavy model packaging is manual-only, never launched by push or ordinary CI. Existing release signing identity is not available in GitHub; a persistent installable signed update has not been delivered.
 - `llama.cpp` multimodal `mtmd` is an experimental API and native compatibility with this device/model remains to be demonstrated.
@@ -45,7 +45,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 ## Next verification gates before release builds
 
 1. Android CMake/JNI compilation and Kotlin unit-test execution **only when the owner lifts the no-build restriction**.
-2. Authorize packaging and verify all THREE APK-embedded checkpoints; let first-launch model preparation finish without network; start/stop real native vision inference and measure memory/latency.
+2. Authorize packaging and verify all FOUR APK-embedded checkpoints (three GGUF components plus preconverted Anima QNN image archive); let first-launch model preparation finish without network; start/stop real native vision inference and measure memory/latency.
 3. Generate an approved 1-sheet/five-character Phase-1 test; verify all 15 actual front/side/rear images, anatomical correctness, backgrounds, concept embodiment and differentiation.
 4. Submit detailed user-approved grades for failing regions; verify the exact masked correction was applied while unmasked pixels remain bit-identical.
 5. Benchmark multiple generation attempts against prior output before claiming higher visual quality or release readiness.
@@ -55,3 +55,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 - Character Creation now observes asynchronous bundled Qwen3 readiness instead of retaining a stale initial “not installed” snapshot; no manual model import is required by this route.
 - When native conditioning selects a fallback image engine, the generation resolver retains the per-character upright triptych resolution policy instead of accidentally using the final sheet’s 16:9 landscape policy. The existing five-column white final composition and clinical Phase 1 specification are unchanged.
 - These are source corrections only. No APK/native compilation, device output, anatomy, or image-quality validation was performed.
+
+## Additional integrated QNN packaging source (same day)
+
+The new source path keeps all mandatory model weights inside package preparation: direct-from-APK streaming, exact image ZIP checksum before committing a recognized Anima model to `NativeModelLibrary`, and no mandatory post-install download. The current manual packaging workflow is now **strictly source-only**, with no Android build task. Since the complete weights exceed 7 GB, single-APK installation remains an explicit technical blocker, not a reason to omit image weights. No other Original methodology was modified.

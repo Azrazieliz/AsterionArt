@@ -70,7 +70,7 @@ def prepare(data: dict, output: Path, offline_dir: Path | None = None):
     try:
         with open_source(item, offline_dir) as source:
             first = source.read(4)
-            if first != b"PK\\x03\\x04".decode("unicode_escape").encode("latin1"):
+            if first != bytes((0x50, 0x4b, 0x03, 0x04)):
                 raise ValueError("Preconverted QNN image model is not a ZIP archive")
             pending = first
             while True:

@@ -13,6 +13,7 @@ from pathlib import Path
 import zipfile
 
 from prepare_embedded_models import read_specs
+from prepare_embedded_image import read_specs as read_image_specs
 
 def verify(apk: Path, spec_path: Path) -> dict:
     sources = read_specs(spec_path)
@@ -68,14 +69,59 @@ def verify(apk: Path, spec_path: Path) -> dict:
                 count+=1
             if total!=source["bytes"] or full.hexdigest()!=source["sha256"]:
                 raise ValueError("APK full neural model SHA-256 mismatch")
+        # Independently reconstruct the preconverted QNN ZIP archive digest
+        # from its actual APK assets. A declared image manifest alone never
+        # proves that the diffusion tensors are inside the package.
+        source = read_image_specs()["models"][0]
+        try:
+            image = json.loads(package.read(
+                "assets/asterion_image_bundle/manifest.json"))
+        except KeyError as exc:
+            raise ValueError("APK is missing its image-generation checkpoint") from exc
+        if (image.get("schema") != "asterion.embedded-image-pack.v1" or
+                image.get("offline_after_install") is not True or
+                image.get("on_device_download_required") is not False):
+            raise ValueError("Invalid image-model offline manifest")
+        item = image["model"]
+        if any(item.get(k) != source[k] for k in
+               ("id", "backend", "sha256", "filename", "label")):
+            raise ValueError("Unexpected APK QNN checkpoint")
+        if not (source["min_bytes"] <= item["bytes"] <= source["max_bytes"]):
+            raise ValueError("Invalid APK QNN archive length")
+        digest_all = hashlib.sha256()
+        observed = 0
+        parts = item["parts"]
+        if not parts or len(parts) > 100:
+            raise ValueError("Incomplete APK image-model parts")
+        for index, part in enumerate(parts):
+            expected = f"{source['id']}/part-{index:04d}.chunk"
+            if part["path"] != expected:
+                raise ValueError("Out-of-order APK image-model assets")
+            member = "assets/asterion_image_bundle/" + expected
+            info = package.getinfo(member)
+            if info.file_size != part["bytes"] or info.file_size > 64*1024*1024:
+                raise ValueError("APK image chunk length mismatch")
+            chunk_hash = hashlib.sha256()
+            with package.open(member) as stream:
+                while data := stream.read(1024*1024):
+                    digest_all.update(data)
+                    chunk_hash.update(data)
+                    observed += len(data)
+            if chunk_hash.hexdigest() != part["sha256"]:
+                raise ValueError("APK image chunk SHA-256 mismatch")
+        if observed != item["bytes"] or digest_all.hexdigest() != source["sha256"]:
+            raise ValueError("APK image-model complete SHA-256 mismatch")
         return {
             "verified_apk":str(apk),
-            "models":len(models),
-            "chunks":count,
-            "embedded_bytes":manifest["total_bytes"],
+            "reasoning_and_vision_models":len(models),
+            "reasoning_and_vision_chunks":count,
+            "reasoning_and_vision_bytes":manifest["total_bytes"],
+            "image_generation_model":item["id"],
+            "image_generation_chunks":len(parts),
+            "image_generation_bytes":observed,
             "release_signed":False,
             "real_device_tested":False,
-            "image_diffusion_weights_included":False,
+            "image_diffusion_weights_included":True,
         }
 
 def main():
