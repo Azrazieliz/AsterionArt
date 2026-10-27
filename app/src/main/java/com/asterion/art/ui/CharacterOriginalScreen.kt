@@ -46,7 +46,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     var error by remember{mutableStateOf<String?>(null)}
     var review by remember{mutableStateOf(false)}
     val model=remember(activePlanId){BrainModelStore(context).selected()}
-    val preparing=plan?.status in setOf("PENDING","DESIGNING")
+    val preparing=plan?.status=="PENDING"||plan?.status=="DESIGNING"
     val locked=preparing || plan?.ready==true
 
     LaunchedEffect(activePlanId) {
@@ -56,7 +56,9 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                 runCatching{store.load(id)}
             }
             fresh.onSuccess{plan=it}.onFailure{error=it.message}
-            if(fresh.getOrNull()?.status in setOf("READY","AUTHORIZED","FAILED"))
+            if(fresh.getOrNull()?.status=="READY"||
+                fresh.getOrNull()?.status=="AUTHORIZED"||
+                fresh.getOrNull()?.status=="FAILED")
                 break
             delay(1500L)
         }
@@ -236,7 +238,8 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     }
                 }
             }
-            if(plan?.status in setOf("FAILED","READY","AUTHORIZED")) {
+            if(plan?.status=="FAILED"||plan?.status=="READY"||
+                plan?.status=="AUTHORIZED") {
                 OutlinedButton(onClick={
                     plan=null;activePlanId=null;error=null
                 }){Text("Start a new population")}
