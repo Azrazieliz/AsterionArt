@@ -9,10 +9,10 @@ import com.asterion.art.model.SheetRole
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 
-/** Bounded-memory real image inputs for reference-capable Qwen/Klein backends. */
+/** Preserves source pixels for img2img and reference-conditioned QNN backends. */
 object SourceReferenceEncoder {
     private const val MAX_IMAGES = 10
-    private const val MAX_EDGE = 1200
+    private const val MAX_EDGE = 2048
 
     fun encode(context: Context,sheets: List<SheetRecord>): List<ByteArray> {
         val order=listOf(SheetRole.CHARACTER,SheetRole.ART_STYLE,
@@ -53,13 +53,23 @@ object SourceReferenceEncoder {
                     input,(input.width*ratio).toInt().coerceAtLeast(1),
                     (input.height*ratio).toInt().coerceAtLeast(1),true)
                 try {
-                    ByteArrayOutputStream().use { out ->
-                        check(render.compress(Bitmap.CompressFormat.JPEG,89,out))
-                        val bytes=out.toByteArray()
-                        require(bytes.size<=8_000_000) {
-                            "Reference is too large for NPU context"
+                    // Retain full precision whenever an image fits the
+                    // native reference budget. JPEG-89 was throwing away
+                    // identifying hair, line-art and texture information before
+                    // generation had even started.
+                    val lossless=ByteArrayOutputStream().use { out ->
+                        check(render.compress(Bitmap.CompressFormat.PNG,100,out))
+                        out.toByteArray()
+                    }
+                    if(lossless.size<=8_000_000)lossless
+                    else ByteArrayOutputStream().use { out ->
+                        check(render.compress(Bitmap.CompressFormat.JPEG,96,out))
+                        out.toByteArray().also{bytes->
+                            require(bytes.size<=8_000_000) {
+                                "Image too large for the native reference "+
+                                    "context even after high-quality encoding"
+                            }
                         }
-                        bytes
                     }
                 } finally { if(render!==input)render.recycle() }
             } finally { input.recycle() }
