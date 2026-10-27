@@ -11,6 +11,7 @@ import androidx.work.*
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.engine.GenerationPass
+import com.asterion.art.engine.ConditioningSchedule
 import com.asterion.art.engine.SourceReferenceEncoder
 import com.asterion.art.model.SheetRole
 import com.asterion.art.model.TaskKind
@@ -96,8 +97,12 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             }
             foreground("Loading local QNN model · "+primary.name)
             engine.prepare(primary,resolution.first,resolution.second){isStopped}
-            engine.verifyText(positive)
-            engine.verifyText(negative)
+            val sequence=ConditioningSchedule.compile(positive,negative,
+                engine::inspectText,maximumPasses=24)
+            repo.updateTaskProgress(task,0,sequence.chunks.size,
+                if(sequence.mode=="single_pass") "One-shot full-image inference"
+                else "Scheduling "+sequence.chunks.size+
+                    " verified image-conditioning passes without discarding details")
             val selected=repo.settings.copy(batch=1,ratio="9:16",
                 automatic=false,steps=repo.settings.steps.coerceAtLeast(25))
             val referencePixels=if(primary.ditKind in setOf("qwen21","klein"))
@@ -114,15 +119,32 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
                     }
                 }finally{decoded.recycle()}
             }else null
-            val denoise=if(previous!=null)0.78f else 1.0f
-            foreground("Generating complete master sheet in one native inference")
-            val output=engine.generate(GenerationPass(1,positive,negative,denoise),
-                selected,resolution.first,resolution.second,previous,
-                selected.seed?:System.currentTimeMillis(),
-                {isStopped},{done,total->
-                    repo.updateTaskProgress(task,done,total.coerceAtLeast(1),
-                        "One-shot sheet · "+done+"/"+total)
-                },referencePngs=referencePixels)
+            val startSeed=selected.seed?:System.currentTimeMillis()
+            var current=previous
+            for((index,chunk) in sequence.chunks.withIndex()){
+                if(isStopped)throw CancellationException()
+                val baseDenoise=if(index==0) {
+                    if(current!=null)0.78f else 1.0f
+                }else chunk.denoise.coerceAtMost(0.32f)
+                val message="Sheet generation "+(index+1)+
+                    "/"+sequence.chunks.size+
+                    " · native verified tokens "+chunk.verifiedTokens+
+                    "/"+chunk.verifiedLimit
+                foreground(message)
+                engine.verifyText(chunk.positive)
+                if(chunk.negative.isNotBlank())engine.verifyText(chunk.negative)
+                val output=engine.generate(
+                    GenerationPass(index+1,chunk.positive,chunk.negative,
+                        baseDenoise),selected,resolution.first,resolution.second,
+                    current,startSeed+index,{isStopped},{done,total->
+                        repo.updateTaskProgress(task,index,sequence.chunks.size,
+                            message+" · "+done+"/"+total.coerceAtLeast(1))
+                    },referencePngs=referencePixels)
+                current=output.png
+                repo.updateTaskProgress(task,index+1,sequence.chunks.size,
+                    "Finished verified image pass "+(index+1))
+            }
+            val output=requireNotNull(current){"Native model produced no master sheet"}
             val info=BitmapFactory.Options().apply{inJustDecodeBounds=true}
             BitmapFactory.decodeByteArray(output.png,0,output.png.size,info)
             require(info.outWidth>0&&info.outHeight>0){"Native model returned invalid image"}
