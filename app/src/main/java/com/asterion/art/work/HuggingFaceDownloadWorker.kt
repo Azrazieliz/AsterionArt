@@ -206,8 +206,6 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
                     check(partial.renameTo(target)){
                         "Could not finalize downloaded model file"
                     }
-                    OriginalCheckpointLibrary(applicationContext).registerDownloaded(
-                        target,fileName)
                     val meta=File(target.path+".json")
                     GeneratedImagePublisher.atomicWrite(meta,JSONObject().apply {
                         put("schema",1);put("repo",id);put("revision",rev)
