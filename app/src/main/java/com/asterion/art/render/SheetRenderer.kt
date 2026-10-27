@@ -15,6 +15,7 @@ import android.provider.MediaStore
 import com.asterion.art.model.SheetRecord
 import com.asterion.art.model.SheetRole
 import com.asterion.art.model.SheetLayouts
+import com.asterion.art.model.SheetPresentation
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import kotlin.math.min
@@ -25,131 +26,103 @@ import kotlin.math.max
  * It does not invent or annotate traits not supplied by their source.
  */
 object SheetRenderer {
-    const val MAX_REFS = 10
-    private const val WIDTH = 1600
-    private const val HEIGHT = 2620
-    private val navy = Color.rgb(31, 43, 68)
-    private val line = Color.rgb(197, 201, 215)
-    private val ivory = Color.rgb(249, 248, 246)
-    private val gold = Color.rgb(171, 133, 68)
+    const val MAX_REFS=SheetPresentation.MAX_REFS
+    private const val WIDTH=SheetPresentation.WIDTH
+    private const val HEIGHT=SheetPresentation.HEIGHT
+    private val navy=Color.rgb(34,46,69)
+    private val line=Color.rgb(201,209,219)
+    private val ivory=Color.rgb(249,250,252)
+    private val light=Color.rgb(240,242,247)
+    private val accent=Color.rgb(80,106,148)
 
     fun render(context: Context, sheet: SheetRecord): Uri {
-        require(sheet.sourceUris.isNotEmpty() && sheet.sourceUris.size <= MAX_REFS) {
-            "Reference count must be between 1 and $MAX_REFS."
+        require(sheet.sourceUris.isNotEmpty()&&sheet.sourceUris.size<=MAX_REFS) {
+            "Reference count must be between 1 and "+MAX_REFS
         }
-        val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(ivory)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = navy; textSize = 73f; typeface =
-            android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD) }
-        canvas.drawText(sheet.role.display.uppercase(Locale.ROOT) + " MASTER SHEET", 46f, 105f, paint)
-        paint.color = gold
-        canvas.drawRect(RectF(46f, 128f, 1554f, 138f), paint)
-        paint.color = navy
-        paint.textSize = 31f
-        paint.typeface = android.graphics.Typeface.DEFAULT
-        canvas.drawText("ASTERION ART  /  CANONICAL VISUAL REFERENCES", 49f, 176f, paint)
-
-        // Canonical panel ordering is determined by the typed sheet schema.
-        // A weapon or wing panel appears only if the source includes it.
-        val order = SheetLayouts.forRole(sheet.role).map { it.id }
-        val entries = sheet.sourceUris.mapIndexed { index, uri ->
-            val panel = sheet.referenceSlots.getOrNull(index) ?: "PRIMARY"
-            Triple(uri,panel,index)
-        }.sortedWith(compareBy<Triple<String,String,Int>> {
-            val priority=order.indexOf(it.second)
-            if(priority<0) Int.MAX_VALUE else priority
-        }.thenBy { it.third })
-        val slots = layout(sheet.role)
-        val histogram = linkedMapOf<Int,Int>()
-        entries.forEachIndexed { index, (uri,panel,_) ->
-            val region=slots[index]
-            val name=SheetLayouts.label(sheet.role,panel)
-            drawTile(context,canvas,uri,region,index==0,index+1,name,histogram)
+        // Older imported sheets may not have individually assigned panels.
+        // Their original source images must remain usable after an upgrade.
+        val assignment=sheet.sourceUris.indices.map{index->
+            sheet.referenceSlots.getOrNull(index)?:"PRIMARY"
         }
-
-        // Derived from actual supplied pixels, not generated color prose.
-        // Exclude near-white paper-background colors; preserve greys, metals and blacks.
-        val swatches = histogram.entries.sortedByDescending { it.value }
-            .map { it.key }.distinct().take(7)
-        val caption = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = navy
-            textSize = 20f
-            typeface = android.graphics.Typeface.DEFAULT
-        }
-        canvas.drawText("REFERENCE PIXEL COLORS",45f,2584f,caption)
-        val paintSwatch=Paint(Paint.ANTI_ALIAS_FLAG)
-        swatches.forEachIndexed { i,color ->
-            paintSwatch.color=color
-            val x=370f+i*126f
-            canvas.drawRoundRect(RectF(x,2545f,x+106f,2591f),5f,5f,paintSwatch)
-        }
-        caption.color=navy
-        canvas.drawText("REV "+sheet.structuredDataVersion,1450f,2584f,caption)
-
-        val encoded = ByteArrayOutputStream()
-        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, encoded)) { "PNG encoding failed" }
-        bitmap.recycle()
-        return saveImage(context, sheet, encoded.toByteArray())
-    }
-
-    private fun layout(role: SheetRole): List<RectF> {
-        val rects = mutableListOf<RectF>()
-        when(role) {
-            SheetRole.CHARACTER -> {
-                rects+=RectF(45f,208f,1043f,1668f)
-                repeat(3) { i ->
-                    rects+=RectF(1073f,208f+i*486f,1555f,208f+(i+1)*486f-20f)
-                }
-                repeat(6) { i ->
-                    val col=i%3
-                    val row=i/3
-                    rects+=RectF(45f+col*513f,1700f+row*407f,
-                        45f+col*513f+484f,1700f+row*407f+376f)
-                }
+        val plan=SheetPresentation.plan(sheet.role,assignment)
+        val bitmap=Bitmap.createBitmap(WIDTH,HEIGHT,Bitmap.Config.ARGB_8888)
+        try {
+            val canvas=Canvas(bitmap)
+            canvas.drawColor(ivory)
+            val header=Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color=navy
+                typeface=android.graphics.Typeface.create(
+                    "serif",android.graphics.Typeface.NORMAL)
+                textSize=56f
             }
-            SheetRole.ART_STYLE -> {
-                repeat(3) { i ->
-                    rects+=RectF(45f+i*513f,208f,
-                        45f+i*513f+484f,1228f)
-                }
-                repeat(7) { i ->
-                    val col=i%3
-                    val row=i/3
-                    rects+=RectF(45f+col*513f,1250f+row*419f,
-                        45f+col*513f+484f,1250f+row*419f+396f)
-                }
+            canvas.drawText(plan.title,34f,91f,header)
+            header.typeface=android.graphics.Typeface.DEFAULT
+            header.textSize=25f
+            header.color=accent
+            canvas.drawText(
+                "ASTERION ART  /  AUTHORITATIVE VISUAL REFERENCES",36f,135f,header)
+            val linePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{
+                color=line;strokeWidth=2f
             }
-            SheetRole.THEME -> {
-                rects+=RectF(45f,208f,1555f,1145f)
-                repeat(9) { i ->
-                    val col=i%3
-                    val row=i/3
-                    rects+=RectF(45f+col*513f,1168f+row*430f,
-                        45f+col*513f+484f,1168f+row*430f+400f)
-                }
+            canvas.drawLine(34f,157f,(WIDTH-34).toFloat(),157f,linePaint)
+            val histogram=linkedMapOf<Int,Int>()
+            plan.placements.forEachIndexed { index,placement ->
+                val bounds=placement.frame
+                val tile=RectF(bounds.left.toFloat(),bounds.top.toFloat(),
+                    bounds.right.toFloat(),bounds.bottom.toFloat())
+                drawTile(context,canvas,sheet.sourceUris[placement.sourceIndex],
+                    tile,placement.principal,index+1,
+                    SheetLayouts.label(sheet.role,placement.slot),histogram)
             }
-            SheetRole.ELEMENT -> {
-                rects+=RectF(45f,208f,1555f,1398f)
-                repeat(9) { i ->
-                    val col=i%3
-                    val row=i/3
-                    rects+=RectF(45f+col*513f,1420f+row*355f,
-                        45f+col*513f+484f,1420f+row*355f+331f)
-                }
+            val footer=plan.swatchArea
+            val text=Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color=navy
+                textSize=25f
+                typeface=android.graphics.Typeface.DEFAULT
             }
+            canvas.drawLine(footer.left.toFloat(),(footer.top-12).toFloat(),
+                footer.right.toFloat(),(footer.top-12).toFloat(),linePaint)
+            canvas.drawText("REFERENCE COLOR PALETTE",footer.left.toFloat(),
+                (footer.top+29).toFloat(),text)
+            text.textSize=19f
+            text.color=accent
+            canvas.drawText("DERIVED FROM SUPPLIED PIXELS",footer.left.toFloat(),
+                (footer.top+60).toFloat(),text)
+            val swatches=histogram.entries.sortedByDescending{it.value}
+                .map{it.key}.distinct().take(7)
+            val colorPaint=Paint(Paint.ANTI_ALIAS_FLAG)
+            swatches.forEachIndexed {i,color->
+                colorPaint.color=color
+                val x=footer.left+480+i*123f
+                canvas.drawRoundRect(
+                    RectF(x,(footer.top+12).toFloat(),x+102f,
+                        (footer.top+77).toFloat()),5f,5f,colorPaint)
+            }
+            text.color=navy
+            text.textSize=20f
+            canvas.drawText("REFERENCE "+sheet.role.display.uppercase(Locale.ROOT)+
+                "  ·  "+sheet.sourceUris.size+" SOURCE(S)",34f,2526f,text)
+            val revision="REV "+sheet.structuredDataVersion
+            canvas.drawText(revision,(WIDTH-34).toFloat()-text.measureText(revision),
+                2526f,text)
+            val png=ByteArrayOutputStream().use { bytes ->
+                check(bitmap.compress(Bitmap.CompressFormat.PNG,100,bytes))
+                bytes.toByteArray()
+            }
+            return saveImage(context,sheet,png)
+        } finally {
+            bitmap.recycle()
         }
-        return rects.take(MAX_REFS)
     }
 
     private fun drawTile(context: Context, canvas: Canvas, uri: String,
                          rect: RectF, primary: Boolean, index: Int, label: String,
                          histogram: MutableMap<Int,Int>) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        paint.color = Color.WHITE
-        canvas.drawRoundRect(rect, 12f, 12f, paint)
-        val inner = RectF(rect.left + 8f, rect.top + 8f, rect.right - 8f, rect.bottom - 46f)
-        paint.color = Color.rgb(244, 244, 242)
+        paint.color=Color.WHITE
+        canvas.drawRoundRect(rect,5f,5f,paint)
+        val inner=RectF(rect.left+8f,rect.top+8f,rect.right-8f,rect.bottom-53f)
+        paint.color=light
         canvas.drawRect(inner, paint)
         val image = decodePreview(context, Uri.parse(uri), max(inner.width().toInt(), inner.height().toInt()))
         try {
@@ -185,16 +158,21 @@ object SheetRenderer {
         paint.color = line
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 3f
-        canvas.drawRoundRect(rect, 12f, 12f, paint)
+        canvas.drawRoundRect(rect,5f,5f,paint)
         paint.style = Paint.Style.FILL
         paint.color = navy
-        paint.textSize = if (primary) 27f else 22f
-        paint.typeface = android.graphics.Typeface.create(
-            android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-        canvas.drawText(
-            (if (primary) "PRIMARY · " else index.toString().padStart(2, '0') + " · ") + label.uppercase(Locale.ROOT).take(29),
-            rect.left + 18f, rect.bottom - 15f, paint
-        )
+        paint.textSize=if(primary)25f else 20f
+        paint.typeface=android.graphics.Typeface.create(
+            android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD)
+        val caption=(if(primary) "PRIMARY · " else
+            index.toString().padStart(2,'0')+" · ")+label.uppercase(Locale.ROOT)
+        val available=rect.width()-30f
+        while(paint.measureText(caption)>available&&paint.textSize>12f)
+            paint.textSize-=1f
+        require(paint.measureText(caption)<=available) {
+            "Reference title does not fit the selected clean sheet layout"
+        }
+        canvas.drawText(caption,rect.left+15f,rect.bottom-16f,paint)
     }
 
     private fun decodePreview(context: Context, uri: Uri, target: Int): Bitmap {
