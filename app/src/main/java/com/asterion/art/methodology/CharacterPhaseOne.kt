@@ -139,6 +139,9 @@ object CharacterPrimaryResolver {
         }
     }
 }
+data class PairwisePhysicalFusion(val first:String,val second:String,
+    val mechanism:String)
+
 data class FrozenCharacter(
     val number:Int,
     val primary:List<PrimaryConcept>,
@@ -149,7 +152,9 @@ data class FrozenCharacter(
     val materials:String,
     val differentiation:String,
     val renderDescription:String,
-    val auditEvidence:String
+    val auditEvidence:String,
+    val pairwise:List<PairwisePhysicalFusion> = emptyList(),
+    val higherOrder:String = ""
 ) {
     val id:String get()=CharacterPhaseOne.label(number)
     fun validate() {
@@ -163,6 +168,22 @@ data class FrozenCharacter(
         }
         require(renderDescription.length>=600){
             id+": insufficient anatomically complete renderer description"
+        }
+        val requiredPairs=primary.flatMapIndexed{index,first->
+            primary.drop(index+1).map{second->first.name to second.name}
+        }
+        require(pairwise.size==requiredPairs.size){
+            id+": missing full pairwise concept-interaction matrix"
+        }
+        requiredPairs.forEach{(first,second)->
+            require(pairwise.any{pair->
+                ((pair.first.equals(first,true)&&pair.second.equals(second,true))||
+                 (pair.first.equals(second,true)&&pair.second.equals(first,true)))&&
+                    pair.mechanism.trim().length>=65
+            }){id+": unresolved shared physical mechanism for "+first+" and "+second}
+        }
+        if(primary.size>=3)require(higherOrder.trim().length>=110){
+            id+": missing consequential complete-set higher-order fusion mechanism"
         }
         val evidence=(anatomy+" "+faceEyesHair+" "+topology+" "+fusion+" "+
             materials+" "+renderDescription).lowercase()
@@ -201,7 +222,22 @@ object CharacterSheetCompiler {
             append("FROZEN SELF-CONTAINED ANATOMICAL CHARACTER PAYLOADS:\n")
             designs.forEach{design->
                 append("\nIDENTITY ").append(design.id).append("\n")
-                append(design.renderDescription.trim()).append("\n")
+                append("ANATOMY: ").append(design.anatomy).append("\n")
+                append("FACE, EYES AND HAIR: ").append(design.faceEyesHair).append("\n")
+                append("ROOTED TOPOLOGY: ").append(design.topology).append("\n")
+                append("FUSED BODY CONSTRUCTION: ").append(design.fusion).append("\n")
+                design.pairwise.forEach{physical->
+                    append("SHARED STRUCTURE OF ").append(physical.first)
+                        .append(" AND ").append(physical.second).append(": ")
+                        .append(physical.mechanism).append("\n")
+                }
+                if(design.higherOrder.isNotBlank())
+                    append("COMPLETE-SET PHYSICAL FUSION: ")
+                        .append(design.higherOrder).append("\n")
+                append("ILLUSTRATED MATERIAL ARCHITECTURE: ")
+                    .append(design.materials).append("\n")
+                append("FINAL SELF-CONTAINED CHARACTER: ")
+                    .append(design.renderDescription.trim()).append("\n")
             }
             append("COMPLETE SAME-IDENTITY VIEW LOCK: independently preserve " +
                 "every body, attachment root, anatomy, material and physical " +
