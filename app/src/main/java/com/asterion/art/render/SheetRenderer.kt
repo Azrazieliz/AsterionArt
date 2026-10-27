@@ -177,9 +177,12 @@ object SheetRenderer {
 
     private fun decodePreview(context: Context, uri: Uri, target: Int): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, bounds)
-        } ?: error("Reference source unavailable: $uri")
+        // With inJustDecodeBounds=true, decodeStream returns null on SUCCESS:
+        // the dimensions are populated in 'bounds'. Never apply an Elvis
+        // missing-source check to decodeStream's intentionally-null return.
+        val dimensionsStream=context.contentResolver.openInputStream(uri)
+            ?:error("Reference source unavailable: $uri")
+        dimensionsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
         require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Unsupported reference image" }
         var sample = 1
         while (max(bounds.outWidth / sample, bounds.outHeight / sample) > max(700, target * 2))
