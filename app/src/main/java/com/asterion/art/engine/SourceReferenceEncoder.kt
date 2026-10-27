@@ -18,15 +18,18 @@ object SourceReferenceEncoder {
         val order=listOf(SheetRole.CHARACTER,SheetRole.ART_STYLE,
             SheetRole.THEME,SheetRole.ELEMENT)
         val ordered=sheets.sortedBy { order.indexOf(it.role) }
-        val sources=ordered.flatMap { sheet ->
-            sheet.sourceUris.map { it to sheet.role.name }
-        }.distinctBy { it.first }
+        val sources=ordered.flatMap { it.sourceUris }.distinct()
+        return encodeUris(context,sources)
+    }
+
+    fun encodeUris(context:Context,uris:List<String>):List<ByteArray> {
+        val sources=uris.distinct()
         require(sources.isNotEmpty())
         require(sources.size<=MAX_IMAGES) {
             "Reference-capable backend received more than 10 distinct reference images. " +
                 "The source must be grouped into a bounded visual plan; no references were dropped."
         }
-        return sources.map { (uri,_) ->
+        return sources.map { uri ->
             val source=Uri.parse(uri)
             val bounds=BitmapFactory.Options().apply { inJustDecodeBounds=true }
             requireNotNull(context.contentResolver.openInputStream(source)).use {

@@ -14,6 +14,7 @@ import coil.compose.AsyncImage
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.learning.CreativeMemoryStore
+import com.asterion.art.learning.DesignReferenceSelection
 import com.asterion.art.learning.SavedDesign
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.TaskKind
@@ -48,15 +49,19 @@ fun DesignLibraryScreen(repo:ArtRepository) {
                 val origin=runCatching {
                     GenerationJobStore(context).load(design.jobId)
                 }.getOrNull()
-                val settings=(origin?.settings ?: repo.settings).copy(
-                    ratio="9:16",batch=1)
+                val originalSettings=origin?.settings ?: repo.settings
+                val selectedRatio=if(design.creationMode==null ||
+                    design.creationMode==com.asterion.art.model.CreationMode.STYLE_CORRECTION)
+                    originalSettings.ratio else "9:16"
+                val settings=originalSettings.copy(ratio=selectedRatio,batch=1)
+                val pixels=DesignReferenceSelection.images(design,memory.list())
                 val job=GenerationJobStore(context).create(
                     if(design.mode==RenderMode.ANIMATION) RenderMode.ANIME else design.mode,
                     design.sourceSheetIds,settings,design.creationMode,
                     origin?.sourceImageUri,origin?.concepts.orEmpty(),
                     design.prompt,design.negative,design.parents.ifEmpty {
                         listOf(design.id)
-                    })
+                    },designReferenceUris=pixels)
                 val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
                 GenerationWorker.enqueue(context,job.id,task.id)
             }
@@ -80,7 +85,7 @@ fun DesignLibraryScreen(repo:ArtRepository) {
                 Text("Negative prompt")
                 Text(requireNotNull(pending).negative,
                     maxLines=5,style=MaterialTheme.typography.bodySmall)
-                Text("The native tokenizer checks capacity before inference. The selected reference sheet remains unchanged.",
+                Text("The selected design's saved image pixels are carried into native image conditioning. Originals are unchanged; multi-design fusion requires a reference-capable installed model.",
                     style=MaterialTheme.typography.labelSmall)
             }
         },

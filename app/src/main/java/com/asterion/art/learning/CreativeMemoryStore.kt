@@ -56,6 +56,32 @@ object DesignFusionRules {
     }
 }
 
+/**
+ * Resolve real parent design pixels; a prompt is not a substitute for the
+ * individual source image. A multi-design catalogue must have its own saved crop.
+ */
+object DesignReferenceSelection {
+    fun images(design:SavedDesign,library:List<SavedDesign>):List<String> {
+        val byId=library.associateBy { it.id }
+        val parents=if(design.parents.isEmpty()) listOf(design)
+            else design.parents.map { id ->
+                byId[id] ?: error("Selected parent design is missing: "+id)
+            }
+        return parents.map { item ->
+            val multi=item.status=="CANDIDATE" &&
+                (item.creationMode?.let {
+                    com.asterion.art.methodology.DetailedMethodologies.all[it]
+                        ?.catalogue?.designsPerImage
+                } ?: 1)>1
+            if(multi) requireNotNull(item.previewUri) {
+                "This catalogue design has no saved individual image crop: "+item.id
+            } else item.previewUri ?: requireNotNull(item.sheetUri) {
+                "Selected design has no saved image pixels: "+item.id
+            }
+        }.distinct()
+    }
+}
+
 /** JSON file with atomic replace; references are not deleted by record changes. */
 class CreativeMemoryStore(context:Context) {
     private val appContext=context.applicationContext

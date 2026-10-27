@@ -148,6 +148,13 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
                 ?: models.firstOrNull { it.ditKind == "klein" }
             var model = models.firstOrNull { it.id == preferredId }
+            if(job.designReferenceUris.size>1 &&
+                model?.ditKind !in listOf("qwen21","klein")) {
+                model=visualModel ?: error(
+                    "Fusion of multiple saved design images requires an installed " +
+                    "reference-capable Qwen/Klein QNN model; source pixels cannot " +
+                    "be silently discarded or replaced with text alone.")
+            }
             var recipe = compilerAttempt.getOrNull()
             if (model == null || recipe == null) {
                 model = visualModel ?: error(
@@ -271,12 +278,22 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 SheetRecord(role=SheetRole.CHARACTER,label="Original source image",
                     sourceUris=listOf(uri),referenceSlots=listOf("PRIMARY"))
             }
+            val combinedSourceUris=sheets.flatMap { it.sourceUris }+
+                listOfNotNull(extraOriginal?.sourceUris?.firstOrNull())+
+                job.designReferenceUris
             val referenceInputs = if (model.ditKind == "qwen21" ||
-                model.ditKind == "klein") SourceReferenceEncoder.encode(
-                    applicationContext,if(extraOriginal!=null) sheets + extraOriginal else sheets)
-                else emptyList()
-            val originalImage = if(extraOriginal!=null) SourceReferenceEncoder.encode(
-                applicationContext,listOf(extraOriginal)).single() else null
+                model.ditKind == "klein") {
+                if(combinedSourceUris.isEmpty())emptyList()
+                else SourceReferenceEncoder.encodeUris(
+                    applicationContext,combinedSourceUris)
+            } else emptyList()
+            // Render changes from the selected individual design's real pixels,
+            // never a full multi-character catalogue or only its saved prompt.
+            val originalSource=job.designReferenceUris.singleOrNull()
+                ?:extraOriginal?.sourceUris?.firstOrNull()
+            val originalImage=originalSource?.let {
+                SourceReferenceEncoder.encodeUris(applicationContext,listOf(it)).single()
+            }
 
             val intermediate = File(applicationContext.filesDir,
                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
@@ -411,7 +428,11 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
-                    val methodStage = if(!job.designPrompt.isNullOrBlank()) stage
+                    val methodStage = if(!job.designPrompt.isNullOrBlank()) stage.copy(
+                        denoise=if(job.designReferenceUris.isNotEmpty() ||
+                            job.sourceImageUri!=null)candidateSettings.denoise
+                            else stage.denoise)
+                    
                     else if(characterPlan!=null)
                         stage.copy(positive=characterPlan.prompts[candidate-1],
                             negative=CharacterPhaseOne.NEGATIVE)
@@ -607,6 +628,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("results", JSONArray(out))
                 put("automated_scoring", "technical-only; sheet fidelity not evaluated")
                 put("native_reference_images", referenceInputs.size)
+                put("selected_design_image_count",job.designReferenceUris.size)
+                put("selected_design_source_pixels_preserved_as_inputs",
+                    job.designReferenceUris.isNotEmpty())
                 put("reference_model_kind", model.ditKind)
                 put("creation_methodology", job.creationMode?.name ?: JSONObject.NULL)
                 put("selected_concepts", JSONArray(job.concepts))

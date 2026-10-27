@@ -21,7 +21,8 @@ data class GenerationJob(
     val designPrompt: String? = null,
     val designNegative: String? = null,
     val parentDesignIds: List<String> = emptyList(),
-    val characterPlanId: String? = null
+    val characterPlanId: String? = null,
+    val designReferenceUris: List<String> = emptyList()
 )
 
 class GenerationJobStore(context: Context) {
@@ -34,11 +35,12 @@ class GenerationJobStore(context: Context) {
                designPrompt: String? = null,
                designNegative: String? = null,
                parentDesignIds: List<String> = emptyList(),
-               characterPlanId: String? = null): GenerationJob {
+               characterPlanId: String? = null,
+               designReferenceUris: List<String> = emptyList()): GenerationJob {
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
             settings, System.currentTimeMillis(),creationMode,sourceImageUri,
             concepts.distinct(),designPrompt,designNegative,parentDesignIds.distinct(),
-            characterPlanId)
+            characterPlanId,designReferenceUris.distinct())
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -62,6 +64,7 @@ class GenerationJobStore(context: Context) {
             put("design_prompt",job.designPrompt ?: JSONObject.NULL)
             put("design_negative",job.designNegative ?: JSONObject.NULL)
             put("design_parents",JSONArray(job.parentDesignIds))
+            put("design_reference_images",JSONArray(job.designReferenceUris))
             put("character_phase1_plan",job.characterPlanId ?: JSONObject.NULL)
             put("settings", s)
         }
@@ -106,7 +109,10 @@ class GenerationJobStore(context: Context) {
             root.optJSONArray("design_parents")?.let { arr ->
                 (0 until arr.length()).map { arr.getString(it) }
             }.orEmpty(),
-            root.optString("character_phase1_plan","").takeIf { it.isNotBlank() && it!="null" }
+            root.optString("character_phase1_plan","").takeIf { it.isNotBlank() && it!="null" },
+            root.optJSONArray("design_reference_images")?.let { arr ->
+                (0 until arr.length()).map { arr.getString(it) }
+            }.orEmpty()
         )
     }
 }
