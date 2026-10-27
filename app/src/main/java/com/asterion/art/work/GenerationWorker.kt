@@ -185,6 +185,21 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
                     job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
             }
+            // Additional user direction composes with, rather than replaces,
+            // each reference authority. Originals retain their own method.
+            if(job.creationMode==null &&
+                (job.userScenePrompt.isNotBlank()||job.userNegativePrompt.isNotBlank())) {
+                recipe=recipe.copy(passes=recipe.passes.map {pass ->
+                    pass.copy(
+                        positive=pass.positive+
+                            if(job.userScenePrompt.isBlank())"" else
+                                "\n\nUSER SCENE DIRECTION (PRESERVE CANONICAL REFERENCES):\n"+
+                                    job.userScenePrompt,
+                        negative=pass.negative+
+                            if(job.userNegativePrompt.isBlank())"" else
+                                ", "+job.userNegativePrompt)
+                })
+            }
             // Perform true neural interpretation/synthesis/prompt compilation
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
