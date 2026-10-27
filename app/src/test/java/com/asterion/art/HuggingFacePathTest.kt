@@ -50,4 +50,13 @@ class HuggingFacePathTest {
                 revision+"?cursor=2>; rel=\"next\"")
         }.isFailure)
     }
+    @Test fun modelComponentsRemainSelectableWithoutBeingAdvertisedAsRunnable() {
+        listOf("model.safetensors","diffusion_pytorch_model.bin",
+            "tokenizer.json","config.json","merges.txt","sentencepiece.model",
+            "model_index.json","weights.onnx","adapter.pt","model.gguf").forEach{
+            assertTrue("Missing Hub dependency: "+it,HubPath.supportsFileSelection(it))
+        }
+        assertFalse(HubPath.supportsFileSelection("unsafe-script.py"))
+        assertFalse(HubPath.supportsFileSelection("README.md"))
+    }
 }
