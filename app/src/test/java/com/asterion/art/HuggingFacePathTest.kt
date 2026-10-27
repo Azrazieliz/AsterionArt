@@ -59,4 +59,15 @@ class HuggingFacePathTest {
         assertFalse(HubPath.supportsFileSelection("unsafe-script.py"))
         assertFalse(HubPath.supportsFileSelection("README.md"))
     }
+    @Test fun repositorySearchAndTreeEndpointsBothRemainAllowed() {
+        HubPagination.requireOfficialApiUrl(
+            "https://huggingface.co/api/models?search=qwen3&limit=30")
+        HubPagination.requireOfficialApiUrl(
+            "https://huggingface.co/api/models/user/repository/tree/"+
+                "a".repeat(40)+"?expand=true")
+        assertTrue(runCatching{
+            HubPagination.requireOfficialApiUrl(
+                "https://huggingface.co.evil.example/api/models?search=qwen3")
+        }.isFailure)
+    }
 }
