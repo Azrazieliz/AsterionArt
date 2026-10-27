@@ -31,6 +31,7 @@ import com.asterion.art.learning.PreferenceLearning
 import com.asterion.art.learning.CreativeMemoryStore
 import com.asterion.art.learning.SavedDesign
 import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.engine.DesignPreviewCrops
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.methodology.DetailedMethodologies
 import com.asterion.art.engine.GenerationRecipe
@@ -288,6 +289,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         DetailedMethodologies.all[it]?.catalogue?.designsPerImage
                     } ?: 1
                 val memory=CreativeMemoryStore(applicationContext)
+                val layout=if(job.designPrompt!=null) null else job.creationMode?.let {
+                    DetailedMethodologies.all[it]?.catalogue }
+                val columns=layout?.columns ?: 1
+                val rows=layout?.rows ?: 1
                 val blueprints=if(job.creationMode==CreationMode.CHARACTER &&
                     job.designPrompt==null) DesignBlueprintEngine.population(job.concepts,resolver=taxonomy)
                     else emptyList()
@@ -299,6 +304,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                             UniversalCreativePlanner.domain(job.creationMode),
                             job.concepts,index+(candidate-1)*perSheet,
                             stageSequence.first().positive)
+                    val preview=runCatching {
+                        DesignPreviewCrops.generate(applicationContext,image,job.id,
+                            ordinal,index,columns,rows)
+                    }.getOrNull()
                     memory.upsert(SavedDesign(
                         id=job.id+"-D"+ordinal.toString().padStart(3,'0'),
                         jobId=job.id,mode=job.mode,creationMode=job.creationMode,
@@ -307,7 +316,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                             job.designPrompt==null) DesignBlueprintEngine.negative()
                             else stageSequence.first().negative,sheetUri=uri.toString(),
                         status=if(job.designPrompt!=null)"REVISION" else "CANDIDATE",
-                        parents=job.parentDesignIds,sourceSheetIds=job.sheetIds))
+                        parents=job.parentDesignIds,sourceSheetIds=job.sheetIds,
+                        previewUri=preview))
                 }
                 val coreSync = runCatching {
                     CoreResultUploader(applicationContext).upload(

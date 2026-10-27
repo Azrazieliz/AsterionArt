@@ -112,7 +112,7 @@ fun DesignLibraryScreen(repo:ArtRepository) {
                 selected=if(active) selected-item.id else selected+item.id
             },modifier=Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(10.dp),horizontalArrangement=Arrangement.spacedBy(9.dp)) {
-                    item.sheetUri?.let { uri ->
+                    (item.previewUri ?: item.sheetUri)?.let { uri ->
                         AsyncImage(model=Uri.parse(uri),contentDescription="Source sheet",
                             contentScale=ContentScale.Fit,modifier=Modifier.size(100.dp,105.dp))
                     }

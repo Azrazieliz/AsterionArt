@@ -25,7 +25,8 @@ data class SavedDesign(
     val status: String = "CANDIDATE",
     val parents: List<String> = emptyList(),
     val sourceSheetIds: List<String> = emptyList(),
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val previewUri: String? = null
 )
 
 object DesignFusionRules {
@@ -83,7 +84,8 @@ class CreativeMemoryStore(context:Context) {
                     v.optString("status","CANDIDATE"),
                     (0 until p.length()).map { p.getString(it) },
                     (0 until references.length()).map { references.getString(it) },
-                    v.optLong("created",0))
+                    v.optLong("created",0),
+                    v.optString("preview_uri","").takeIf { it.isNotBlank() })
             }.getOrNull()
         }
     }
@@ -97,6 +99,7 @@ class CreativeMemoryStore(context:Context) {
         put("parents",JSONArray(x.parents))
         put("source_sheets",JSONArray(x.sourceSheetIds))
         put("created",x.createdAt)
+        put("preview_uri",x.previewUri ?: "")
     }
     private fun save(all:List<SavedDesign>) {
         file.parentFile?.mkdirs()
