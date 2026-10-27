@@ -53,6 +53,7 @@ import com.asterion.art.model.RenderMode
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.SheetRecord
 import com.asterion.art.model.SheetRole
+import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
