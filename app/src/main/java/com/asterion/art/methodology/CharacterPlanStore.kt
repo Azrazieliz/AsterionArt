@@ -77,6 +77,11 @@ class CharacterPlanStore(context:Context) {
         put("differentiation",d.differentiation)
         put("render_description",d.renderDescription)
         put("audit_evidence",d.auditEvidence)
+        put("pairwise",JSONArray(d.pairwise.map{pair->
+            JSONObject().put("first",pair.first).put("second",pair.second)
+                .put("mechanism",pair.mechanism)
+        }))
+        put("higher_order",d.higherOrder)
     }
     private fun frozenFromJson(d:JSONObject)=FrozenCharacter(
         d.getInt("number"),d.getJSONArray("primary").let{a->
@@ -84,11 +89,18 @@ class CharacterPlanStore(context:Context) {
         },d.getString("anatomy"),d.getString("face_eyes_hair"),
         d.getString("topology"),d.getString("fusion"),
         d.getString("materials"),d.getString("differentiation"),
-        d.getString("render_description"),d.getString("audit_evidence"))
+        d.getString("render_description"),d.getString("audit_evidence"),
+        d.getJSONArray("pairwise").let{items->
+            (0 until items.length()).map {i->
+                val item=items.getJSONObject(i)
+                PairwisePhysicalFusion(item.getString("first"),
+                    item.getString("second"),item.getString("mechanism"))
+            }
+        },d.optString("higher_order",""))
     @Synchronized fun persist(p:CharacterPhaseOnePlan) {
         if(p.ready)p.assertComplete()
         val data=JSONObject().apply {
-            put("schema","asterion.character-phase1.v2")
+            put("schema","asterion.character-phase1.v3")
             put("id",p.id);put("created_at",p.createdAt)
             put("sheets",p.sheets);put("slots",JSONArray(p.slots))
             put("seed",p.seed);put("status",p.status)
@@ -110,7 +122,7 @@ class CharacterPlanStore(context:Context) {
     }
     @Synchronized fun load(id:String):CharacterPhaseOnePlan {
         val j=JSONObject(file(id).readText(Charsets.UTF_8))
-        require(j.getString("schema")=="asterion.character-phase1.v2")
+        require(j.getString("schema")=="asterion.character-phase1.v3")
         fun JSONObject.optional(k:String)=optString(k,"")
             .takeIf{it.isNotBlank()&&it!="null"}
         fun JSONArray.strings()=(0 until length()).map{getString(it)}
