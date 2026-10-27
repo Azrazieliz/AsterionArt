@@ -46,8 +46,8 @@ data class GeneratedImage(val png: ByteArray, val seed: Long, val timeMs: Long)
 class BackendUnavailable(message: String): IllegalStateException(message)
 
 /**
- * Talks ONLY to the existing on-device Local Dream host over loopback.
- * For a fully fused single APK a native provider must replace this adapter.
+ * Native image protocol adapter for Asterion's embedded QNN subprocess
+ * (18081), with separate opt-in legacy compatibility on port 8081.
  */
 class LocalDreamBridge(private val generationPort: Int = 8081) : StillImageEngine {
     init { require(generationPort in 1024..65535) }
@@ -71,8 +71,13 @@ class LocalDreamBridge(private val generationPort: Int = 8081) : StillImageEngin
             }
             return JSONObject(c.inputStream.bufferedReader().use { it.readText() })
         } catch (e: java.net.ConnectException) {
-            throw BackendUnavailable("On-device Local Dream host is not running. " +
-                "Activate the compatible host backend or install the embedded QNN engine.")
+            throw BackendUnavailable(
+                if(generationPort==18081)
+                    "Asterion Art's embedded native QNN inference service is unavailable "+
+                    "on its loopback port. Check the model load task and native log; "+
+                    "a separate Local Dream application is not required."
+                else "Optional external Local Dream compatibility host is unavailable."
+            )
         } finally {
             c.disconnect()
         }
