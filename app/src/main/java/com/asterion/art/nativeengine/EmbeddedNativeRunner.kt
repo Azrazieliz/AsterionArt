@@ -1,6 +1,7 @@
 package com.asterion.art.nativeengine
 
 import android.content.Context
+import android.app.ActivityManager
 import com.asterion.art.engine.BackendUnavailable
 import java.io.File
 import java.net.HttpURLConnection
@@ -64,7 +65,8 @@ class EmbeddedNativeRunner(private val context: Context) {
     @Synchronized fun prepare(model: InstalledQnnModel, width:Int,height:Int,
                               cancelled:()->Boolean) {
         require(width in 256..2048 && height in 256..2048)
-        val signature=model.id+":"+width+":"+height
+        val profile=NativeInferenceProfiles.get(context)
+        val signature=model.id+":"+width+":"+height+":"+profile.name
         if (process?.isAlive == true && currentSignature==signature && healthy()) return
         release()
         val executable=File(context.applicationInfo.nativeLibraryDir,BINARY)
@@ -77,8 +79,14 @@ class EmbeddedNativeRunner(private val context: Context) {
         )
         when(model.backend) {
             "anima","sdxl" -> {
-                command+=listOf("--lib_dir",libs.absolutePath,"--lowram")
-                if(model.backend=="anima") command+="--anima_seq_dit"
+                val memory=ActivityManager.MemoryInfo()
+                (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+                    .getMemoryInfo(memory)
+                val decision=NativeInferenceProfiles.decide(
+                    model.backend,profile,memory.totalMem,memory.availMem)
+                command+=listOf("--lib_dir",libs.absolutePath)
+                if(decision.lowRam) command+="--lowram"
+                if(decision.sequentialDiT) command+="--anima_seq_dit"
             }
             "zimage","klein","qwen21","krea2turbo" -> {
                 val dit=File(context.applicationInfo.nativeLibraryDir,"libdit_engine.so")

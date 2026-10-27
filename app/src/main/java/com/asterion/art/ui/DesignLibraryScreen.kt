@@ -98,7 +98,7 @@ fun DesignLibraryScreen(repo:ArtRepository) {
         }
         item {
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick={refresh}) { Text("Refresh") }
+                OutlinedButton(onClick={refresh()}) { Text("Refresh") }
                 OutlinedButton(onClick={selected=emptySet()}) { Text("Clear selection") }
             }
             message?.let { Text(it,style=MaterialTheme.typography.bodySmall) }

@@ -296,12 +296,14 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         else UniversalCreativePlanner.individual(
                             UniversalCreativePlanner.domain(job.creationMode),
                             job.concepts,index+(candidate-1)*perSheet,
-                            methodStage.positive)
+                            stageSequence.first().positive)
                     memory.upsert(SavedDesign(
                         id=job.id+"-D"+ordinal.toString().padStart(3,'0'),
                         jobId=job.id,mode=job.mode,creationMode=job.creationMode,
                         ordinal=ordinal,sheetNumber=candidate,prompt=specification,
-                        negative=methodStage.negative,sheetUri=uri.toString(),
+                        negative=if(job.creationMode==CreationMode.CHARACTER &&
+                            job.designPrompt==null) DesignBlueprintEngine.negative()
+                            else stageSequence.first().negative,sheetUri=uri.toString(),
                         status=if(job.designPrompt!=null)"REVISION" else "CANDIDATE",
                         parents=job.parentDesignIds,sourceSheetIds=job.sheetIds))
                 }

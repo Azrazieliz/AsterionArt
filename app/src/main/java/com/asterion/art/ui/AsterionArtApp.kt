@@ -84,6 +84,8 @@ import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
 import com.asterion.art.nativeengine.EmbeddedNativeRunner
 import com.asterion.art.nativeengine.NativeModelLibrary
+import com.asterion.art.nativeengine.NativeInferenceProfiles
+import com.asterion.art.nativeengine.MemoryProfile
 import com.asterion.art.model.SheetRecord
 import com.asterion.art.model.SheetRole
 import com.asterion.art.model.GradedAsset
@@ -832,6 +834,8 @@ private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit,
 
 @Composable
 private fun ParametersScreen(repo: ArtRepository) {
+    val context=LocalContext.current
+    var profile by remember { mutableStateOf(NativeInferenceProfiles.get(context)) }
     var local by remember(repo.settings) { mutableStateOf(repo.settings) }
     fun save(value: com.asterion.art.model.GeneratorSettings) {
         local = value
@@ -846,6 +850,20 @@ private fun ParametersScreen(repo: ArtRepository) {
                 items(ArtPolicies.selectableRatios) { ratio ->
                     FilterChip(selected = local.ratio == ratio,
                         onClick = { save(local.copy(ratio = ratio)) }, label = { Text(ratio) })
+                }
+            }
+        }
+        item {
+            Text("NATIVE INFERENCE MEMORY",color=Gold)
+            Text("Auto uses the safe mode. Performance attempts persistent QNN graphs " +
+                "only with sufficient free RAM; it may fail on some model conversions.",
+                color=Mist,style=MaterialTheme.typography.bodySmall)
+            LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                items(MemoryProfile.entries.toList()) { item ->
+                    FilterChip(selected=item==profile,onClick={
+                        NativeInferenceProfiles.set(context,item)
+                        profile=item
+                    },label={Text(item.label)})
                 }
             }
         }
