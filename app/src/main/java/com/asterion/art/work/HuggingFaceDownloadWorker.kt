@@ -16,6 +16,7 @@ import com.asterion.art.model.TaskStatus
 import com.asterion.art.models.HubPath
 import com.asterion.art.nativeengine.NativeModelLibrary
 import com.asterion.art.nativeengine.OriginalCheckpointLibrary
+import com.asterion.art.nativeengine.OriginalCheckpointLibrary
 import com.asterion.art.vision.VisionCatalog
 import com.asterion.art.vision.VisionModelStore
 import kotlinx.coroutines.Dispatchers
@@ -74,8 +75,17 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
                 id=="Qwen/Qwen3-VL-2B-Instruct-GGUF"&&it.name==fileName&&
                     (expected==null||it.sha256.equals(expected,true))
             }
-            val root=File(applicationContext.filesDir,"hf-library")
-                .also{check(it.mkdirs()||it.isDirectory)}
+            val app=applicationContext
+            // Choose an app-owned volume with enough space before downloading
+            // multi-gigabyte original checkpoints; never duplicate existing weights.
+            val candidateRoots=(app.getExternalFilesDirs(null).filterNotNull()
+                .map{File(it,"hf-library")}+
+                File(app.filesDir,"hf-library"))
+            val required=if(size>0)size+128L*1024*1024 else 512L*1024*1024
+            val root=candidateRoots.firstOrNull {
+                (it.parentFile?.usableSpace?:0L)>required
+            }?:error("No app-owned volume has enough space for this model")
+            check(root.mkdirs()||root.isDirectory)
             val folder=File(root,rev+"/"+id).also{
                 check(it.mkdirs()||it.isDirectory)
             }
@@ -205,7 +215,13 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
                         put("file",path);put("size",target.length())
                         put("sha256",actual);put("runnable",false)
                     }.toString().toByteArray())
-                    "Saved original model file; conversion/compatible runtime needed before inference"
+                    val indexed=OriginalCheckpointLibrary(applicationContext)
+                        .registerDownloaded(target,id+"/"+path)
+                    if(indexed!=null)
+                        "Indexed downloaded "+indexed.format+
+                            " in Model Library; conversion/compatible runtime still required"
+                    else
+                        "Saved supporting model file; a compatible runtime is required"
                 }
             }
             repo.updateTaskProgress(task,100,100,message,size,size)

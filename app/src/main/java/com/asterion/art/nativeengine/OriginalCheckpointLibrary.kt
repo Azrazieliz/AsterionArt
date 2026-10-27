@@ -56,10 +56,12 @@ class OriginalCheckpointLibrary(private val context: Context) {
      */
     @Synchronized fun registerDownloaded(file:File,label:String):OriginalCheckpoint? {
         val canonical=file.canonicalFile
-        val allowed=File(context.applicationContext.filesDir,
-            "hf-library").canonicalFile
-        require(canonical.path.startsWith(allowed.path+File.separator) &&
-            canonical.isFile){"Downloaded model is outside verified private storage"}
+        val app=context.applicationContext
+        val allowed=listOf(File(app.filesDir,"hf-library"))+
+            app.getExternalFilesDirs(null).filterNotNull().map{File(it,"hf-library")}
+        require(canonical.isFile && allowed.any { candidate ->
+            canonical.path.startsWith(candidate.canonicalPath+File.separator)
+        }){"Downloaded model is outside verified app-owned Hub storage"}
         val extension=canonical.extension.lowercase()
         if(extension !in setOf("safetensors","gguf","ckpt","pt","pth"))
             return null

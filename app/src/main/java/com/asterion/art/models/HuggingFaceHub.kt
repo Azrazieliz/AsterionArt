@@ -93,7 +93,7 @@ class HuggingFaceHub {
         val id=HubPath.repository(repo.id)
         val revision=HubPath.revision(repo.revision)
         val raw=get("https://huggingface.co/api/models/"+id+"/tree/"+revision+
-            "?recursive=true&expand=false")
+            "?recursive=true&expand=true")
         val tree=JSONArray(raw)
         require(tree.length()<=5000){"Repository contains too many files to browse"}
         return (0 until tree.length()).mapNotNull{index->
