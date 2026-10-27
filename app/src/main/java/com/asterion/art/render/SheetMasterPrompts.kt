@@ -117,7 +117,7 @@ object SheetMasterPrompts {
                 "Do not graft a separate floating foreign object onto a character."
         }
         return PREFIX+study+(if(evidence.isBlank())"" else
-            " VERIFIED VISIBLE REFERENCE OBSERVATIONS: "+evidence.take(1600))
+            " UNVERIFIED MACHINE OBSERVATIONS (CHECK AGAINST SOURCE PIXELS): "+evidence)
     }
     fun negative(role:SheetRole):String {
         val base="poor image quality, low-detail placeholders, duplicated panels, "+

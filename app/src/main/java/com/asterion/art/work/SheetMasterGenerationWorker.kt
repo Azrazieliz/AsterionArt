@@ -28,7 +28,7 @@ import java.util.concurrent.CancellationException
 import kotlin.math.abs
 
 /**
- * Real one-shot neural master-sheet generation from ONE source image by default.
+ * Native, reference-conditioned master-sheet generation from ONE source image by default.
  * No per-panel crop copying, no multi-photo requirement, no artificial success.
  */
 class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
@@ -77,9 +77,27 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
                     })
                 evidence.single().all().joinToString(" ")
             }else ""
-            val positive=SheetMasterPrompts.positive(
+            val basePositive=SheetMasterPrompts.positive(
                 sheet.role,observations,sheet.originatingOriginal)
-            val negative=SheetMasterPrompts.negative(sheet.role)
+            val baseNegative=SheetMasterPrompts.negative(sheet.role)
+            val reasoner=com.asterion.art.brain.AsterionReasoner(app)
+            val neural=if(reasoner.available()){
+                foreground("Interpreting source anatomy and sheet construction")
+                reasoner.compile(
+                    domain=com.asterion.art.engine.UniversalCreativePlanner
+                        .sheetDomain(sheet.role),
+                    canonicalMethod=basePositive,
+                    concepts=emptyList(),basePositive=basePositive,
+                    baseNegative=baseNegative,jobId=sheet.id,
+                    candidateCount=1,
+                    sheetSources=listOf(observations).filter{it.isNotBlank()},
+                    onStage={stage->repo.updateTaskProgress(task,0,0,stage)},
+                    creationMode=sheet.originatingOriginal)
+            }else null
+            val positive=basePositive+if(neural==null)""
+                else "\n\nOFFLINE NEURAL MASTER-SHEET DESIGN PLAN:\n"+neural.positive
+            val negative=baseNegative+if(neural==null||neural.negative.isBlank())""
+                else ", "+neural.negative
             engine=EmbeddedEngineFactory.open(app)
             val models=engine.installedModels()
             require(models.isNotEmpty()){"Install a compatible local image-generation model"}
