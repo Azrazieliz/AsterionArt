@@ -144,8 +144,11 @@ class CharacterPlanStore(context:Context) {
     }
     @Synchronized fun begin(id:String):CharacterPhaseOnePlan {
         val plan=load(id)
-        require(plan.status=="PENDING"){"Plan has already entered design resolution"}
-        return plan.copy(status="DESIGNING").also(::persist)
+        require(plan.status=="PENDING"||plan.status=="DESIGNING") {
+            "Plan has already been finalized or failed"
+        }
+        return if(plan.status=="DESIGNING")plan
+        else plan.copy(status="DESIGNING").also(::persist)
     }
     @Synchronized fun progress(id:String,
              resolved:List<CharacterSelection>,frozen:List<FrozenCharacter>) {
