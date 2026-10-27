@@ -25,6 +25,7 @@ fun HuggingFaceModelBrowser(selectedFamily:String="auto") {
     var repositories by remember{mutableStateOf<List<HubRepository>>(emptyList())}
     var chosen by remember{mutableStateOf<HubRepository?>(null)}
     var files by remember{mutableStateOf<List<HubModelFile>>(emptyList())}
+    var fileFilter by remember{mutableStateOf("")}
     var error by remember{mutableStateOf<String?>(null)}
     Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
         Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
@@ -63,9 +64,17 @@ fun HuggingFaceModelBrowser(selectedFamily:String="auto") {
                 val model=requireNotNull(chosen)
                 Text(model.id,color=White)
                 Text("Pinned revision: "+model.revision.take(14),color=Mist)
+                OutlinedTextField(value=fileFilter,onValueChange={fileFilter=it},
+                    label={Text("Filter model filenames")},singleLine=true,
+                    modifier=Modifier.fillMaxWidth())
                 OutlinedButton(onClick={chosen=null;files=emptyList()}){Text("Back to results")}
                 if(files.isEmpty())Text("No supported model files found in this repository",color=Mist)
-                files.forEach{file->
+                val matches=files.filter{file->
+                    fileFilter.isBlank()||file.path.contains(fileFilter,ignoreCase=true)
+                }
+                Text(matches.size.toString()+" matching file(s); showing up to 40. "+
+                    "Use filename filtering for large repositories.",color=Mist)
+                matches.take(40).forEach{file->
                     Column(verticalArrangement=Arrangement.spacedBy(3.dp)){
                         Text(file.path,color=White)
                         Text(file.kind+" · "+
