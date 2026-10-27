@@ -9,9 +9,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-/** Persistent explicit user decisions across sheets, modes and generations.
- * This is adaptive design memory, NOT training or modification of model weights.
- */
+/** Candidate selection and revision history; never an implicit training or grading event. */
 data class SavedDesign(
     val id: String,
     val jobId: String,
@@ -82,7 +80,9 @@ class CreativeMemoryStore(context:Context) {
                     v.optInt("ordinal",1),v.optInt("sheet",1),
                     v.getString("positive"),v.optString("negative",""),
                     v.optString("sheet_uri","").takeIf{it.isNotBlank()},
-                    v.optString("status","CANDIDATE"),
+                    v.optString("status","CANDIDATE").let {
+                        if(it=="KEPT"||it=="REJECTED")"CANDIDATE" else it
+                    },
                     (0 until p.length()).map { p.getString(it) },
                     (0 until references.length()).map { references.getString(it) },
                     v.optLong("created",0),
@@ -115,24 +115,6 @@ class CreativeMemoryStore(context:Context) {
         save(all+record)
     }
 
-    @Synchronized fun keep(id:String):SavedDesign {
-        val record=list().first { it.id==id }
-        if(record.status=="KEPT")return record // Idempotence: no duplicate training updates.
-        val selected=record.copy(status="KEPT")
-        upsert(selected)
-        LocalPreferenceModel(appContext).observe(selected.prompt,true)
-        runCatching { TrainingCorpusStore(appContext).export() }
-        return selected
-    }
-    @Synchronized fun reject(id:String):SavedDesign {
-        val record=list().first { it.id==id }
-        if(record.status=="REJECTED")return record
-        val selected=record.copy(status="REJECTED")
-        upsert(selected)
-        LocalPreferenceModel(appContext).observe(selected.prompt,false)
-        runCatching { TrainingCorpusStore(appContext).export() }
-        return selected
-    }
     @Synchronized fun alter(id:String,changes:String):SavedDesign {
         val parent=list().first { it.id==id }
         val record=parent.copy(id=UUID.randomUUID().toString(),

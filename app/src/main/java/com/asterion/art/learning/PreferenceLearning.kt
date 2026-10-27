@@ -78,8 +78,18 @@ class UserPreferenceStore(private val context: Context) {
         base: GeneratorSettings,
         assets: List<GradedAsset>,
     ): LearningSuggestion? {
-        val byJob = assets.filter { it.stars > 0 && it.sourceJobId != null }
-            .groupBy { requireNotNull(it.sourceJobId) }
+        // Only the user's NEW explicit overall Advanced Grading assessments
+        // may steer sampling settings. Historical stars and technical scores
+        // must not implicitly become training labels.
+        val graded=DetailedGradeStore(context).list()
+            .filter { it.overall!=null && it.jobId!=null &&
+                it.targetDesignId==null && (it.renderMode==mode) }
+        val latest=graded.groupBy{it.assetUri}.mapValues{(_,entries)->
+            entries.maxByOrNull{it.updatedAt}!!
+        }
+        val byJob = assets.filter {
+            it.sourceJobId!=null && latest[it.uri]!=null
+        }.groupBy { requireNotNull(it.sourceJobId) }
         val examples = mutableListOf<FeedbackExample>()
         byJob.forEach { (jobId, items) ->
             if (!jobId.matches(Regex("[A-Za-z0-9_-]{8,90}"))) return@forEach
@@ -94,9 +104,8 @@ class UserPreferenceStore(private val context: Context) {
                 val results = JSONObject(manifest.readText()).getJSONArray("results")
                 for (i in 0 until results.length()) {
                     val candidate = results.getJSONObject(i)
-                    val rating = items.firstOrNull {
-                        it.uri == candidate.getString("uri")
-                    }?.stars ?: continue
+                    val rating=latest[candidate.getString("uri")]
+                        ?.overall ?: continue
                     if (!candidate.has("cfg") || !candidate.has("steps")) continue
                     examples += FeedbackExample(
                         rating, candidate.getDouble("cfg").toFloat(),

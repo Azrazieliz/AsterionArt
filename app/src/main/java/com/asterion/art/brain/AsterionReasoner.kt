@@ -8,9 +8,10 @@ import com.arm.aichat.isModelLoaded
 import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.engine.CreativeDomain
-import com.asterion.art.learning.CreativeMemoryStore
-import com.asterion.art.learning.LocalPreferenceModel
-import com.asterion.art.learning.OnlinePreferenceTraining
+import com.asterion.art.learning.DetailedGradeStore
+import com.asterion.art.learning.GradingGuidance
+import com.asterion.art.model.CreationMode
+import com.asterion.art.model.RenderMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -42,8 +43,7 @@ class AsterionReasoner(context:Context) {
     private val app=context.applicationContext
     private val models=BrainModelStore(app)
     private val taxonomy by lazy { ConceptTaxonomy(app) }
-    private val memory by lazy { CreativeMemoryStore(app) }
-    private val preferences by lazy { LocalPreferenceModel(app) }
+    private val grades by lazy { DetailedGradeStore(app) }
     companion object {
         private val nativeMutex=BrainInferenceLock.mutex
         private const val SYSTEM =
@@ -68,28 +68,14 @@ class AsterionReasoner(context:Context) {
         }
         return entries.joinToString("\n\n")
     }
-    private fun learnedExamples(domain:CreativeDomain):String {
-        val mode=domain.name
-        val all=memory.list().filter { it.creationMode?.name==mode ||
-            (it.creationMode==null && domain==CreativeDomain.ARTWORK) }
-        val kept=preferences.rerank(all.filter{it.status=="KEPT"}).take(4)
-        val rejected=all.filter{it.status=="REJECTED"}.takeLast(4)
-        return buildString {
-            if(kept.isNotEmpty()) {
-                append("\nUSER-KEPT DESIGN EXAMPLES (prefer these choices where relevant):\n")
-                val learned=preferences.state()
-                kept.forEach { selected ->
-                    append("Learned preference score: ")
-                    append(OnlinePreferenceTraining.score(learned,selected.prompt))
-                    append(" · ").append(selected.prompt.take(1500)).append('\n')
-                }
-            }
-            if(rejected.isNotEmpty()) {
-                append("\nUSER-REJECTED DESIGN EXAMPLES (avoid repeating their failure patterns):\n")
-                rejected.forEach { append(it.prompt.take(900)).append('\n') }
-            }
-        }
-    }
+    private fun learnedEvidence(creationMode:CreationMode?,
+                                renderMode:RenderMode?,
+                                concepts:List<String>,
+                                designId:String?):String =
+        GradingGuidance.evidence(GradingGuidance.applicable(
+            grades.list(),creationMode,concepts,designId=designId,
+            renderMode=renderMode))
+
     private fun parsePart(raw:String,key:String):String {
         val match=Regex("\\["+key+"\\]([\\s\\S]*?)\\[/"+key+"\\]",
             RegexOption.IGNORE_CASE).find(raw)
@@ -118,7 +104,10 @@ class AsterionReasoner(context:Context) {
         jobId:String,
         candidateCount:Int=1,
         sheetSources:List<String> = emptyList(),
-        onStage:(String)->Unit={}
+        onStage:(String)->Unit={},
+        creationMode:CreationMode?=null,
+        renderMode:RenderMode?=null,
+        targetDesignId:String?=null
     ):NeuralDesignPlan?=nativeMutex.withLock {
         val weights=models.selected()?:return@withLock null
         val weightFile=models.location(weights)?:return@withLock null
@@ -148,7 +137,8 @@ class AsterionReasoner(context:Context) {
             }
             engine.setSystemPrompt(SYSTEM)
             val canonical=section(domain,concepts)
-            val guidance=learnedExamples(domain)
+            val guidance=learnedEvidence(
+                creationMode,renderMode,concepts,targetDesignId)
             onStage("Layer 1 · complete paged authority interpretation")
             val authority=listOf(
                 "DOMAIN:\n"+domain.name,
@@ -268,7 +258,9 @@ class AsterionReasoner(context:Context) {
                 put("original_source_evidence",authority)
                 put("hierarchical_consolidation",notes.size>1)
                 put("model_training_applied",false)
-                put("learning_method","contextual preferences from stored KEEP/REJECT decisions")
+                put("learning_method","user-authored detailed grading; contextual evidence only")
+                put("grading_evidence_applied",guidance.isNotBlank())
+                put("visual_semantics_verified",false)
             }
             GeneratedImagePublisher.atomicWrite(path,source.toString(2).toByteArray())
             result

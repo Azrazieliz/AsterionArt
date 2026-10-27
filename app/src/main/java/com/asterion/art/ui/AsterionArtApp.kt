@@ -193,7 +193,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         onEdit={ asset -> editingAsset=asset;current=Page.EDIT },
                         onToolbox={ asset -> editingAsset=asset;current=Page.TOOLBOX })
                     Page.JOBS -> QueueScreen(repo)
-                    Page.GRADING -> GradingScreen(repo,
+                    Page.GRADING -> AdvancedGradingScreen(repo,
                         onEdit = { asset ->
                             editingAsset = asset
                             current = Page.EDIT
@@ -740,94 +740,6 @@ private fun QueueScreen(repo: ArtRepository) {
         }
         item {
             OutlinedButton(onClick = { repo.reload() }) { Text("Refresh job history") }
-        }
-    }
-}
-
-@Composable
-private fun GradingScreen(repo: ArtRepository, onEdit: (GradedAsset) -> Unit,
-                          onToolbox: (GradedAsset) -> Unit) {
-    val context = LocalContext.current
-    var status by remember { mutableStateOf<String?>(null) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        uris.forEach { uri ->
-            val good = runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }.isSuccess
-            if (good) repo.registerAsset(uri.toString())
-            else status = "Could not retain access to an image."
-        }
-    }
-    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        item {
-            Header("Manual feedback", "Grade results",
-                "Your scores persist locally. The automatic quality model is not yet integrated and will not invent a score.")
-        }
-        item {
-            Button(onClick = { picker.launch(arrayOf("image/*")) }) {
-                Icon(Icons.Default.AddPhotoAlternate, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Import images to grade")
-            }
-        }
-        if (status != null) item { Text(status.orEmpty(), color = Red) }
-        if (repo.assets.isEmpty()) item { Text("No images available to rate.", color = Mist) }
-        items(repo.assets.sortedByDescending { it.createdAt }) { asset ->
-            Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
-                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AsyncImage(
-                        model = Uri.parse(asset.uri), contentDescription = "Image for manual rating",
-                        modifier = Modifier.fillMaxWidth().height(235.dp), contentScale = ContentScale.Fit
-                    )
-                    if (asset.autoScore != null) {
-                        Text("Technical screening: " + "%.0f".format(asset.autoScore) + "/100 " +
-                            "(contrast/detail only, not character or style fidelity)", color = Mist)
-                    }
-                    OutlinedButton(onClick = { onToolbox(asset) },
-                        modifier=Modifier.fillMaxWidth()) {
-                        Text("Image Toolbox · brightness, contrast, saturation, detail")
-                    }
-                    if (asset.sourceJobId != null) {
-                        OutlinedButton(onClick = { onEdit(asset) }) {
-                            Text("Edit selected pixels")
-                        }
-                    }
-                    if (EmbeddedRealSr.available(context)) {
-                        Button(onClick = {
-                            val task = repo.recordTask(asset.uri, TaskKind.ENHANCEMENT)
-                            NeuralEnhancementWorker.enqueue(context, asset.uri, task.id, 4)
-                            status = "RealSR 4× enhancement queued. Check Queue for progress."
-                        }, modifier=Modifier.fillMaxWidth()) {
-                            Text("Enhance 4× with built-in neural RealSR")
-                        }
-                    }
-                    Text("ENHANCE IN INSTALLED APP",color=Gold,
-                        style=MaterialTheme.typography.labelSmall)
-                    LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                        items(InstalledImageEnhancers.App.entries.toList()) { enhancer ->
-                            OutlinedButton(onClick={
-                                runCatching {
-                                    InstalledImageEnhancers.share(
-                                        context,enhancer,Uri.parse(asset.uri))
-                                }.onFailure { status=it.message }
-                            }) { Text(enhancer.title) }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Your rating", Modifier.weight(1f), color = Mist)
-                        (1..5).forEach { score ->
-                            IconButton(onClick = { repo.setStars(asset.uri, score) }, modifier = Modifier.size(36.dp)) {
-                                Icon(
-                                    if (score <= asset.stars) Icons.Default.Star else Icons.Default.StarBorder,
-                                    contentDescription = "$score stars",
-                                    tint = if (score <= asset.stars) Gold else Mist
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }

@@ -172,7 +172,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     candidateCount=if(job.creationMode==CreationMode.CHARACTER &&
                         job.designPrompt==null)15 else catalogue.coerceIn(1,15),
                     sheetSources=evidence.flatMap { it.all() }.take(40),
-                    onStage={ stage -> repo.updateTaskProgress(taskId,0,0,stage) }
+                    onStage={ stage -> repo.updateTaskProgress(taskId,0,0,stage) },
+                    creationMode=job.creationMode,
+                    renderMode=job.mode,
+                    targetDesignId=job.parentDesignIds.singleOrNull()
                 )
             } else null
             if(brainPlan!=null &&

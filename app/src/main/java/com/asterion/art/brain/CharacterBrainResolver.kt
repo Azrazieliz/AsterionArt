@@ -5,6 +5,9 @@ import android.content.Context
 import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import com.asterion.art.engine.ConceptTaxonomy
+import com.asterion.art.learning.DetailedGradeStore
+import com.asterion.art.learning.GradingGuidance
+import com.asterion.art.model.CreationMode
 import com.asterion.art.methodology.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -95,6 +98,7 @@ class CharacterBrainResolver(context:Context) {
                 }
                 engine.setSystemPrompt(SYSTEM)
                 val readAuthorities=mutableMapOf<String,String>()
+                val explicitGrades=DetailedGradeStore(app).list()
                 suspend fun conceptEvidence(c:PrimaryConcept):String {
                     val record=taxonomy.find(c.canonicalId?:c.name)
                         ?:return "FIXED OPEN LITERAL: "+c.name+
@@ -126,6 +130,9 @@ class CharacterBrainResolver(context:Context) {
                         it.id+": "+it.anatomy.take(180)+"; "+it.topology.take(120)+
                             "; "+it.fusion.take(160)+"; "+it.faceEyesHair.take(110)
                     }
+                    val grading=GradingGuidance.evidence(
+                        GradingGuidance.applicable(
+                            explicitGrades,CreationMode.CHARACTER,selection.names))
                     val authority=buildString{
                         append("AUTHOR COMPLETE CHARACTER ").append(selection.id)
                         append("\nRESOLVED FIXED CONCEPTS: ")
@@ -136,6 +143,11 @@ class CharacterBrainResolver(context:Context) {
                         append(descriptions.joinToString("\n"))
                         append("\nEXISTING INDEPENDENT IDENTITIES (DO NOT COPY):\n")
                         append(prior)
+                        if(grading.isNotBlank()){
+                            append("\nPREVIOUS USER GRADING (scoped corrections, ")
+                            append("not new methodology rules):\n")
+                            append(grading)
+                        }
                     }
                     val authorityPages=BrainEvidencePager.pages(authority,
                         (context-1650).coerceAtLeast(256)){engine.countTokens(it)}

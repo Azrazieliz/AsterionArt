@@ -21,7 +21,7 @@ import com.asterion.art.work.GenerationWorker
 import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.work.VideoGenerationWorker
 
-/** Select, keep, alter, regenerate and fuse designs from ANY result sheet. */
+/** Select, alter, regenerate or fuse designs; selection never grades or trains. */
 @Composable
 fun DesignLibraryScreen(repo:ArtRepository) {
     val context=LocalContext.current
@@ -92,7 +92,7 @@ fun DesignLibraryScreen(repo:ArtRepository) {
         verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item {
             Text("Design Library",style=MaterialTheme.typography.headlineMedium)
-            Text("Select from any sheet, keep a design, request an alteration, " +
+            Text("Select from any sheet, request an alteration, " +
                 "or fuse two or more. Originals remain untouched.",
                 style=MaterialTheme.typography.bodySmall)
         }
@@ -136,14 +136,6 @@ fun DesignLibraryScreen(repo:ArtRepository) {
                 Text(marked.size.toString()+" design(s) selected")
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     if(marked.size==1) {
-                        Button(onClick={
-                            runCatching { memory.keep(marked.single().id);refresh() }
-                                .onFailure { message=it.message }
-                        }) { Text("Keep") }
-                        OutlinedButton(onClick={
-                            runCatching { memory.reject(marked.single().id);refresh() }
-                                .onFailure { message=it.message }
-                        }) { Text("Reject") }
                         OutlinedButton(onClick={pending=marked.single()}) {
                             Text("Regenerate")
                         }
