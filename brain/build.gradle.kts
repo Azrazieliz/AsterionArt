@@ -13,6 +13,7 @@ android {
             cmake {
                 arguments += listOf(
                     "-DCMAKE_BUILD_TYPE=Release", "-DLLAMA_BUILD_TESTS=OFF",
+                    "-DLLAMA_BUILD_COMMON=ON",
                     "-DLLAMA_BUILD_EXAMPLES=OFF", "-DLLAMA_CURL=OFF",
                     "-DLLAMA_OPENSSL=OFF", "-DGGML_OPENMP=OFF",
                     "-DGGML_NATIVE=OFF", "-DGGML_CPU_KLEIDIAI=OFF",
