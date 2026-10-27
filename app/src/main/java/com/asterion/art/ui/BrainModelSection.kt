@@ -16,6 +16,8 @@ import androidx.work.WorkManager
 import com.asterion.art.brain.BrainCatalog
 import com.asterion.art.brain.BrainDownloadWorker
 import com.asterion.art.brain.BrainModelStore
+import com.asterion.art.brain.BrainAdapterLibrary
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -25,6 +27,10 @@ import kotlinx.coroutines.withContext
 fun BrainModelSection() {
     val context=LocalContext.current
     val store=remember { BrainModelStore(context) }
+    val adapters=remember { BrainAdapterLibrary(context) }
+    val scope=rememberCoroutineScope()
+    var modelAdapters by remember { mutableStateOf(adapters.all()) }
+    var adapterBusy by remember { mutableStateOf(false) }
     var installed by remember { mutableStateOf(store.installed()) }
     var selected by remember { mutableStateOf(store.selected()?.id) }
     var contextTokens by remember { mutableIntStateOf(store.contextTokens()) }
@@ -40,6 +46,25 @@ fun BrainModelSection() {
                     uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 BrainDownloadWorker.enqueue(context,chosen,uri.toString())
             }.onFailure{message=it.message.orEmpty()}
+        }
+    }
+    val adapterPicker=rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()) { uri ->
+        val base=selected
+        if(uri!=null && base!=null) {
+            scope.launch {
+                adapterBusy=true
+                val result=withContext(Dispatchers.IO) {
+                    runCatching {
+                        adapters.import(uri,base)
+                    }
+                }
+                adapterBusy=false
+                result.onSuccess {
+                    modelAdapters=adapters.all()
+                    message="GGUF adapter verified and imported; enable to apply."
+                }.onFailure { message=it.message.orEmpty() }
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -106,6 +131,35 @@ fun BrainModelSection() {
                 val value=progress[model.id]
                 if(value!=null)LinearProgressIndicator(
                     progress={value/100f},modifier=Modifier.fillMaxWidth())
+            }
+            if(selected!=null) {
+                HorizontalDivider()
+                Text("QWEN3 LORA ADAPTERS",color=Gold)
+                Text("Select an adapter compatible with the active Qwen3 base. " +
+                    "Loading it modifies live neural inference; it does not " +
+                    "retrain the diffusion model.",color=Mist)
+                OutlinedButton(enabled=!adapterBusy,onClick={
+                    adapterPicker.launch(arrayOf("*/*"))
+                }) { Text(if(adapterBusy)"Importing adapter…" else "Import GGUF LoRA") }
+                modelAdapters.forEach { adapter ->
+                    Text(adapter.id.take(24)+" · "+adapter.baseId+
+                        if(adapter.enabled)" · ACTIVE" else "",color=Mist)
+                    if(adapter.baseId==selected && !adapter.enabled) {
+                        OutlinedButton(onClick={
+                            runCatching { adapters.enable(adapter.id) }
+                                .onSuccess {
+                                    modelAdapters=adapters.all()
+                                    message="Adapter selected for next reasoning generation."
+                                }.onFailure { message=it.message.orEmpty() }
+                        }) { Text("Enable compatible adapter") }
+                    }
+                }
+                if(modelAdapters.any{it.enabled}) {
+                    OutlinedButton(onClick={
+                        adapters.disableAll()
+                        modelAdapters=adapters.all()
+                    }) { Text("Use unchanged base model") }
+                }
             }
             if(message.isNotBlank())Text(message,style=MaterialTheme.typography.bodySmall)
         }

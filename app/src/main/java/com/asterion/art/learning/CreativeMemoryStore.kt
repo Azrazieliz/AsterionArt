@@ -121,6 +121,7 @@ class CreativeMemoryStore(context:Context) {
         val selected=record.copy(status="KEPT")
         upsert(selected)
         LocalPreferenceModel(appContext).observe(selected.prompt,true)
+        runCatching { TrainingCorpusStore(appContext).export() }
         return selected
     }
     @Synchronized fun reject(id:String):SavedDesign {
@@ -129,6 +130,7 @@ class CreativeMemoryStore(context:Context) {
         val selected=record.copy(status="REJECTED")
         upsert(selected)
         LocalPreferenceModel(appContext).observe(selected.prompt,false)
+        runCatching { TrainingCorpusStore(appContext).export() }
         return selected
     }
     @Synchronized fun alter(id:String,changes:String):SavedDesign {
