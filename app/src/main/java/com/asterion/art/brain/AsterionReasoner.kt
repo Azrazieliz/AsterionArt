@@ -1,0 +1,207 @@
+package com.asterion.art.brain
+
+import android.content.Context
+import android.app.ActivityManager
+import com.arm.aichat.AiChat
+import com.arm.aichat.InferenceEngine
+import com.arm.aichat.isModelLoaded
+import com.asterion.art.data.GeneratedImagePublisher
+import com.asterion.art.engine.ConceptTaxonomy
+import com.asterion.art.engine.CreativeDomain
+import com.asterion.art.learning.CreativeMemoryStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+
+data class NeuralDesignPlan(
+    val modelId:String, val actualContext:Int, val domain:CreativeDomain,
+    val interpretation:String, val synthesis:String,
+    val positive:String, val negative:String,
+    val sheetPrompts:List<String> = emptyList()
+)
+
+/**
+ * Real inference: Qwen3 GGUF is loaded in CPU memory and released BEFORE QNN.
+ *
+ * Stage 1 interprets selected canonical knowledge.
+ * Stage 2 authors distinct structures and interactions using learned preferences.
+ * Stage 3 compiles fully detailed prompts appropriate to the output domain.
+ *
+ * Not model-weight training; that is handled by the separate training pipeline.
+ */
+class AsterionReasoner(context:Context) {
+    private val app=context.applicationContext
+    private val models=BrainModelStore(app)
+    private val taxonomy by lazy { ConceptTaxonomy(app) }
+    private val memory by lazy { CreativeMemoryStore(app) }
+    companion object {
+        private val nativeMutex=Mutex()
+        private const val SYSTEM =
+            "You are Asterion Design Intelligence, an offline production design planner. " +
+            "You interpret the complete methodology and canonical concept evidence. " +
+            "Write deeply specific physical shapes, materials, body systems, boundaries, " +
+            "silhouettes, construction and visual relations. Every concept must causally " +
+            "modify the others; never replace physical integration with theme stickers. " +
+            "Preserve all user-required constraints and candidate counts. " +
+            "Make viable, internally coherent, visually distinct designs. " +
+            "Answer only the requested structured artifact. /no_think"
+    }
+    fun available()=models.selected()!=null
+
+    private fun section(domain:CreativeDomain,concepts:List<String>):String {
+        val entries=concepts.distinct().map { name ->
+            val record=taxonomy.find(name)
+            if(record==null) "CONCEPT: "+name else
+                "CANONICAL CONCEPT: "+record.name+" ("+record.id+")\n"+
+                    record.physicalInstruction(domain)+"\n"+
+                    "AUTHORITY DETAILS:\n"+record.fullRecord.take(6800)
+        }
+        return entries.joinToString("\n\n")
+    }
+    private fun learnedExamples(domain:CreativeDomain):String {
+        val mode=domain.name
+        val all=memory.list().filter { it.creationMode?.name==mode ||
+            (it.creationMode==null && domain==CreativeDomain.ARTWORK) }
+        val kept=all.filter{it.status=="KEPT"}.takeLast(4)
+        val rejected=all.filter{it.status=="REJECTED"}.takeLast(4)
+        return buildString {
+            if(kept.isNotEmpty()) {
+                append("\nUSER-KEPT DESIGN EXAMPLES (prefer these choices where relevant):\n")
+                kept.forEach { append(it.prompt.take(1500)).append('\n') }
+            }
+            if(rejected.isNotEmpty()) {
+                append("\nUSER-REJECTED DESIGN EXAMPLES (avoid repeating their failure patterns):\n")
+                rejected.forEach { append(it.prompt.take(900)).append('\n') }
+            }
+        }
+    }
+    private fun parsePart(raw:String,key:String):String {
+        val match=Regex("\\["+key+"\\]([\\s\\S]*?)\\[/"+key+"\\]",
+            RegexOption.IGNORE_CASE).find(raw)
+        return match?.groupValues?.get(1)?.trim().orEmpty()
+    }
+    private fun contextForRam():Int {
+        val mem=ActivityManager.MemoryInfo()
+        (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
+            .getMemoryInfo(mem)
+        val available=mem.availMem/(1024*1024*1024)
+        val requested=models.contextTokens()
+        return when {
+            available<2L -> minOf(requested,4096)
+            available<4L -> minOf(requested,8192)
+            available<6L -> minOf(requested,16384)
+            else -> requested
+        }
+    }
+
+    suspend fun compile(
+        domain:CreativeDomain,
+        canonicalMethod:String,
+        concepts:List<String>,
+        basePositive:String,
+        baseNegative:String,
+        jobId:String,
+        candidateCount:Int=1,
+        sheetSources:List<String> = emptyList(),
+        onStage:(String)->Unit={}
+    ):NeuralDesignPlan?=nativeMutex.withLock {
+        val weights=models.selected()?:return@withLock null
+        val weightFile=models.location(weights)?:return@withLock null
+        require(jobId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
+        require(candidateCount in 1..60)
+        val engine=AiChat.getInferenceEngine(app)
+        val contextSize=contextForRam()
+        suspend fun answer(prompt:String,n:Int):String {
+            return withTimeout(25*60*1000L) {
+                engine.sendUserPrompt(prompt,n).toList().joinToString("").trim()
+            }.also { require(it.isNotBlank()) { "Neural planner generated no text" } }
+        }
+        try {
+            withTimeout(120_000L) {
+                engine.state.first {
+                    it is InferenceEngine.State.Initialized ||
+                    it is InferenceEngine.State.ModelReady ||
+                    it is InferenceEngine.State.Error
+                }
+            }
+            onStage("Loading "+weights.label+" with "+contextSize+" tokens")
+            engine.loadModel(weightFile.absolutePath,contextSize)
+            engine.setSystemPrompt(SYSTEM)
+            val canonical=section(domain,concepts)
+            val guidance=learnedExamples(domain)
+            onStage("Layer 1 · concept and authority interpretation")
+            val first=answer(
+                "Interpret the following AUTHORITATIVE task. Do not skip or summarize " +
+                "its physical constraints. Return explicit physical/morphological properties, " +
+                "construction and relationships by concept. No final image prompt yet.\n" +
+                "DOMAIN: "+domain.name+"\nMETHOD:\n"+canonicalMethod.take(11000)+
+                "\nCONCEPTS:\n"+canonical.take(26000)+
+                "\nSOURCE EVIDENCE:\n"+sheetSources.joinToString("\n").take(6000)+
+                "\nORIGINAL POSITIVE CONTRACT:\n"+basePositive.take(6000)+
+                "\nORIGINAL NEGATIVE CONTRACT:\n"+baseNegative.take(2500)+
+                "\n/no_think",1250)
+            onStage("Layer 2 · distinct structural synthesis")
+            val second=answer(
+                "Construct "+candidateCount+" genuinely distinct production-quality "+
+                    domain.name.lowercase().replace('_',' ')+" design(s) " +
+                    "from the verified interpretation. Create causal interactions and " +
+                    "specific geometry. For multiple outputs label designs D01 onward, " +
+                    "with individually frozen geometry, silhouette, materials, anatomy, " +
+                    "palette, attach points and differentiating features. " +
+                    "Return NO generic boilerplate and no image model prompt yet.\n" +
+                    "INTERPRETATION:\n"+first+"\nPREFERENCES:\n"+guidance+
+                    "\nREQUIRED OUTPUT:\n"+canonicalMethod.take(5000)+
+                    "\n/no_think",if(candidateCount>=10)3800 else 1700)
+            onStage("Layer 3 · model-facing prompt compilation")
+            val request=if(domain==CreativeDomain.CHARACTER && candidateCount==15)
+                "Produce THREE exact complete sheet prompts. Each has five different " +
+                "designs (D01-D05, D06-D10, D11-D15) with exact same-identity " +
+                "front/side/rear views, five entities per landscape sheet. " +
+                "Give explicit anatomy and material details for each identity. " +
+                "Format [SHEET_1]...[/SHEET_1], [SHEET_2]...[/SHEET_2], "+
+                "[SHEET_3]...[/SHEET_3], then [NEGATIVE]...[/NEGATIVE]."
+            else "Produce exactly one fully detailed POSITIVE model-facing image/video " +
+                "prompt and one NEGATIVE prompt. Output [POSITIVE]...[/POSITIVE] " +
+                "[NEGATIVE]...[/NEGATIVE]. Mention all unique construction mechanisms."
+            val third=answer(
+                request+"\nOUTPUT CONTRACT:\n"+canonicalMethod.take(6000)+
+                    "\nDESIGNS:\n"+second+
+                    "\nPRESERVE ORIGINAL REQUEST:\n"+basePositive.take(5000)+
+                    "\nFAILURES TO AVOID:\n"+baseNegative.take(2200)+
+                    "\n/no_think",if(candidateCount>=10)4500 else 2200)
+            val sheets=(1..3).map{parsePart(third,"SHEET_"+it)}
+                .filter{it.isNotBlank()}
+            val result=NeuralDesignPlan(
+                weights.id,contextSize,domain,first,second,
+                parsePart(third,"POSITIVE").ifBlank {
+                    if(sheets.isNotEmpty())sheets.joinToString("\n\n") else third
+                },
+                parsePart(third,"NEGATIVE").ifBlank{baseNegative},sheets)
+            val path=File(app.filesDir,"generation-plans/"+jobId+"-brain.json")
+            val source=JSONObject().apply {
+                put("schema","asterion.neural-planning.v1")
+                put("model",result.modelId)
+                put("context_tokens",result.actualContext)
+                put("domain",result.domain.name)
+                put("interpretation",result.interpretation)
+                put("synthesis",result.synthesis)
+                put("final_positive",result.positive)
+                put("final_negative",result.negative)
+                put("sheets",JSONArray(result.sheetPrompts))
+                put("model_training_applied",false)
+                put("learning_method","contextual preferences from stored KEEP/REJECT decisions")
+            }
+            GeneratedImagePublisher.atomicWrite(path,source.toString(2).toByteArray())
+            result
+        } finally {
+            withContext(Dispatchers.IO) { engine.cleanUp() }
+        }
+    }
+}

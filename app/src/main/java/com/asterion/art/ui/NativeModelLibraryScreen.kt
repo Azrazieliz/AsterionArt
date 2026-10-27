@@ -123,6 +123,7 @@ fun NativeModelLibraryScreen() {
                 "An extra ZIP copy is not made. Native processing uses this app's own executable.",
                 color=Mist)
         }
+        item { BrainModelSection() }
         item {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(15.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {

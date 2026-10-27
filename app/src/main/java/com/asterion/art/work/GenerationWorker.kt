@@ -31,6 +31,7 @@ import com.asterion.art.learning.PreferenceLearning
 import com.asterion.art.learning.CreativeMemoryStore
 import com.asterion.art.learning.SavedDesign
 import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.DesignPreviewCrops
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.methodology.DetailedMethodologies
@@ -133,6 +134,42 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
                 else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
                     job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
+            }
+            // Perform true neural interpretation/synthesis/prompt compilation
+            // before the large QNN model is loaded. The GGUF context and KV
+            // cache are released in AsterionReasoner.compile's finally block.
+            val neural=AsterionReasoner(applicationContext)
+            val brainPlan=if(neural.available()) {
+                foreground("Asterion Brain · interpreting and designing")
+                val domain=UniversalCreativePlanner.domain(job.creationMode)
+                val spec=job.creationMode?.let {
+                    DetailedMethodologies.all[it]?.rendererDirective
+                }.orEmpty()
+                val catalogue=job.creationMode?.let {
+                    DetailedMethodologies.all[it]?.catalogue?.designsPerImage
+                } ?: 1
+                neural.compile(
+                    domain=domain,
+                    canonicalMethod=spec.ifBlank { recipe.passes.first().positive },
+                    concepts=job.concepts,
+                    basePositive=recipe.passes.first().positive,
+                    baseNegative=recipe.passes.first().negative,
+                    jobId=job.id,
+                    candidateCount=if(job.creationMode==CreationMode.CHARACTER &&
+                        job.designPrompt==null)15 else catalogue.coerceIn(1,15),
+                    sheetSources=evidence.flatMap { it.all() }.take(40),
+                    onStage={ stage -> repo.updateTaskProgress(taskId,0,0,stage) }
+                )
+            } else null
+            if(brainPlan!=null &&
+                !(job.creationMode==CreationMode.CHARACTER && job.designPrompt==null)) {
+                recipe=recipe.copy(passes=recipe.passes.map { pass ->
+                    pass.copy(
+                        positive=pass.positive+"\n\nNEURAL DESIGN SPECIFICATION:\n"+
+                            brainPlan.positive,
+                        negative=listOf(pass.negative,brainPlan.negative)
+                            .filter { it.isNotBlank() }.distinct().joinToString(", "))
+                })
             }
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = if (job.settings.ratio == "16:9")
@@ -247,7 +284,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     val methodStage = if(!job.designPrompt.isNullOrBlank()) stage
                     else if (job.creationMode==CreationMode.CHARACTER)
                         stage.copy(
-                            positive=DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1,taxonomy),
+                            positive=brainPlan?.sheetPrompts?.takeIf { list ->
+                                list.size==3 && list.all { it.length>180 }
+                            }?.get(candidate-1)
+                                ?: DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1,taxonomy),
                             negative=DesignBlueprintEngine.negative())
                     else stage
                     // Validate the *actual* model input, including page-specific

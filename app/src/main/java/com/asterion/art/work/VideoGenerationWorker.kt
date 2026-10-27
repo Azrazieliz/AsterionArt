@@ -19,6 +19,8 @@ import com.asterion.art.video.Mp4SegmentJoiner
 import com.asterion.art.video.NightmareVideoBridge
 import com.asterion.art.video.VideoApiCredentials
 import com.asterion.art.video.VideoPlanStore
+import com.asterion.art.brain.AsterionReasoner
+import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.learning.CreativeMemoryStore
 import com.asterion.art.learning.SavedDesign
 import com.asterion.art.model.RenderMode
@@ -70,6 +72,20 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
             repo.updateTask(task,TaskStatus.RUNNING)
             val plan=VideoPlanStore(applicationContext).load(id)
+            val designBrain=AsterionReasoner(applicationContext)
+            val neuralPlan=if(designBrain.available())designBrain.compile(
+                domain=CreativeDomain.VIDEO,
+                canonicalMethod="Create a temporally continuous true video from the " +
+                    "provided first-frame references; maintain identity across frames.",
+                concepts=listOf(plan.preset.title,plan.direction),
+                basePositive=plan.positivePrompt,
+                baseNegative=plan.negativePrompt,
+                jobId=plan.id,
+                candidateCount=plan.imageUris.size.coerceAtLeast(1),
+                onStage={ stage -> repo.updateTaskProgress(task,0,0,stage) }
+            ) else null
+            val inferredMotion=neuralPlan?.positive?.takeIf{it.isNotBlank()}
+                ?:plan.positivePrompt
             val token=VideoApiCredentials(applicationContext).read()
                 ?: error("Nightmare API token not connected in Asterion Art")
             val bridge=NightmareVideoBridge(applicationContext,token)
@@ -94,7 +110,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     "Rendering segment "+(index+1)+"/"+plan.imageUris.size+
                     " · model progress unavailable")
                 val result=bridge.generate(
-                    Uri.parse(frame),plan.positivePrompt,
+                    Uri.parse(frame),inferredMotion,
                     plan.seed+index*1009L,plan.secondsPerSegment,
                     file,{isStopped})
                 segments+=result.file
@@ -127,8 +143,9 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 put("assembled_mp4",uri.toString())
                 put("nightmare_run_ids",JSONArray(runs))
                 put("clip_is_approved",false)
-                put("positive_prompt",plan.positivePrompt)
-                put("negative_prompt_guide",plan.negativePrompt)
+                put("positive_prompt",inferredMotion)
+                put("reasoning_model",neuralPlan?.modelId ?: "deterministic")
+                put("negative_prompt_guide",neuralPlan?.negative ?: plan.negativePrompt)
                 put("negative_prompt_transmitted",false)
             }
             com.asterion.art.data.GeneratedImagePublisher.atomicWrite(

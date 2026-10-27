@@ -21,6 +21,7 @@ import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.DesignIntent
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.engine.CreativeDomain
@@ -83,6 +84,17 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
             val editSpec = UniversalCreativePlanner.interpret(DesignIntent(
                 CreativeDomain.IMAGE_EDIT, referenceRoles=evidence.map { it.role }))
 
+            val neural=AsterionReasoner(applicationContext)
+            val brainPlan=if(neural.available())neural.compile(
+                domain=CreativeDomain.IMAGE_EDIT,
+                canonicalMethod=editSpec.synthesis,
+                concepts=source.concepts,
+                basePositive=recipe.passes.last().positive,
+                baseNegative=recipe.passes.last().negative,
+                jobId=id,
+                sheetSources=evidence.flatMap { it.all() }.take(40),
+                onStage={ stage -> repo.updateTaskProgress(taskId,0,0,stage) }
+            ) else null
             val engine = EmbeddedEngineFactory.open(applicationContext)
             currentEngine = engine
             val models = engine.installedModels()
@@ -93,7 +105,13 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
             val nativeSize = model.generationSize.coerceIn(512,1536)
             repo.updateTaskProgress(taskId,0,0,"Loading "+model.name)
             engine.prepare(model,nativeSize,nativeSize) { isStopped }
-            val selectedPass = recipe.passes.last().copy(denoise = job.strength)
+            val selectedPass = recipe.passes.last().copy(
+                denoise=job.strength,
+                positive=recipe.passes.last().positive+
+                    if(brainPlan!=null)"\n"+brainPlan.positive else "",
+                negative=listOf(recipe.passes.last().negative,
+                    brainPlan?.negative.orEmpty()).filter{it.isNotBlank()}
+                    .distinct().joinToString(", "))
             engine.verifyText(selectedPass.positive)
             if (selectedPass.negative.isNotBlank()) engine.verifyText(selectedPass.negative)
             // The masked edit is conditioned on its own preservation contract.
