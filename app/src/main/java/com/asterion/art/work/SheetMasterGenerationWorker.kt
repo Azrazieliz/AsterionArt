@@ -104,7 +104,11 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             val conditioned=models.filter{
                 it.ditKind in setOf("qwen21","klein")
             }
-            val primary=conditioned.firstOrNull()?:models.first()
+            // Honor the user's explicit image-model output assignment, rather
+            // than loading the first imported checkpoint arbitrarily.
+            val tagged=com.asterion.art.nativeengine.ModelOutputRouting(app)
+                .preferred(com.asterion.art.model.RenderMode.ANIME,models)
+            val primary=tagged?:conditioned.firstOrNull()?:models.first()
             val resolution=com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(primary,"9:16")
             // Do not pretend a square-only neural model rendered a 9:16
