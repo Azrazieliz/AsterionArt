@@ -23,6 +23,8 @@ interface InferenceEngine {
     /**
      * Sends a system prompt to the loaded model
      */
+    suspend fun loadAdapter(adapterPath: String)
+
     suspend fun setSystemPrompt(systemPrompt: String)
 
     /**

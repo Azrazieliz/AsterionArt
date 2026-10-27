@@ -60,7 +60,8 @@ object DesignFusionRules {
 
 /** JSON file with atomic replace; references are not deleted by record changes. */
 class CreativeMemoryStore(context:Context) {
-    private val file=File(context.applicationContext.filesDir,"creative-memory/designs.json")
+    private val appContext=context.applicationContext
+    private val file=File(appContext.filesDir,"creative-memory/designs.json")
     private fun arr(root:JSONObject):JSONArray = root.optJSONArray("designs") ?: JSONArray()
     private fun loadJson():JSONObject=runCatching {
         JSONObject(file.readText())
@@ -118,12 +119,14 @@ class CreativeMemoryStore(context:Context) {
         val record=list().first { it.id==id }
         val selected=record.copy(status="KEPT")
         upsert(selected)
+        LocalPreferenceModel(appContext).observe(selected.prompt,true)
         return selected
     }
     @Synchronized fun reject(id:String):SavedDesign {
         val record=list().first { it.id==id }
         val selected=record.copy(status="REJECTED")
         upsert(selected)
+        LocalPreferenceModel(appContext).observe(selected.prompt,false)
         return selected
     }
     @Synchronized fun alter(id:String,changes:String):SavedDesign {

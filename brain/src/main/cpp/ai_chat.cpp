@@ -35,6 +35,7 @@ constexpr int   BATCH_SIZE              = 512;
 constexpr float DEFAULT_SAMPLER_TEMP    = 0.3f;
 
 static llama_model                      * g_model;
+static llama_adapter_lora               * g_active_adapter = nullptr;
 static llama_context                    * g_context;
 static common_batch                       g_batch;
 static common_chat_templates_ptr          g_chat_templates;
@@ -116,6 +117,24 @@ JNIEXPORT jint JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_configureContext(JNIEnv *, jobject, jint n_ctx) {
     if (n_ctx < 4096 || n_ctx > 32768 || (n_ctx % 256)!=0 || g_context != nullptr) return 1;
     g_requested_context_size=n_ctx;
+    return 0;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_arm_aichat_internal_InferenceEngineImpl_attachLora(
+    JNIEnv *env, jobject, jstring jpath) {
+    if (!g_model || !g_context || g_active_adapter) return 1;
+    const char *path=env->GetStringUTFChars(jpath,nullptr);
+    auto *adapter=llama_adapter_lora_init(g_model,path);
+    env->ReleaseStringUTFChars(jpath,path);
+    if (!adapter) return 2;
+    float scale[1]={1.0f};
+    if(llama_set_adapters_lora(g_context,&adapter,1,scale)!=0) {
+        llama_adapter_lora_free(adapter);
+        return 3;
+    }
+    g_active_adapter=adapter;
     return 0;
 }
 
@@ -565,6 +584,10 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_unload(JNIEnv * /*unused*/, job
     g_chat_templates.reset();
     g_batch = common_batch();
     llama_free(g_context);
+    if(g_active_adapter!=nullptr) {
+        llama_adapter_lora_free(g_active_adapter);
+        g_active_adapter=nullptr;
+    }
     llama_model_free(g_model);
     g_context = nullptr;
     g_model = nullptr;

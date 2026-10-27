@@ -89,6 +89,9 @@ internal class InferenceEngineImpl private constructor(
     private external fun configureContext(contextTokens: Int): Int
 
     @FastNative
+    private external fun attachLora(adapterPath: String): Int
+
+    @FastNative
     private external fun prepare(): Int
 
     @FastNative
@@ -193,6 +196,15 @@ internal class InferenceEngineImpl private constructor(
      *
      * TODO-han.yin: return error code if system prompt not correct processed?
      */
+    override suspend fun loadAdapter(adapterPath: String) =
+        withContext(llamaDispatcher) {
+            require(File(adapterPath).isFile) { "GGUF LoRA adapter file unavailable" }
+            check(_state.value is InferenceEngine.State.ModelReady) {
+                "Load a compatible base GGUF model first"
+            }
+            check(attachLora(adapterPath)==0) { "Incompatible GGUF LoRA adapter" }
+        }
+
     override suspend fun setSystemPrompt(prompt: String) =
         withContext(llamaDispatcher) {
             require(prompt.isNotBlank()) { "Cannot process empty system prompt!" }
