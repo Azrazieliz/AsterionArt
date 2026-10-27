@@ -21,6 +21,11 @@ import java.util.Locale
 
 /** Durable local metadata. Content stays in the system media provider, never duplicated in app prefs. */
 class ArtRepository(context: Context) {
+    // Multiple WorkManager workers construct separate repository instances.
+    // @Synchronized on an instance did not protect their shared preference
+    // snapshots, causing finished sheets, jobs and assets to be overwritten.
+    companion object { private val CATALOG_LOCK = Any() }
+
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences("asterion_art_catalog_v1", Context.MODE_PRIVATE)
 
@@ -36,6 +41,7 @@ class ArtRepository(context: Context) {
     init { reload() }
 
     @Synchronized fun reload() {
+        synchronized(CATALOG_LOCK) {
         sheets = parseList("sheets") { obj ->
             SheetRecord(
                 id = obj.getString("id"),
@@ -93,10 +99,14 @@ class ArtRepository(context: Context) {
                 )
             }
         }.getOrDefault(GeneratorSettings())
+    
+        }
     }
 
     @Synchronized fun addSheet(role: SheetRole, sourceUris: List<String>,
         referenceSlots: List<String>, originatingOriginal:CreationMode?=null): SheetRecord {
+        synchronized(CATALOG_LOCK) {
+            reload() // Refresh the current persisted snapshot under the global lock.
         require(sourceUris.isNotEmpty()) { "A sheet needs at least one actual reference." }
         require(sourceUris.size == referenceSlots.size) { "Every reference must have an explicit panel assignment." }
         require(referenceSlots.contains("PRIMARY")) { "A primary reference is required." }
@@ -110,6 +120,8 @@ class ArtRepository(context: Context) {
         check(prefs.edit().putString("sheets", encodeSheets(updated)).commit())
         sheets = updated
         return sheet
+    
+        }
     }
 
     /** Reuses Core's finished reference unchanged; no nested sheet and no lossy recompression. */
@@ -117,6 +129,8 @@ class ArtRepository(context: Context) {
         characterId: String, sheetAssetId: String, name: String, mediaUri: String,
         verifiedSha256: String
     ): SheetRecord {
+        synchronized(CATALOG_LOCK) {
+            reload() // Refresh the current persisted snapshot under the global lock.
         require(characterId.isNotBlank() && sheetAssetId.isNotBlank())
         require(mediaUri.startsWith("content://com.ailm.android.asterionart.sheets/image/"))
         val existing = sheets.firstOrNull { it.sourceUris.contains(mediaUri) }
@@ -135,17 +149,24 @@ class ArtRepository(context: Context) {
         check(prefs.edit().putString("sheets",encodeSheets(updated)).commit())
         sheets = updated
         return record
+    
+        }
     }
 
     @Synchronized fun recordTask(targetId: String, kind: TaskKind): TaskRecord {
+        synchronized(CATALOG_LOCK) {
+            reload() // Refresh the current persisted snapshot under the global lock.
         val task = TaskRecord(targetId = targetId, kind = kind)
         val updated = tasks + task
         check(prefs.edit().putString("tasks", encodeTasks(updated)).commit())
         tasks = updated
         return task
+    
+        }
     }
 
     @Synchronized fun updateTask(id: String, status: TaskStatus, error: String? = null) {
+        synchronized(CATALOG_LOCK) {
         val current = readPersistedTasks()
         val updated = current.map {
             if (it.id == id && it.status in
@@ -156,11 +177,14 @@ class ArtRepository(context: Context) {
         }
         check(prefs.edit().putString("tasks", encodeTasks(updated)).commit())
         tasks = updated
+    
+        }
     }
 
     @Synchronized fun updateTaskProgress(id: String, current: Int, total: Int,
                                          stage: String, bytes: Long = 0L,
                                          bytesTotal: Long = 0L) {
+        synchronized(CATALOG_LOCK) {
         require(current >= 0 && total >= 0 && bytes >= 0 && bytesTotal >= 0)
         val updated = readPersistedTasks().map { task ->
             if (task.id == id && task.status in
@@ -172,6 +196,8 @@ class ArtRepository(context: Context) {
         }
         check(prefs.edit().putString("tasks", encodeTasks(updated)).commit())
         tasks = updated
+    
+        }
     }
 
     private fun readPersistedTasks(): List<TaskRecord> = parseList("tasks") { obj ->
@@ -191,30 +217,43 @@ class ArtRepository(context: Context) {
     }
 
     @Synchronized fun finishSheet(id: String, outputUri: String) {
+        synchronized(CATALOG_LOCK) {
+            reload() // Refresh the current persisted snapshot under the global lock.
         val updated = sheets.map { if (it.id == id) it.copy(outputUri = outputUri) else it }
         check(prefs.edit().putString("sheets", encodeSheets(updated)).commit())
         sheets = updated
         registerAsset(outputUri, id)
+    
+        }
     }
 
     @Synchronized fun registerAsset(uri: String, sourceSheetId: String? = null,
         autoScore: Double? = null, sourceJobId: String? = null) {
+        synchronized(CATALOG_LOCK) {
+            reload() // Refresh the current persisted snapshot under the global lock.
         if (assets.any { it.uri == uri }) return
         val updated = assets + GradedAsset(uri = uri, sourceSheetId = sourceSheetId,
             autoScore = autoScore, sourceJobId = sourceJobId)
         check(prefs.edit().putString("assets", encodeAssets(updated)).commit())
         assets = updated
+    
+        }
     }
 
     @Synchronized fun setStars(uri: String, stars: Int) {
+        synchronized(CATALOG_LOCK) {
+            reload() // Refresh the current persisted snapshot under the global lock.
         val updated = assets.map {
             if (it.uri == uri) it.copy(stars = stars.coerceIn(0, 5)) else it
         }
         check(prefs.edit().putString("assets", encodeAssets(updated)).commit())
         assets = updated
+    
+        }
     }
 
     @Synchronized fun saveSettings(value: GeneratorSettings) {
+        synchronized(CATALOG_LOCK) {
         val next = JSONObject().apply {
             put("ratio", value.ratio)
             put("steps", value.steps)
@@ -228,6 +267,8 @@ class ArtRepository(context: Context) {
         }
         check(prefs.edit().putString("settings", next.toString()).commit())
         settings = value
+    
+        }
     }
 
     private fun encodeSheets(items: List<SheetRecord>) = JSONArray().apply {
