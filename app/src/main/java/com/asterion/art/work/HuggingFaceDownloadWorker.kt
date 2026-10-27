@@ -37,11 +37,26 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
     CoroutineWorker(context,params) {
     companion object {
         private const val CHANNEL="asterion-hugging-face"
-        fun enqueue(context:Context,repoId:String,revision:String,path:String,
+        @Synchronized fun enqueue(context:Context,repoId:String,revision:String,path:String,
             bytes:Long,sha256:String?,family:String="auto"):String {
             HubPath.repository(repoId);HubPath.revision(revision);HubPath.file(path)
+            val target="hf:"+repoId+"@"+revision+"/"+path
             val repo=ArtRepository(context)
-            val task=repo.recordTask("hf:"+repoId+"/"+path,TaskKind.MODEL_IMPORT)
+            val manager=WorkManager.getInstance(context)
+            // Repeated taps must not start concurrent writers for one .partial
+            // file, or leave phantom queued tasks in the persistent catalogue.
+            val previous=repo.tasks.lastOrNull{ record ->
+                record.targetId==target && record.kind==TaskKind.MODEL_IMPORT &&
+                    record.status in setOf(TaskStatus.QUEUED,TaskStatus.RUNNING)
+            }
+            if(previous!=null) {
+                val active=manager.getWorkInfosByTag(
+                    "asterion-model-import-"+previous.id).get().any{
+                        !it.state.isFinished
+                    }
+                if(active)return previous.id
+            }
+            val task=repo.recordTask(target,TaskKind.MODEL_IMPORT)
             val input=Data.Builder()
                 .putString("repo",repoId).putString("revision",revision)
                 .putString("path",path).putLong("bytes",bytes)
@@ -50,7 +65,9 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
             val request=OneTimeWorkRequestBuilder<HuggingFaceDownloadWorker>()
                 .setInputData(input).addTag("asterion-hf-model")
                 .addTag("asterion-model-import-"+task.id).build()
-            WorkManager.getInstance(context).enqueue(request)
+            manager.enqueueUniqueWork(
+                HubPath.downloadWorkName(repoId,revision,path),
+                ExistingWorkPolicy.KEEP,request)
             return task.id
         }
     }
