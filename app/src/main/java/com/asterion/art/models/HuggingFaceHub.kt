@@ -55,6 +55,12 @@ object HubPath {
             ".tiktoken",".spm",".vocab",".merges",".bpe",".onnx_data")
             .any{lower.endsWith(it)}
     }
+
+    fun downloadWorkName(id:String,revision:String,path:String):String {
+        val normalized=repository(id)+"@"+revision(revision)+"/"+file(path)
+        return "asterion-hf-"+java.util.UUID.nameUUIDFromBytes(
+            normalized.toByteArray(Charsets.UTF_8))
+    }
 }
 
 class HuggingFaceHub {
