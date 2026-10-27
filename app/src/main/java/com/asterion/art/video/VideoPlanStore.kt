@@ -35,13 +35,14 @@ data class VideoPlan(
 )
 
 class VideoPlanStore(context: Context) {
-    private val root=File(context.applicationContext.filesDir,"video-plans").also { it.mkdirs() }
+    private val appContext=context.applicationContext
+    private val root=File(appContext.filesDir,"video-plans").also { it.mkdirs() }
     fun create(images: List<String>, preset: MotionPreset, seconds: Int = 2,
                direction: String = ""): VideoPlan {
         require(images.size in 1..8) { "Choose between one and eight reference images" }
         require(images.distinct().size == images.size)
         require(seconds in 1..5)
-        val prompts=compileMotion(preset,direction,ConceptTaxonomy(context))
+        val prompts=compileMotion(preset,direction,ConceptTaxonomy(appContext))
         val plan=VideoPlan(UUID.randomUUID().toString(),images,preset,seconds,24,
             System.currentTimeMillis().and(0x7FFFFFFFL),System.currentTimeMillis(),
             direction.trim(),prompts.first,prompts.second)
