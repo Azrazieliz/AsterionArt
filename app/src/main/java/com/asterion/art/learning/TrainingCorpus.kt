@@ -84,7 +84,7 @@ class GradingCorpusStore(context:Context) {
             require(file.parentFile==trusted){
                 "Grading evidence path is outside the private image store"
             }
-            require(file.isFile && file.length() in 64..25_000_000){
+            require(file.isFile && file.length() in 64L..25_000_000L){
                 "Missing or invalid grading evidence: "+grade.id
             }
             val digest=MessageDigest.getInstance("SHA-256")
