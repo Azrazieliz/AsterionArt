@@ -31,6 +31,10 @@ import java.util.concurrent.CancellationException
  */
 object NativeImageSmokeChoices {
     fun dimensions(model:DreamModel):Pair<Int,Int> {
+        if(model.isAnima||model.isSdxl) {
+            val edge=model.generationSize.coerceIn(256,2048)
+            return edge to edge
+        }
         val options=model.resolutions.filter { (w,h)->
             w in 256..2048 && h in 256..2048
         }

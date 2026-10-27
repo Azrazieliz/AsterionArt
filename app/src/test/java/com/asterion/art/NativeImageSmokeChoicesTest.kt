@@ -7,7 +7,12 @@ import org.junit.Test
 
 class NativeImageSmokeChoicesTest {
     private fun model(base:Int,res:List<Pair<Int,Int>> = emptyList())=DreamModel(
-        "installed","User checkpoint",base,true,false,true,"",res)
+        "installed","User checkpoint",base,false,false,true,"qwen21",res)
+    @Test fun fixedAnimaNeverLoadsPortraitDimensionsIntoSquareQnnContexts() {
+        val fixed=DreamModel("a","Anima",1024,true,false,true,"",
+            listOf(576 to 1024))
+        assertEquals(1024 to 1024,NativeImageSmokeChoices.dimensions(fixed))
+    }
     @Test fun respectsInstalledNativeModelGeometry() {
         assertEquals(512 to 768,NativeImageSmokeChoices.dimensions(model(1024,
             listOf(1024 to 1024,512 to 768))))

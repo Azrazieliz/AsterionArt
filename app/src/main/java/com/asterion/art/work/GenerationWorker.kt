@@ -373,7 +373,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
                 val candidateSettings = PreferenceLearning.candidate(job.settings,candidate - 1)
                 val image:ByteArray=if(characterPlan!=null) {
-                    val nativeSettings=candidateSettings.copy(ratio="9:16",batch=1)
+                    // Five independent Character Creation triptychs use a
+                    // 16:45 output crop. Anima/SDXL still load their fixed
+                    // 1024-square QNN CANVAS; the native server crops 16:45.
+                    val nativeSettings=candidateSettings.copy(ratio="16:45",batch=1)
                     val tiles=(0 until CharacterPhaseOne.PER_SHEET).map{cell ->
                         if(isStopped)throw CancellationException("Generation cancelled")
                         val d=characterPlan.frozen[(candidate-1)*5+cell]

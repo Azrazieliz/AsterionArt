@@ -111,12 +111,13 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             val primary=tagged?:conditioned.firstOrNull()?:models.first()
             val resolution=com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(primary,"9:16")
-            // Do not pretend a square-only neural model rendered a 9:16
-            // artwork. The output must honestly satisfy the sheet contract.
-            require(abs(resolution.first.toDouble()/resolution.second-9.0/16.0)<0.16) {
-                "The installed QNN model has no usable portrait generation size. "+
-                "Install a compatible portrait-capable image model."
-            }
+            // Anima/SDXL MUST load their fixed 1024-square QNN canvas and
+            // request 9:16 via JSON aspect_ratio. Only dynamic DiT models
+            // may request a genuinely non-square native canvas.
+            if(!primary.isAnima&&!primary.isSdxl)
+                require(abs(resolution.first.toDouble()/resolution.second-9.0/16.0)<0.16) {
+                    "The selected DiT model does not support a 9:16 canvas"
+                }
             foreground("Loading local QNN model · "+primary.name)
             engine.prepare(primary,resolution.first,resolution.second){isStopped}
             val sequence=ConditioningSchedule.compile(positive,negative,
@@ -170,6 +171,12 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             val info=BitmapFactory.Options().apply{inJustDecodeBounds=true}
             BitmapFactory.decodeByteArray(output,0,output.size,info)
             require(info.outWidth>0&&info.outHeight>0){"Native model returned invalid image"}
+            require(abs(info.outWidth.toDouble()/info.outHeight-9.0/16.0)<0.06) {
+                "The QNN pipeline returned "+info.outWidth+"×"+info.outHeight+
+                    " instead of the required 9:16 sheet. A model with an "+
+                    "operational aspect-ratio VAE encoder is needed; the "+
+                    "square output will not be incorrectly saved as a sheet."
+            }
             val saved=GeneratedImagePublisher.publish(app,sheet.id,1,output)
             repo.finishSheet(sheet.id,saved.toString())
             repo.updateTask(task,TaskStatus.COMPLETED)

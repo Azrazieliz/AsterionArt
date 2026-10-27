@@ -5,8 +5,11 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The majority of imported QNN ZIPs have no advertised resolution manifest.
- * Honor the chosen aspect ratio instead of silently forcing 1024x1024.
+ * Backend-specific NATIVE CANVAS, not final output crop.
+ * Official Local Dream Anima and SDXL QNN pipelines use a fixed square
+ * 1024 canvas; non-square output is produced by aspect-ratio inpaint/crop
+ * in RequestParser.hpp and must be requested by JSON aspect_ratio.
+ * RoPE/DiT models support arbitrary native shapes.
  */
 object NativeResolutionPolicy {
     private val ratios=mapOf(
@@ -17,6 +20,10 @@ object NativeResolutionPolicy {
     )
     fun choose(model:DreamModel,requested:String):Pair<Int,Int> {
         val ratio=ratios[requested] ?: error("Unsupported image aspect ratio: "+requested)
+        if(model.isAnima||model.isSdxl) {
+            val fixed=model.generationSize.coerceIn(256,2048)
+            return fixed to fixed
+        }
         val published=model.resolutions.filter{(w,h)->
             w in 256..2048 && h in 256..2048
         }
