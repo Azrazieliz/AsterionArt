@@ -120,7 +120,9 @@ object GenerationPlanner {
             val full = if (extra.isEmpty()) core else core + "\n\n" + join(extra)
             GenerationPass(n, full, negative, denoise[n - 1])
         }
-        return GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings)
+        return UniversalCreativePlanner.enrich(
+            GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings),
+            creation,concepts,sources)
     }
 
     /**
@@ -176,7 +178,9 @@ object GenerationPlanner {
         val passes=(1..5).map { index ->
             GenerationPass(index,base+" "+modifiers[index-1],"",denoise[index-1])
         }
-        return GenerationRecipe(mode,passes,sources.map { it.sheetId },settings)
+        return UniversalCreativePlanner.enrich(
+            GenerationRecipe(mode,passes,sources.map { it.sheetId },settings),
+            creation,concepts,sources)
     }
 
 
@@ -201,7 +205,9 @@ object GenerationPlanner {
         val passes=(1..5).map { i ->
             GenerationPass(i,base+"\n"+details[i-1],"",listOf(1f,.46f,.32f,.21f,.13f)[i-1])
         }
-        return GenerationRecipe(mode,passes,emptyList(),settings)
+        return UniversalCreativePlanner.enrich(
+            GenerationRecipe(mode,passes,emptyList(),settings),
+            creation,concepts,emptyList())
     }
 
     fun selectModelId(models: List<Pair<String, String>>, mode: RenderMode): String? {

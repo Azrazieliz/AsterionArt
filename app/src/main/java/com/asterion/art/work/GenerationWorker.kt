@@ -28,6 +28,12 @@ import com.asterion.art.nativeengine.ModelOutputRouting
 import com.asterion.art.engine.availableUpscalers
 import com.asterion.art.engine.upscaleImage
 import com.asterion.art.learning.PreferenceLearning
+import com.asterion.art.learning.CreativeMemoryStore
+import com.asterion.art.learning.SavedDesign
+import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.methodology.DetailedMethodologies
+import com.asterion.art.engine.GenerationRecipe
+import com.asterion.art.engine.GenerationPass
 import com.asterion.art.engine.SheetTextReader
 import com.asterion.art.engine.TechnicalImageScorer
 import com.asterion.art.enhancement.EmbeddedRealSr
@@ -92,7 +98,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 "Style correction requires a source illustration, not just a style sheet."
             }
             val compilerAttempt = runCatching {
-                if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
+                if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
+                    job.mode,listOf(GenerationPass(1,job.designPrompt,
+                        job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
+                else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
                         job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
                 else GenerationPlanner.compile(evidence,job.mode,job.settings,
@@ -113,7 +122,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 model = visualModel ?: error(
                     "Text-only preferred model or authoritative text is unavailable and " +
                         "no reference-aware Qwen/Klein model is installed.")
-                recipe = if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
+                recipe = if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
+                    job.mode,listOf(GenerationPass(1,job.designPrompt,
+                        job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
+                else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
                         job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
                 else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
@@ -142,7 +154,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 // Don't truncate authoritative prompt text. Switch to a genuine
                 // reference-conditioned engine instead of dropping source facts.
                 model = visualModel
-                recipe = if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
+                recipe = if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
+                    job.mode,listOf(GenerationPass(1,job.designPrompt,
+                        job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
+                else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
                         job.concepts,requireNotNull(job.creationMode),job.mode,job.settings)
                 else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
@@ -196,10 +211,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             var technicalLeaderScore = Double.NEGATIVE_INFINITY
             var technicalLeader: ByteArray? = null
             var technicalLeaderUri: android.net.Uri? = null
-            val count = job.settings.batch.coerceIn(1, 8)
+            val count = if(!job.designPrompt.isNullOrBlank()) 1
+                else job.settings.batch.coerceIn(1, 8)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
-            val oneShotCharacterSheet = job.creationMode == CreationMode.CHARACTER
+            val oneShotCharacterSheet = job.creationMode == CreationMode.CHARACTER ||
+                !job.designPrompt.isNullOrBlank()
             val stageSequence = if (oneShotCharacterSheet)
                 listOf(recipe.passes.first()) else recipe.passes
             val passesPerCandidate = stageSequence.size
@@ -224,7 +241,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
-                    val methodStage = if (job.creationMode==CreationMode.CHARACTER)
+                    val methodStage = if(!job.designPrompt.isNullOrBlank()) stage
+                    else if (job.creationMode==CreationMode.CHARACTER)
                         stage.copy(
                             positive=DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1),
                             negative=DesignBlueprintEngine.negative())
@@ -260,6 +278,33 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 if (technical.score == technicalLeaderScore) technicalLeaderUri = uri
                 repo.registerAsset(uri.toString(), sourceSheetId = null,
                     autoScore = technical.score, sourceJobId = job.id)
+                // Every design is independently selectable, including catalogue
+                // slots from sheets produced by any Creative Studio. The sheet
+                // remains a reference until separately regenerated as one image.
+                val perSheet=if(job.designPrompt!=null) 1
+                    else job.creationMode?.let {
+                        DetailedMethodologies.all[it]?.catalogue?.designsPerImage
+                    } ?: 1
+                val memory=CreativeMemoryStore(applicationContext)
+                val blueprints=if(job.creationMode==CreationMode.CHARACTER &&
+                    job.designPrompt==null) DesignBlueprintEngine.population(job.concepts)
+                    else emptyList()
+                for(index in 0 until perSheet) {
+                    val ordinal=(candidate-1)*perSheet+index+1
+                    val specification=blueprints.getOrNull(ordinal-1)?.render()
+                        ?: if(job.designPrompt!=null) job.designPrompt
+                        else UniversalCreativePlanner.individual(
+                            UniversalCreativePlanner.domain(job.creationMode),
+                            job.concepts,index+(candidate-1)*perSheet,
+                            methodStage.positive)
+                    memory.upsert(SavedDesign(
+                        id=job.id+"-D"+ordinal.toString().padStart(3,'0'),
+                        jobId=job.id,mode=job.mode,creationMode=job.creationMode,
+                        ordinal=ordinal,sheetNumber=candidate,prompt=specification,
+                        negative=methodStage.negative,sheetUri=uri.toString(),
+                        status=if(job.designPrompt!=null)"REVISION" else "CANDIDATE",
+                        parents=job.parentDesignIds,sourceSheetIds=job.sheetIds))
+                }
                 val coreSync = runCatching {
                     CoreResultUploader(applicationContext).upload(
                         uri, job.id,job.mode,GeneratedImagePublisher.sha256(image))
@@ -267,10 +312,14 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 out += JSONObject().apply {
                     put("candidate", candidate)
                     put("uri", uri.toString())
-                    put("prompt_positive", if (job.creationMode==CreationMode.CHARACTER)
+                    put("prompt_positive", if (job.designPrompt!=null)
+                        job.designPrompt
+                        else if (job.creationMode==CreationMode.CHARACTER)
                         DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1)
                         else stageSequence.joinToString("\n\n") { it.positive })
-                    put("prompt_negative", if (job.creationMode==CreationMode.CHARACTER)
+                    put("prompt_negative", if(job.designPrompt!=null)
+                        job.designNegative.orEmpty()
+                        else if (job.creationMode==CreationMode.CHARACTER)
                         DesignBlueprintEngine.negative()
                         else stageSequence.joinToString("\n\n") { it.negative })
                     put("technical_score", technical.score)

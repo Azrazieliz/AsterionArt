@@ -20,6 +20,9 @@ import com.asterion.art.data.EditJobStore
 import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
+import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.engine.DesignIntent
+import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.StillImageEngine
 import com.asterion.art.nativeengine.EmbeddedEngineFactory
@@ -75,6 +78,9 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
             }
             val evidence = sheets.map { SheetTextReader.read(applicationContext,it) }
             val recipe = GenerationPlanner.compile(evidence, source.mode, source.settings)
+            val editSpec = UniversalCreativePlanner.interpret(DesignIntent(
+                CreativeDomain.IMAGE_EDIT, referenceRoles=evidence.map { it.role }))
+
             val engine = EmbeddedEngineFactory.open(applicationContext)
             currentEngine = engine
             val models = engine.installedModels()
@@ -88,6 +94,10 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
             val selectedPass = recipe.passes.last().copy(denoise = job.strength)
             engine.verifyText(selectedPass.positive)
             if (selectedPass.negative.isNotBlank()) engine.verifyText(selectedPass.negative)
+            // The masked edit is conditioned on its own preservation contract.
+            // Source pixel geometry remains authoritative; do not let the
+            // full artwork template overwrite the local edit instruction.
+
             val original = applicationContext.contentResolver.openInputStream(Uri.parse(job.sourceUri))
                 ?.use { BitmapFactory.decodeStream(it) }
                 ?: error("Original image no longer accessible")

@@ -19,6 +19,9 @@ import com.asterion.art.video.Mp4SegmentJoiner
 import com.asterion.art.video.NightmareVideoBridge
 import com.asterion.art.video.VideoApiCredentials
 import com.asterion.art.video.VideoPlanStore
+import com.asterion.art.learning.CreativeMemoryStore
+import com.asterion.art.learning.SavedDesign
+import com.asterion.art.model.RenderMode
 import com.asterion.art.video.VideoPublisher
 import com.asterion.art.video.VideoResult
 import com.asterion.art.video.VideoResultStore
@@ -91,7 +94,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     "Rendering segment "+(index+1)+"/"+plan.imageUris.size+
                     " · model progress unavailable")
                 val result=bridge.generate(
-                    Uri.parse(frame),plan.preset.instruction,
+                    Uri.parse(frame),plan.positivePrompt,
                     plan.seed+index*1009L,plan.secondsPerSegment,
                     file,{isStopped})
                 segments+=result.file
@@ -109,6 +112,11 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             VideoResultStore(applicationContext).record(VideoResult(
                 id,uri.toString(),plan.imageUris,segments.size,
                 "Nightmare-compatible Wan video API",System.currentTimeMillis()))
+            CreativeMemoryStore(applicationContext).upsert(SavedDesign(
+                id=id+"-V001",jobId=id,mode=RenderMode.ANIMATION,
+                creationMode=null,ordinal=1,sheetNumber=1,
+                prompt=plan.positivePrompt,negative=plan.negativePrompt,
+                sheetUri=plan.imageUris.firstOrNull(),status="CANDIDATE"))
             val manifest=JSONObject().apply {
                 put("schema_version",1)
                 put("job_id",id)
@@ -119,6 +127,9 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 put("assembled_mp4",uri.toString())
                 put("nightmare_run_ids",JSONArray(runs))
                 put("clip_is_approved",false)
+                put("positive_prompt",plan.positivePrompt)
+                put("negative_prompt_guide",plan.negativePrompt)
+                put("negative_prompt_transmitted",false)
             }
             com.asterion.art.data.GeneratedImagePublisher.atomicWrite(
                 File(folder,"provenance.json"),manifest.toString(2).toByteArray())

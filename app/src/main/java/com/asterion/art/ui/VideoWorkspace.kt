@@ -22,6 +22,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -63,6 +66,8 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
     var images by remember { mutableStateOf<List<String>>(emptyList()) }
     var preset by remember { mutableStateOf(MotionPreset.CINEMATIC) }
     var seconds by remember { mutableStateOf(2) }
+    var customMotion by remember { mutableStateOf("") }
+    var showPromptReview by remember { mutableStateOf(false) }
     var resultsNonce by remember { mutableStateOf(0) }
     val scope=rememberCoroutineScope()
 
@@ -84,6 +89,24 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         }
     }
     val results=remember(resultsNonce) { VideoResultStore(context).list() }
+    val prompts=VideoPlanStore.compileMotion(preset,customMotion)
+    if(showPromptReview) AlertDialog(
+        onDismissRequest={showPromptReview=false},
+        title={Text("Review motion instructions")},
+        text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("POSITIVE");Text(prompts.first)
+            Text("NEGATIVE GUIDANCE");Text(prompts.second)
+            Text("Negative guidance is not transmitted: the current video API exposes only a positive prompt.")
+        }},
+        confirmButton={TextButton(onClick={
+            showPromptReview=false
+            runCatching {
+                val plan=VideoPlanStore(context).create(images,preset,seconds,customMotion)
+                val task=repo.recordTask(plan.id,TaskKind.VIDEO)
+                VideoGenerationWorker.enqueue(context,plan.id,task.id)
+            }.onSuccess { onQueued() }.onFailure { diagnostic=it.message }
+        }){Text("Approve and queue")}},
+        dismissButton={TextButton(onClick={showPromptReview=false}){Text("Back")}})
     LazyColumn(
         modifier=Modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(14.dp)
@@ -186,6 +209,9 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                             onClick={preset=item},label={Text(item.title)})
                     }
                 }
+                OutlinedTextField(value=customMotion,onValueChange={customMotion=it},
+                    label={Text("Specific motion direction")},modifier=Modifier.fillMaxWidth(),
+                    minLines=2,maxLines=5)
                 Text("Segment duration: $seconds s",color=Gold)
                 Slider(value=seconds.toFloat(),
                     onValueChange={seconds=it.roundToInt()},
@@ -197,18 +223,11 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                 Button(
                     enabled=connected&&images.isNotEmpty(),
                     modifier=Modifier.fillMaxWidth(),
-                    onClick={
-                        runCatching {
-                            val plan=VideoPlanStore(context).create(images,preset,seconds)
-                            val task=repo.recordTask(plan.id,TaskKind.VIDEO)
-                            VideoGenerationWorker.enqueue(context,plan.id,task.id)
-                        }.onSuccess { onQueued() }
-                            .onFailure { diagnostic=it.message }
-                    }
+                    onClick={showPromptReview=true}
                 ) {
                     androidx.compose.material3.Icon(Icons.Default.PlayArrow,null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Generate video in background")
+                    Text("Review video prompt")
                 }
                 Text("Nightmare API host must be enabled on this phone until native embedding is finished. " +
                     "Background rendering may be restricted by Android battery/foreground-service policy.",

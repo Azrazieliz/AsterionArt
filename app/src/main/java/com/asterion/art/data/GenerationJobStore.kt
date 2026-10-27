@@ -17,7 +17,10 @@ data class GenerationJob(
     val createdAt: Long,
     val creationMode: CreationMode? = null,
     val sourceImageUri: String? = null,
-    val concepts: List<String> = emptyList()
+    val concepts: List<String> = emptyList(),
+    val designPrompt: String? = null,
+    val designNegative: String? = null,
+    val parentDesignIds: List<String> = emptyList()
 )
 
 class GenerationJobStore(context: Context) {
@@ -26,9 +29,13 @@ class GenerationJobStore(context: Context) {
 
     fun create(mode: RenderMode, sheets: List<String>, settings: GeneratorSettings,
                creationMode: CreationMode? = null, sourceImageUri: String? = null,
-               concepts: List<String> = emptyList()): GenerationJob {
+               concepts: List<String> = emptyList(),
+               designPrompt: String? = null,
+               designNegative: String? = null,
+               parentDesignIds: List<String> = emptyList()): GenerationJob {
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
-            settings, System.currentTimeMillis(),creationMode,sourceImageUri,concepts.distinct())
+            settings, System.currentTimeMillis(),creationMode,sourceImageUri,
+            concepts.distinct(),designPrompt,designNegative,parentDesignIds.distinct())
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -49,6 +56,9 @@ class GenerationJobStore(context: Context) {
             put("creation_mode", creationMode?.name ?: JSONObject.NULL)
             put("source_image",sourceImageUri ?: JSONObject.NULL)
             put("concepts",JSONArray(job.concepts))
+            put("design_prompt",job.designPrompt ?: JSONObject.NULL)
+            put("design_negative",job.designNegative ?: JSONObject.NULL)
+            put("design_parents",JSONArray(job.parentDesignIds))
             put("settings", s)
         }
         val tmp = File(folder, job.id + ".tmp")
@@ -83,6 +93,13 @@ class GenerationJobStore(context: Context) {
             if (root.isNull("source_image") || !root.has("source_image")) null
                 else root.getString("source_image"),
             root.optJSONArray("concepts")?.let { arr ->
+                (0 until arr.length()).map { arr.getString(it) }
+            }.orEmpty(),
+            if(root.isNull("design_prompt")) null
+                else root.optString("design_prompt","").takeIf { it.isNotBlank() },
+            if(root.isNull("design_negative")) null
+                else root.optString("design_negative","").takeIf { it.isNotBlank() },
+            root.optJSONArray("design_parents")?.let { arr ->
                 (0 until arr.length()).map { arr.getString(it) }
             }.orEmpty()
         )

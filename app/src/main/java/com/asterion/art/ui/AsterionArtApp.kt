@@ -493,7 +493,7 @@ private fun LibraryHub(
     Column(Modifier.fillMaxSize()) {
         LazyRow(contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp),
             horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            items(listOf("Creations","Sheets","Models","History")) { value ->
+            items(listOf("Creations","Designs","Sheets","Models","History")) { value ->
                 FilterChip(selected=tab==value,onClick={tab=value},
                     label={Text(value)})
             }
@@ -501,6 +501,7 @@ private fun LibraryHub(
         Box(Modifier.weight(1f)) {
             when(tab) {
                 "Creations" -> GradingScreen(repo,onEdit=onEdit,onToolbox=onToolbox)
+                "Designs" -> DesignLibraryScreen(repo)
                 "Sheets" -> SheetLibraryScreen(repo)
                 "Models" -> NativeModelLibraryScreen()
                 else -> QueueScreen(repo)

@@ -8,6 +8,15 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.WorkManager
 import com.asterion.art.data.ArtRepository
+import com.asterion.art.engine.UniversalCreativePlanner
+import com.asterion.art.engine.DesignIntent
+import com.asterion.art.data.GeneratedImagePublisher
+import com.asterion.art.learning.CreativeMemoryStore
+import com.asterion.art.learning.SavedDesign
+import com.asterion.art.model.RenderMode
+import org.json.JSONObject
+import org.json.JSONArray
+import java.io.File
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.render.SheetRenderer
 import kotlinx.coroutines.Dispatchers
@@ -27,9 +36,32 @@ class SheetRenderWorker(appContext: Context, params: WorkerParameters) :
         repo.updateTask(taskId, TaskStatus.RUNNING)
         repo.updateTaskProgress(taskId,0,0,"Composing source sheet · progress unavailable")
         try {
+            val specification=UniversalCreativePlanner.interpret(DesignIntent(
+                UniversalCreativePlanner.sheetDomain(sheet.role),
+                referenceRoles=listOf(sheet.role)))
             val output = SheetRenderer.render(applicationContext, sheet)
+            // Distinguish reference composition from native generative sheets.
+            val manifest=JSONObject().apply {
+                put("schema","asterion.sheet-provenance.v2")
+                put("sheet_id",sheet.id)
+                put("role",sheet.role.name)
+                put("generated_by_diffusion",false)
+                put("method","source-composition")
+                put("references",JSONArray(sheet.sourceUris))
+                put("design_specification",specification.synthesis)
+                put("positive_prompt_guide",specification.positive)
+                put("negative_prompt_guide",specification.negative)
+            }
+            val dst=File(applicationContext.filesDir,"sheet-provenance").also{it.mkdirs()}
+            GeneratedImagePublisher.atomicWrite(File(dst,sheet.id+".json"),
+                manifest.toString(2).toByteArray(Charsets.UTF_8))
             repo.updateTaskProgress(taskId,0,0,"Saving sheet PNG")
             repo.finishSheet(sheetId, output.toString())
+            CreativeMemoryStore(applicationContext).upsert(SavedDesign(
+                id=sheet.id+"-S001",jobId=sheet.id,mode=RenderMode.OTHER,
+                creationMode=null,ordinal=1,sheetNumber=1,
+                prompt=specification.positive,negative=specification.negative,
+                sheetUri=output.toString(),sourceSheetIds=listOf(sheet.id)))
             repo.updateTask(taskId, TaskStatus.COMPLETED)
             Result.success()
         } catch (error: Exception) {
