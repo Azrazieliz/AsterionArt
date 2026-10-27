@@ -21,6 +21,7 @@ import com.asterion.art.video.VideoApiCredentials
 import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.video.VideoContinuitySchedule
 import com.asterion.art.video.VideoFrameContinuation
+import com.asterion.art.video.VideoSeamMetrics
 import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.learning.CreativeMemoryStore
@@ -134,6 +135,12 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     .putInt("total",timeline.size).build())
             }
             require(segments.size==timeline.size)
+            val seamMetrics=(1 until segments.size).mapNotNull { index ->
+                runCatching {
+                    VideoSeamMetrics.inspect(segments[index-1],
+                        segments[index],index)
+                }.getOrNull()
+            }
             val combined=File(folder,"assembled.mp4")
             repo.updateTaskProgress(task,0,0,
                 "Assembling MP4 · backend progress unavailable")
@@ -158,6 +165,15 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     "previous_clip_end_frame" else "independent_reference_frames")
                 put("motion_continuity_verified",false)
                 put("total_segment_count",timeline.size)
+                put("seam_objective_measurement",JSONArray(
+                    seamMetrics.map { metric ->
+                        JSONObject()
+                            .put("after_segment",metric.afterSegment)
+                            .put("color_jump",metric.meanColorJump)
+                            .put("edge_jump",metric.edgeJump)
+                            .put("likely_hard_cut",metric.likelyHardCut)
+                    }))
+                put("seam_metrics_are_semantic_fidelity",false)
                 put("assembled_mp4",uri.toString())
                 put("nightmare_run_ids",JSONArray(runs))
                 put("clip_is_approved",false)
