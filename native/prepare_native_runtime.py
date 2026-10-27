@@ -81,7 +81,7 @@ def unpack(apk: Path, android_project: Path, *, expected_sha: str = APK_SHA256) 
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(member) as source, dest.open("wb") as output:
                     shutil.copyfileobj(source, output, 1024 * 1024)
-                files.append({"path": str(local), "bytes": dest.stat().st_size,
+                files.append({"path": local.as_posix(), "bytes": dest.stat().st_size,
                               "sha256": sha256(dest)})
 
         required = {
