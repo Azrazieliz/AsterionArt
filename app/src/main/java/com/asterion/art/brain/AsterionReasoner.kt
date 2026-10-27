@@ -141,6 +141,11 @@ class AsterionReasoner(context:Context) {
             }
             onStage("Loading "+weights.label+" with "+contextSize+" tokens")
             engine.loadModel(weightFile.absolutePath,contextSize)
+            // LoRA is applied to a compatible Qwen3 base, never silently
+            // substituted for an incompatible architecture.
+            BrainAdapterLibrary(app).activeFor(weights.id)?.let { adapter ->
+                engine.loadAdapter(adapter.absolutePath)
+            }
             engine.setSystemPrompt(SYSTEM)
             val canonical=section(domain,concepts)
             val guidance=learnedExamples(domain)

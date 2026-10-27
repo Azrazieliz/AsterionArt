@@ -42,43 +42,62 @@ object ConditioningSchedule {
                 ConditioningChunk(1,1,positive,negativeClean,1.0f,
                     direct.count,direct.limit)),"single_pass")
         }
-        // Split only at full paragraph or sentence boundaries. Each exact segment is retained
-        // in the ledger, including punctuation; no original content is silently thrown away.
-        val units=Regex("(?<=\\n)|(?<=[.!?])(?=\\s)").split(positive)
-            .flatMap { text ->
-                if(text.length<=1200)listOf(text) else text.chunked(1100)
-            }.filter{it.isNotEmpty()}
-        require(units.isNotEmpty())
+        // A complete lossless span ledger. Binary search for the largest span
+        // the model's ACTUAL tokenizer can encode; keep all source characters.
         val chunks=mutableListOf<String>()
-        var current=""
-        units.forEach { unit ->
-            val candidate=current+unit
-            val prefix=if(chunks.isEmpty())"" else HEADER
-            if(tokenizer(prefix+candidate).fits) {
-                current=candidate
-            } else {
-                if(current.isNotEmpty()) {
-                    chunks+=current
-                    require(chunks.size<maximumPasses) {
-                        "Full conditioning requires more than $maximumPasses passes"
-                    }
-                    current=""
-                }
-                val continuation=HEADER+unit
-                require(tokenizer(continuation).fits) {
-                    "A required individual segment exceeds native encoder capacity"
-                }
-                current=unit
-            }
+        var offset=0
+        val shorter="Preserve prior image. Add these required details:\n"
+        val continuation=when {
+            tokenizer(HEADER).fits -> HEADER
+            tokenizer(shorter).fits -> shorter
+            else -> error("Native context is too small for safe continuation")
         }
-        if(current.isNotEmpty())chunks+=current
-        require(chunks.size in 1..maximumPasses)
-        // Lossless evidence audit: content appears in original order, unabridged.
+        while(offset<positive.length) {
+            require(chunks.size<maximumPasses) {
+                "Required prompt needs more than $maximumPasses verified passes"
+            }
+            val prefix=if(chunks.isEmpty())"" else continuation
+            var lo=1
+            var hi=positive.length-offset
+            var maxFit=0
+            while(lo<=hi) {
+                val middle=lo+(hi-lo)/2
+                val candidate=prefix+positive.substring(offset,offset+middle)
+                val proof=tokenizer(candidate)
+                require(proof.limit>0){"Unmeasurable native encoder context"}
+                if(proof.fits) {maxFit=middle;lo=middle+1}
+                else hi=middle-1
+            }
+            require(maxFit>0){"A mandatory section cannot fit in native context"}
+            var length=maxFit
+            // Avoid cutting a UTF-16 surrogate pair in the original record.
+            if(offset+length<positive.length &&
+                Character.isHighSurrogate(positive[offset+length-1]) &&
+                Character.isLowSurrogate(positive[offset+length])) {
+                length--
+            }
+            require(length>0)
+            // Prefer natural word breaks, without losing intervening whitespace.
+            if(offset+length<positive.length) {
+                val part=positive.substring(offset,offset+length)
+                val lastSpace=part.indexOfLast{it.isWhitespace()}
+                if(lastSpace>length/2 && lastSpace<length-1) {
+                    val proposed=lastSpace+1
+                    if(tokenizer(prefix+positive.substring(offset,offset+proposed)).fits)
+                        length=proposed
+                }
+            }
+            val chunk=positive.substring(offset,offset+length)
+            require(tokenizer(prefix+chunk).fits)
+            chunks+=chunk
+            offset+=length
+        }
+        require(chunks.isNotEmpty())
         require(chunks.joinToString("")==positive) {
-            "Conditioning schedule dropped or reordered source text"
+            "Prompt content was changed or lost during scheduling"
         }
         val parts=chunks.mapIndexed { i,chunk ->
-            val text=if(i==0)chunk else HEADER+chunk
+            val text=if(i==0)chunk else continuation+chunk
             val proof=tokenizer(text)
             require(proof.fits && proof.limit>0)
             // Subsequent passes are controlled refinement, NOT a claim of

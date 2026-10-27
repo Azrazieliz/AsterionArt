@@ -117,6 +117,7 @@ class CreativeMemoryStore(context:Context) {
 
     @Synchronized fun keep(id:String):SavedDesign {
         val record=list().first { it.id==id }
+        if(record.status=="KEPT")return record // Idempotence: no duplicate training updates.
         val selected=record.copy(status="KEPT")
         upsert(selected)
         LocalPreferenceModel(appContext).observe(selected.prompt,true)
@@ -124,6 +125,7 @@ class CreativeMemoryStore(context:Context) {
     }
     @Synchronized fun reject(id:String):SavedDesign {
         val record=list().first { it.id==id }
+        if(record.status=="REJECTED")return record
         val selected=record.copy(status="REJECTED")
         upsert(selected)
         LocalPreferenceModel(appContext).observe(selected.prompt,false)
