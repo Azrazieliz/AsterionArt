@@ -41,7 +41,9 @@ object DesignFusionRules {
             append("Produce one complete, consistent new design, not a collage.\n")
             sources.forEachIndexed { index,prompt ->
                 append("\nSOURCE ").append(index+1).append(":\n")
-                append(prompt.take(16000)).append('\n')
+                // Native token scheduling handles long instructions explicitly;
+                // never silently truncate an approved parent's design.
+                append(prompt).append('\n')
             }
             if(intent.isNotBlank()) append("\nFUSION INTENT:\n").append(intent).append('\n')
         }

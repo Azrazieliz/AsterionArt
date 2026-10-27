@@ -110,7 +110,13 @@ class ReferenceVisualInterpreter(context: Context) {
         val misses=pending.distinctBy{it.key}.filter { it.key !in observed }
         if(misses.isNotEmpty()) {
             BrainInferenceLock.mutex.withLock {
-                NativeVisionSession(pair).use { vision ->
+                val session=try { NativeVisionSession(pair) }
+                    catch (error:LinkageError) {
+                        throw IllegalStateException(
+                            "The installed vision weights cannot run because the "+
+                            "native Qwen3-VL engine is missing or incompatible.",error)
+                    }
+                session.use { vision ->
                     misses.forEachIndexed { i,entry ->
                         onProgress("Reading source pixels "+(i+1)+"/"+misses.size)
                         val frame=NativeVisionSession.rgb(app,Uri.parse(entry.uri))

@@ -1,6 +1,7 @@
 package com.asterion.art
 
 import com.asterion.art.learning.DesignReferenceSelection
+import com.asterion.art.learning.DesignFusionRules
 import com.asterion.art.learning.SavedDesign
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
@@ -28,6 +29,12 @@ class DesignReferenceSelectionTest {
         val fusion=design("fusion",null,parents=listOf("a","b"))
         assertEquals(listOf("file:///first.png","file:///second.png"),
             DesignReferenceSelection.images(fusion,listOf(left,right,fusion)))
+    }
+    @Test fun longParentDesignAuthorityIsNotSilentlyTruncated() {
+        val source="SOURCE-CONCEPT-START "+("a".repeat(18000))+" END-FROZEN-MORPHOLOGY"
+        val fused=DesignFusionRules.fuse(listOf(source,"second full concept"),"")
+        assertTrue(fused.contains("END-FROZEN-MORPHOLOGY"))
+        assertTrue(fused.contains(source))
     }
     @Test fun missingIndividualCatalogueCropIsNotSilentlyReplacedByWholeSheet() {
         val parent=design("missing","file:///unseparated.png",mode=CreationMode.WEAPON)
