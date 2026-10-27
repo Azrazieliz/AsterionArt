@@ -176,12 +176,21 @@ object VisualObservationText {
             part.append(word)
         }
         flush()
-        // Preserve tiny final fragments by joining when the limit allows.
+        // GenerationPlanner drops evidence snippets shorter than 3 chars.
+        // A long unbroken token may finish with one or two characters: move
+        // enough characters from the previous fragment to preserve all pixels'
+        // description characters without hiding the trailing evidence.
         if(result.size>1&&result.last().length<3) {
             val last=result.removeAt(result.lastIndex)
-            if(result.last().length+1+last.length<=maxLength)
-                result[result.lastIndex]=result.last()+" "+last
-            else result+=last
+            val previous=result.removeAt(result.lastIndex)
+            if(previous.length+1+last.length<=maxLength) {
+                result+=previous+" "+last
+            } else {
+                val move=3-last.length
+                require(previous.length>move+2)
+                result+=previous.dropLast(move)
+                result+=previous.takeLast(move)+last
+            }
         }
         require(result.joinToString(" ").replace(Regex("\\s+")," ")
             .replace(" ","").equals(normalized.replace(" ",""))) {
