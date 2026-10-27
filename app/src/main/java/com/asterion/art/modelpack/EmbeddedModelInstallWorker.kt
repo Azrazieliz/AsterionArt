@@ -27,7 +27,9 @@ class EmbeddedModelInstallWorker(context:Context,params:WorkerParameters):
         private const val CHANNEL="asterion-offline-model-install"
         fun enqueue(context:Context) {
             val pack=EmbeddedModelPack(context)
-            if(!pack.packaged()||pack.allReady())return
+            val image=EmbeddedImageModelPack(context)
+            if(!pack.packaged()||!image.packaged())return
+            if(pack.allReady()&&image.installed())return
             val work=OneTimeWorkRequestBuilder<EmbeddedModelInstallWorker>()
                 .addTag(TAG).build()
             WorkManager.getInstance(context).enqueueUniqueWork(
@@ -56,8 +58,12 @@ class EmbeddedModelInstallWorker(context:Context,params:WorkerParameters):
                 "This APK does not contain an embedded model pack"
             }
             val models=pack.readManifest()
-            val allBytes=models.sumOf{it.bytes}
+            val image=EmbeddedImageModelPack(applicationContext)
+            require(image.packaged()){"This package lacks its included QNN image model"}
+            val imageBytes=image.readManifest().bytes
+            val allBytes=models.sumOf{it.bytes}+imageBytes
             var prior=models.filter{pack.installed(it)}.sumOf{it.bytes}
+            if(image.installed())prior+=imageBytes
             notify((prior*100/allBytes).toInt(),"Verifying bundled models")
             for(model in models) {
                 if(isStopped)error("Cancelled model unpacking")
@@ -75,8 +81,21 @@ class EmbeddedModelInstallWorker(context:Context,params:WorkerParameters):
                 prior+=model.bytes
                 notify((prior*100/allBytes).toInt(),model.filename)
             }
-            check(pack.allReady()) {
-                "Bundled local models could not be verified on this device"
+            if(!image.installed()) {
+                notify((prior*100/allBytes).toInt(),"Preparing included Rin image model")
+                image.install({bytes,_->
+                    val percentage=((prior+bytes)*100/allBytes)
+                        .toInt().coerceIn(0,100)
+                    setProgressAsync(Data.Builder()
+                        .putString("model",EmbeddedImageModelPack.IMAGE_ID)
+                        .putInt("percent",percentage)
+                        .putLong("processed",prior+bytes)
+                        .putLong("total",allBytes).build())
+                },{isStopped})
+                prior+=imageBytes
+            }
+            check(pack.allReady()&&image.installed()) {
+                "Complete offline reasoning, vision and image pack is not verified"
             }
             setProgress(Data.Builder().putInt("percent",100)
                 .putString("model","ready").build())

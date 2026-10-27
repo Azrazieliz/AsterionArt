@@ -16,6 +16,7 @@ import androidx.work.WorkManager
 import com.asterion.art.brain.BrainCatalog
 import com.asterion.art.modelpack.EmbeddedModelInstallWorker
 import com.asterion.art.modelpack.EmbeddedModelPack
+import com.asterion.art.modelpack.EmbeddedImageModelPack
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.brain.BrainAdapterLibrary
 import kotlinx.coroutines.launch
@@ -38,7 +39,8 @@ fun BrainModelSection() {
     var message by remember { mutableStateOf("") }
     var bundledProgress by remember { mutableIntStateOf(0) }
     var bundleError by remember { mutableStateOf<String?>(null) }
-    val packaged=remember{EmbeddedModelPack(context).packaged()}
+    val packaged=remember{EmbeddedModelPack(context).packaged() &&
+        EmbeddedImageModelPack(context).packaged()}
     val adapterPicker=rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()) { uri ->
         val base=selected
@@ -80,14 +82,16 @@ fun BrainModelSection() {
             verticalArrangement=Arrangement.spacedBy(9.dp)) {
             Text("ASTERION DESIGN BRAIN",color=Gold,
                 style=MaterialTheme.typography.titleMedium)
-            Text("Qwen3 reasoning and Qwen3-VL visual assessment checkpoints "+
-                "are included in the neural-model package and extracted from "+
-                "local APK assets. The diffusion image-generation weights are NOT "+
-                "yet bundled; a complete offline image-creation release is not ready.",
+            Text("The full offline package includes Qwen3 reasoning, Qwen3-VL "+
+                "vision/projector and Rin Anima/QNN image-generation weights. "+
+                "They are prepared automatically from signed local package assets; "+
+                "no mandatory model download or external inference is used. "+
+                "Actual native inference and image quality remain untested.",
                 color=Mist,style=MaterialTheme.typography.bodySmall)
             if(!packaged){
-                Text("THIS BUILD HAS NO BUNDLED GGUF WEIGHTS. The full offline "+
-                    "release package is required.",color=Red)
+                Text("THIS BUILD IS MISSING AN INCLUDED REASONING, VISION, OR "+
+                    "IMAGE-GENERATION WEIGHT PACK. It is not the complete offline "+
+                    "package.",color=Red)
             }else if(!EmbeddedModelPack(context).allReady()){
                 Text("Preparing included model files · "+bundledProgress+"%",
                     color=Gold)

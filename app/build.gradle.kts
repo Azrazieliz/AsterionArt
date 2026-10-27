@@ -104,8 +104,26 @@ val verifyOfflineEmbeddedModels by tasks.registering {
             .redirectErrorStream(true).start()
         val report=checkProcess.inputStream.bufferedReader().use { it.readText() }
         check(checkProcess.waitFor()==0) {
-            "Release model-byte verification failed before asset merge:\n"+
+            "Release neural-model byte verification failed before asset merge:\n"+
                 report.takeLast(4000)
+        }
+        // Mandatory image-generation checkpoint: refuse incomplete packages.
+        val imageManifest=manifest.parentFile.parentFile.resolve(
+            "asterion_image_bundle/manifest.json")
+        check(imageManifest.isFile) {
+            "Release requires the full preconverted Rin Anima image weights. " +
+                "Stage modelpack/prepare_embedded_image.py first."
+        }
+        val imageCheck=ProcessBuilder(
+            python,"modelpack/prepare_embedded_image.py",
+            "--output",manifest.parentFile.parentFile.absolutePath,
+            "--verify-only"
+        ).directory(rootProject.projectDir)
+            .redirectErrorStream(true).start()
+        val imageReport=imageCheck.inputStream.bufferedReader().use{it.readText()}
+        check(imageCheck.waitFor()==0) {
+            "Release image-model byte verification failed before asset merge:\n"+
+                imageReport.takeLast(4000)
         }
     }
 }

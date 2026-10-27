@@ -73,11 +73,7 @@ class EmbeddedImageModelPack(context:Context) {
     fun installed():Boolean=NativeModelLibrary(app).list().any { installed ->
         runCatching {
             val marker=java.io.File(
-                java.io.File(installed.root.path).let {
-                    // The metadata belongs to the installation directory,
-                    // potentially one level above the tensor-root subfolder.
-                    java.io.File(app.filesDir,"asterion-qnn-models/${installed.id}")
-                },"asterion_model.json")
+                app.filesDir,"asterion-qnn-models/${installed.id}/asterion_model.json")
             JSONObject(marker.readText(Charsets.UTF_8))
                 .optString("embedded_archive_sha256")==UPSTREAM_SHA256
         }.getOrDefault(false)
