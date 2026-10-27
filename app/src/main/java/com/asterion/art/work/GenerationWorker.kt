@@ -213,14 +213,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 })
             }
             var size = model.generationSize.coerceIn(512, 1536)
-            var resolution = if(characterPlan!=null)
-                model.resolutions.minByOrNull{(w,h)->
-                    abs(w.toDouble()/h-16.0/45.0)
-                } ?: (size to size)
-            else if (job.settings.ratio == "16:9")
-                model.resolutions.firstOrNull { (w,h) -> w*9==h*16 }
-                    ?: (1024 to 576)
-            else model.resolutions.firstOrNull() ?: (size to size)
+            var resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
+                .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
             repo.updateTaskProgress(taskId,0,0,"Loading QNN model · "+model.name)
             foreground("Loading " + model.name)
             engine.prepare(model, resolution.first, resolution.second) { isStopped }
@@ -254,13 +248,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 // A fallback QNN engine must preserve the narrow, upright
                 // individual-character triptych, never switch to the final
                 // 16:9 five-character sheet's landscape resolution.
-                resolution = if(characterPlan!=null)
-                    model.resolutions.minByOrNull { (w,h)->
-                        abs(w.toDouble()/h-16.0/45.0)
-                    } ?: (size to size)
-                else if(job.settings.ratio=="16:9")
-                    model.resolutions.firstOrNull { (w,h)->w*9==h*16 } ?: (1024 to 576)
-                else model.resolutions.firstOrNull() ?: (size to size)
+                resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
+                    .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
                 foreground("Prompt exceeded text context; using " + model.name + " visual conditioning")
                 engine.prepare(model, resolution.first, resolution.second) { isStopped }
                 recipe.passes.forEach { pass ->
