@@ -1,10 +1,14 @@
 package com.asterion.art.learning
 
 import android.content.Context
+import android.net.Uri
 import com.asterion.art.data.GeneratedImagePublisher
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Evidence-preserving training manifest from EXPLICIT detailed grades only.
@@ -67,5 +71,54 @@ class GradingCorpusStore(context:Context) {
         GeneratedImagePublisher.atomicWrite(output,
             data.toByteArray(Charsets.UTF_8))
         return output
+    }
+
+    /** Explicit SAF export only. Exports exact verified visual crops + labels. */
+    @Synchronized fun exportZip(target:Uri):Int {
+        val entries=DetailedGradeStore(app).list()
+            .filter{it.patchPath!=null&&it.evidenceSha256!=null}
+        require(entries.isNotEmpty()){"No graded image evidence available to export"}
+        val trusted=File(app.filesDir,"grading/evidence").canonicalFile
+        val result=entries.map { grade->
+            val file=File(requireNotNull(grade.patchPath)).canonicalFile
+            require(file.parentFile==trusted){
+                "Grading evidence path is outside the private image store"
+            }
+            require(file.isFile && file.length() in 64..25_000_000){
+                "Missing or invalid grading evidence: "+grade.id
+            }
+            val digest=MessageDigest.getInstance("SHA-256")
+            file.inputStream().use{input->
+                val buf=ByteArray(65536)
+                while(true) {
+                    val count=input.read(buf)
+                    if(count<0)break
+                    digest.update(buf,0,count)
+                }
+            }
+            val hash=digest.digest().joinToString(""){"%02x".format(it)}
+            require(hash.equals(grade.evidenceSha256,true)) {
+                "Grading evidence does not match its captured pixels"
+            }
+            grade to file
+        }
+        requireNotNull(app.contentResolver.openOutputStream(target,"w")).use{sink->
+            ZipOutputStream(sink).use{zip->
+                val manifest=result.joinToString("\n") { (grade,_)->
+                    val row=GradingCorpus.trainingRecords(listOf(grade)).single()
+                    row.put("private_patch_path","images/"+grade.id+".png")
+                    row.toString()
+                }+"\n"
+                zip.putNextEntry(ZipEntry("explicit-visual-grades.jsonl"))
+                zip.write(manifest.toByteArray(Charsets.UTF_8))
+                zip.closeEntry()
+                result.forEach{(grade,file)->
+                    zip.putNextEntry(ZipEntry("images/"+grade.id+".png"))
+                    file.inputStream().use{it.copyTo(zip)}
+                    zip.closeEntry()
+                }
+            }
+        }
+        return result.size
     }
 }

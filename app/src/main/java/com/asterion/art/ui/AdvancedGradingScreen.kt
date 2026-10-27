@@ -43,6 +43,17 @@ fun AdvancedGradingScreen(repo:ArtRepository,
     var edited by remember{mutableStateOf<DetailedGrade?>(null)}
     var saving by remember{mutableStateOf(false)}
     val records=remember(revision){store.list()}
+    val exportPicker=rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")){uri->
+        if(uri!=null)scope.launch {
+            val result=withContext(Dispatchers.IO){
+                runCatching{GradingCorpusStore(context).exportZip(uri)}
+            }
+            result.onSuccess{
+                message="Exported "+it+" detailed image/region grading examples."
+            }.onFailure{message=it.message}
+        }
+    }
     val picker=rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()){uris->
         uris.forEach{uri->
@@ -112,6 +123,12 @@ fun AdvancedGradingScreen(repo:ArtRepository,
             Button(onClick={picker.launch(arrayOf("image/*"))}) {
                 Text("Import images for grading")
             }
+            OutlinedButton(onClick={
+                exportPicker.launch("Asterion-explicit-visual-grading.zip")
+            }) { Text("Export my grading evidence for optional training") }
+            Text("Export is explicit and local; no data is uploaded or trained "+
+                "in the cloud automatically.",color=Mist,
+                style=MaterialTheme.typography.labelSmall)
             message?.let{Text(it,color=Mist)}
         }
         if(repo.assets.isEmpty())item {Text("No images available.",color=Mist)}
