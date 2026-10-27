@@ -28,6 +28,9 @@ class EmbeddedNpuEngine(context: Context): StillImageEngine {
         runner.prepare(installed,width,height,cancelled)
     }
 
+    override fun inspectText(prompt:String):TokenCapacity =
+        inferenceProtocol.inspectText(prompt)
+
     override fun verifyText(prompt: String):TokenCapacity =
         inferenceProtocol.verifyText(prompt)
 

@@ -13,6 +13,7 @@ interface StillImageEngine {
     fun installedModels(): List<DreamModel>
     fun release() {}
     fun prepare(model: DreamModel, width: Int, height: Int, cancelled: () -> Boolean)
+    fun inspectText(prompt: String): TokenCapacity = verifyText(prompt)
     fun verifyText(prompt: String): TokenCapacity
     fun generate(
         pass: GenerationPass,
@@ -125,13 +126,17 @@ class LocalDreamBridge(private val generationPort: Int = 8081) : StillImageEngin
         throw BackendUnavailable("Timed out loading exact model " + model.id + " " + width + "x" + height)
     }
 
-    override fun verifyText(prompt: String): TokenCapacity {
+    override fun inspectText(prompt: String): TokenCapacity {
         val result = call(generation, "/tokenize", JSONObject().put("prompt", prompt))
-        val report = TokenCapacity(
+        return TokenCapacity(
             result.getInt("count"),
             result.optInt("max_length", 0),
             result.optInt("overflow_offset", -1),
         )
+    }
+
+    override fun verifyText(prompt: String): TokenCapacity {
+        val report=inspectText(prompt)
         if (!report.fits) {
             throw BackendUnavailable(
                 "Prompt exceeds the active NPU context: " + report.count +

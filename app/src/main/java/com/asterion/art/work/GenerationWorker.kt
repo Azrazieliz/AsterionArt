@@ -35,6 +35,7 @@ import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.DesignPreviewCrops
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.methodology.DetailedMethodologies
+import com.asterion.art.engine.ConditioningSchedule
 import com.asterion.art.engine.GenerationRecipe
 import com.asterion.art.engine.GenerationPass
 import com.asterion.art.engine.SheetTextReader
@@ -208,9 +209,17 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 else model.resolutions.firstOrNull() ?: (size to size)
                 foreground("Prompt exceeded text context; using " + model.name + " visual conditioning")
                 engine.prepare(model, resolution.first, resolution.second) { isStopped }
-                recipe.passes.forEach { pass -> engine.verifyText(pass.positive) }
+                recipe.passes.forEach { pass ->
+                    check(engine.inspectText(pass.positive).limit>0) {
+                        "Selected model does not report native token capacity"
+                    }
+                }
             } else {
-                capacityCheck.getOrThrow()
+                if(capacityCheck.isFailure &&
+                    capacityCheck.exceptionOrNull()?.message
+                        ?.contains("exceeds",ignoreCase=true)!=true) {
+                    capacityCheck.getOrThrow()
+                }
             }
             val extraOriginal = job.sourceImageUri?.let { uri ->
                 SheetRecord(role=SheetRole.CHARACTER,label="Original source image",
@@ -290,23 +299,60 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                                 ?: DesignBlueprintEngine.sheetPrompt(job.concepts,candidate-1,taxonomy),
                             negative=DesignBlueprintEngine.negative())
                     else stage
-                    // Validate the *actual* model input, including page-specific
-                    // character descriptions. The earlier bug checked only the base.
-                    engine.verifyText(methodStage.positive)
-                    if (methodStage.negative.isNotBlank())
-                        engine.verifyText(methodStage.negative)
-                    val result = engine.generate(
-                        methodStage, candidateSettings, resolution.first, resolution.second,
-                        current, seed, { isStopped }, { step, totalSteps ->
-                            if (totalSteps > 0 && step >= 0 && step % 3 == 0) {
-                                repo.updateTaskProgress(taskId, (candidate-1)*passesPerCandidate*100 +
-                                    (stage.number-1)*100 + (step*100/totalSteps),
-                                    (count*passesPerCandidate+2)*100, stageLabel + " · " + step + "/" + totalSteps)
-                            }
-                        },
-                        referencePngs = referenceInputs)
-                    current = result.png
-                    GeneratedImagePublisher.atomicWrite(path, result.png)
+                    // Measure native conditioning after the exact final
+                    // methodology and sheet prompt has been compiled.
+                    val schedule=ConditioningSchedule.compile(
+                        methodStage.positive,methodStage.negative,engine::inspectText)
+                    if(schedule.chunks.size>1) {
+                        val ledger=JSONObject().apply {
+                            put("schema","asterion.conditioning-schedule.v1")
+                            put("model",model.name)
+                            put("job_id",job.id)
+                            put("candidate",candidate)
+                            put("stage",stage.number)
+                            put("not_extended_cross_attention",true)
+                            put("chunks",JSONArray(schedule.chunks.map { chunk ->
+                                JSONObject().put("index",chunk.index)
+                                    .put("count",chunk.verifiedTokens)
+                                    .put("limit",chunk.verifiedLimit)
+                                    .put("positive",chunk.positive)
+                            }))
+                        }
+                        GeneratedImagePublisher.atomicWrite(
+                            File(intermediate,"candidate_"+candidate+"_pass_"+
+                                stage.number+"_conditioning.json"),
+                            ledger.toString(2).toByteArray(Charsets.UTF_8))
+                    }
+                    schedule.chunks.forEach { chunk ->
+                        if(isStopped)throw CancellationException()
+                        val actual=methodStage.copy(
+                            positive=chunk.positive,negative=chunk.negative,
+                            denoise=if(chunk.index==1)methodStage.denoise
+                                else minOf(methodStage.denoise,chunk.denoise))
+                        engine.verifyText(actual.positive)
+                        if(actual.negative.isNotBlank())
+                            engine.verifyText(actual.negative)
+                        val result=engine.generate(
+                            actual,candidateSettings,resolution.first,resolution.second,
+                            current,seed+chunk.index-1,{isStopped},{step,totalSteps->
+                                if(totalSteps>0 && step>=0 && step%3==0) {
+                                    repo.updateTaskProgress(taskId,
+                                        (candidate-1)*passesPerCandidate*100+
+                                        (stage.number-1)*100+(step*100/totalSteps),
+                                        (count*passesPerCandidate+2)*100,
+                                        stageLabel+" · conditioning "+
+                                            chunk.index+"/"+schedule.chunks.size)
+                                }
+                            },referencePngs=referenceInputs)
+                        current=result.png
+                        if(schedule.chunks.size>1) {
+                            GeneratedImagePublisher.atomicWrite(
+                                File(intermediate,"candidate_"+candidate+"_pass_"+
+                                    stage.number+"_chunk_"+chunk.index+".png"),result.png)
+                        }
+                    }
+                    GeneratedImagePublisher.atomicWrite(path,
+                        current ?: error("No rendered image from native pass"))
                     setProgress(Data.Builder().putInt("candidate", candidate)
                         .putInt("pass", stage.number).putInt("total", count * passesPerCandidate).build())
                 }
