@@ -8,6 +8,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.Semaphore
 
 /**
  * Local Dream ARM64 executable lives in THIS APK and runs in THIS app sandbox.
@@ -16,9 +17,13 @@ import java.util.concurrent.TimeUnit
 class EmbeddedNativeRunner(private val context: Context) {
     private var process: Process? = null
     private var currentSignature: String? = null
+    private var holdsNativeEngine=false
 
     companion object {
         private const val BINARY = "libstable_diffusion_core.so"
+        // The embedded HTTP backend uses one fixed loopback port and QNN
+        // context. Never run multiple simultaneous model workers over it.
+        private val enginePermit=Semaphore(1,true)
         const val PORT = 18081
 
         fun isEmbedded(context: Context): Boolean =
@@ -99,6 +104,10 @@ class EmbeddedNativeRunner(private val context: Context) {
         val appNativeDir=File(context.applicationInfo.nativeLibraryDir)
         val libPath=listOf(libs.absolutePath,appNativeDir.absolutePath,
             "/system/lib64","/vendor/lib64","/vendor/lib64/egl").joinToString(":")
+        while(!enginePermit.tryAcquire(1,TimeUnit.SECONDS)) {
+            if(cancelled())throw CancellationException("Waiting for native engine cancelled")
+        }
+        holdsNativeEngine=true
         val builder=ProcessBuilder(command).apply {
             directory(appNativeDir)
             redirectErrorStream(true)
@@ -112,6 +121,7 @@ class EmbeddedNativeRunner(private val context: Context) {
         }
         try { process=builder.start() }
         catch (e: Exception) {
+            release()
             throw BackendUnavailable("Failed to execute embedded engine: "+e.message)
         }
         val deadline=System.nanoTime()+180_000_000_000L
@@ -141,6 +151,10 @@ class EmbeddedNativeRunner(private val context: Context) {
         if(old?.isAlive==true) {
             old.waitFor(2,TimeUnit.SECONDS)
             if(old.isAlive) old.destroyForcibly()
+        }
+        if(holdsNativeEngine) {
+            holdsNativeEngine=false
+            enginePermit.release()
         }
     }
 }
