@@ -1,6 +1,7 @@
 package com.asterion.art.render
 
 import com.asterion.art.model.SheetRole
+import com.asterion.art.model.CreationMode
 
 /**
  * Sheet-specific, source-anchored instructions. Character master sheet is
@@ -11,8 +12,65 @@ object SheetMasterPrompts {
     const val PREFIX="Professional 9:16 portrait reference master sheet, clean "+
         "precisely aligned analytical layout, white-blue paper, thin restrained "+
         "dividers, serif main title, legible small section labels, generous whitespace. "
-    fun positive(role:SheetRole,evidence:String=""):String {
-        val study=when(role) {
+    private fun specific(original:CreationMode):String=when(original) {
+        CreationMode.CHARACTER ->
+            "ORIGINAL CHARACTER identity reference. Reconstruct same frozen "+
+            "full-body female concept anatomy across exact front, exact side "+
+            "and direct rear with close face, eyes, hair, rooted appendages, "+
+            "fused materials, palette and important unique anatomy. "+
+            "NO invented outfit or weapon, NO costumes, NO fashion panels."
+        CreationMode.OUTFIT ->
+            "OUTFIT CONSTRUCTION MASTER SHEET. Preserve the frozen host "+
+            "character and present only the selected costume faithfully: "+
+            "dominant fully outfitted full-body view, outfit exact front, "+
+            "90-degree side and rear, separate collar, sleeves, closures, "+
+            "layer seams, textile materials, ornament and color swatches. "+
+            "No new body design, face, haircut or unrelated outfit variants."
+        CreationMode.WEAPON ->
+            "SIGNATURE WEAPON MASTER SHEET. Hero isolated full weapon, "+
+            "exact front/side/back structural projections, readable grip, "+
+            "blade or mechanism, cross sections, joint connections, scaled "+
+            "host-hand placement, material/edge/ornament detail and palette. "+
+            "Reconstruct the SAME weapon, not multiple alternatives."
+        CreationMode.TRANSFORMATION ->
+            "TRANSFORMATION FORM MASTER SHEET. Retain original identity "+
+            "through exact front/side/rear anatomy, transformed structures, "+
+            "face/eye/hair anchors, rooted physical changes and coherent "+
+            "new material systems. Show before/after feature relationships "+
+            "and topology details only when grounded in the source."
+        CreationMode.MUTATION ->
+            "CONTROLLED MUTATION MASTER SHEET. Exact full-body front, "+
+            "profile and rear of one mutated individual; highlight source "+
+            "identity preserved and specific anatomical deviations, "+
+            "functional appendage roots, skin/substrate interfaces and "+
+            "the accurate mutated palette. No unrelated redesign."
+        CreationMode.CREATURE ->
+            "CREATURE MORPHOLOGY MASTER SHEET. One specific original "+
+            "organism presented in exact front, 90-degree profile, direct "+
+            "rear and functional movement view; skeletal attachment "+
+            "points, limbs, locomotion, sensory structures, materials, "+
+            "true scale and fused biological concepts. No clothing "+
+            "or generic humanoid body normalization."
+        CreationMode.ALTERNATE_UNIVERSE ->
+            "ALTERNATE-UNIVERSE CHARACTER MASTER SHEET. Maintain one "+
+            "recognizable source identity with full-body front, side and "+
+            "rear, world-native outfit/technology/magic construction, "+
+            "face/hair/identity invariants, detail callouts and palette. "+
+            "Show lawful adaptations to the target world, not costume swapping."
+        CreationMode.FEMINISATION ->
+            "FEMINISATION RECONSTRUCTION MASTER SHEET accompanying the "+
+            "separate final 9:16 art: consistent female-first identity "+
+            "front, exact profile and rear with anatomical, face/hair "+
+            "and reconstructed outfit details, palette and source identity "+
+            "recognition anchors. Never revert to the old male silhouette."
+        CreationMode.STYLE_CORRECTION ->
+            "STYLE CORRECTION QUALITY REFERENCE: preserve source content "+
+            "exactly and compare target linework, shading, material treatment "+
+            "and colors; no character substitution or content redesign."
+    }
+    fun positive(role:SheetRole,evidence:String="",
+        original:CreationMode?=null):String {
+        val study=if(original!=null)specific(original) else when(role) {
             SheetRole.CHARACTER ->
                 "ONE finished character master sheet generated in ONE image. "+
                 "The provided character is the SOLE canonical identity in EVERY panel. "+

@@ -31,7 +31,8 @@ data class SheetRecord(
     val outputUri: String? = null,
     val characterId: String? = null,
     val formId: String? = null,
-    val structuredDataVersion: Int = 1
+    val structuredDataVersion: Int = 1,
+    val originatingOriginal: CreationMode? = null
 )
 data class TaskRecord(
     val id: String = UUID.randomUUID().toString(),

@@ -76,7 +76,8 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
                     })
                 evidence.single().all().joinToString(" ")
             }else ""
-            val positive=SheetMasterPrompts.positive(sheet.role,observations)
+            val positive=SheetMasterPrompts.positive(
+                sheet.role,observations,sheet.originatingOriginal)
             val negative=SheetMasterPrompts.negative(sheet.role)
             engine=EmbeddedEngineFactory.open(app)
             val models=engine.installedModels()

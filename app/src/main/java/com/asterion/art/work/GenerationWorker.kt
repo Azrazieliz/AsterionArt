@@ -562,14 +562,16 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         it.jobId==job.id && it.sheetNumber==candidate
                     }
                     sourcesForSheet.forEach { design ->
-                        val source=design.previewUri ?: return@forEach
+                        val source=design.previewUri ?:
+                            if(perSheet==1)uri.toString() else return@forEach
                         runCatching {
                             val fresh=ArtRepository(applicationContext)
                             if(fresh.sheets.none{sheet->
                                 sheet.role==role&&source in sheet.sourceUris
                             }) {
                                 val individual=fresh.addSheet(
-                                    role,listOf(source),listOf("PRIMARY"))
+                                    role,listOf(source),listOf("PRIMARY"),
+                                    originatingOriginal=job.creationMode)
                                 val taskForSheet=fresh.recordTask(individual.id,
                                     TaskKind.SHEET_RENDER)
                                 SheetMasterGenerationWorker.enqueue(applicationContext,

@@ -9,6 +9,7 @@ import com.asterion.art.model.GeneratorSettings
 import com.asterion.art.model.GradedAsset
 import com.asterion.art.model.SheetRecord
 import com.asterion.art.model.SheetRole
+import com.asterion.art.model.CreationMode
 import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskRecord
 import com.asterion.art.model.TaskStatus
@@ -46,7 +47,9 @@ class ArtRepository(context: Context) {
                 outputUri = obj.optNullable("outputUri"),
                 characterId = obj.optNullable("characterId"),
                 formId = obj.optNullable("formId"),
-                structuredDataVersion = obj.optInt("revision", 1)
+                structuredDataVersion = obj.optInt("revision", 1),
+                originatingOriginal = obj.optString("originatingOriginal","")
+                    .takeIf{it.isNotEmpty()}?.let{CreationMode.valueOf(it)}
             )
         }
         tasks = parseList("tasks") { obj ->
@@ -92,7 +95,8 @@ class ArtRepository(context: Context) {
         }.getOrDefault(GeneratorSettings())
     }
 
-    @Synchronized fun addSheet(role: SheetRole, sourceUris: List<String>, referenceSlots: List<String>): SheetRecord {
+    @Synchronized fun addSheet(role: SheetRole, sourceUris: List<String>,
+        referenceSlots: List<String>, originatingOriginal:CreationMode?=null): SheetRecord {
         require(sourceUris.isNotEmpty()) { "A sheet needs at least one actual reference." }
         require(sourceUris.size == referenceSlots.size) { "Every reference must have an explicit panel assignment." }
         require(referenceSlots.contains("PRIMARY")) { "A primary reference is required." }
@@ -100,7 +104,8 @@ class ArtRepository(context: Context) {
             "Reference panel not permitted for selected sheet kind." }
         val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         val sheet = SheetRecord(role = role, label = role.display + " · " + date,
-            sourceUris = sourceUris, referenceSlots = referenceSlots)
+            sourceUris = sourceUris, referenceSlots = referenceSlots,
+            originatingOriginal = originatingOriginal)
         val updated = sheets + sheet
         check(prefs.edit().putString("sheets", encodeSheets(updated)).commit())
         sheets = updated
@@ -231,6 +236,7 @@ class ArtRepository(context: Context) {
             put("sources", JSONArray(sheet.sourceUris)); put("slots", JSONArray(sheet.referenceSlots)); put("createdAt", sheet.createdAt)
             put("outputUri", sheet.outputUri); put("characterId", sheet.characterId)
             put("formId", sheet.formId); put("revision", sheet.structuredDataVersion)
+            put("originatingOriginal",sheet.originatingOriginal?.name ?: "")
         }) }
     }.toString()
 
