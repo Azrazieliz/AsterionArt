@@ -49,7 +49,8 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
         fun enqueue(ctx: Context,id: String,task: String) {
             val data=Data.Builder().putString("job",id).putString("task",task).build()
             val request=OneTimeWorkRequestBuilder<VideoGenerationWorker>()
-                .setInputData(data).addTag("asterion-video").build()
+                .setInputData(data).addTag("asterion-video")
+                .addTag("asterion-job-"+id).build()
             WorkManager.getInstance(ctx).enqueueUniqueWork(
                 "asterion-video-"+id, ExistingWorkPolicy.KEEP,request)
         }

@@ -678,7 +678,9 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (ready) "References selected" else "Missing required sheets", fontWeight = FontWeight.Bold)
-                    Text(if (ready) "Five sequential inference passes use the on-device Local Dream compatibility backend until the native engine is embedded."
+                    Text(if (ready)
+                        "Uses Asterion Art's integrated local QNN engine. A compatible installed "+
+                        "image model is required; actual output is verified by rendering."
                         else (roleFailures.joinToString("; ") + if (creationMode==CreationMode.STYLE_CORRECTION && sourceArtwork==null) "; Source illustration required" else ""), color = Mist)
                     FilledTonalButton(onClick = { navigate(Page.SETTINGS) }) {
                         Icon(Icons.Default.Tune, null)
@@ -703,7 +705,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                     ) {
                         Icon(Icons.Default.PlayArrow, null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Queue five-pass generation")
+                        Text("Queue native artwork generation")
                     }
                 }
             }
@@ -765,13 +767,20 @@ private fun QueueScreen(repo: ArtRepository) {
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
                         OutlinedButton(onClick = {
                             val wm=androidx.work.WorkManager.getInstance(context)
-                            if (task.kind == TaskKind.ENHANCEMENT)
-                                wm.cancelAllWorkByTag("asterion-task-" + task.id)
-                            else if (task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT,TaskKind.VIDEO))
-                                wm.cancelAllWorkByTag("asterion-job-" + task.targetId)
-                            else if (task.kind==TaskKind.SHEET_RENDER)
-                                wm.cancelUniqueWork("asterion-sheet-" + task.targetId)
-                            else wm.cancelUniqueWork("asterion-model-import-serial")
+                            when {
+                                task.targetId.startsWith("native-smoke-") ->
+                                    wm.cancelAllWorkByTag("asterion-smoke-"+task.id)
+                                task.kind==TaskKind.ENHANCEMENT ->
+                                    wm.cancelAllWorkByTag("asterion-task-"+task.id)
+                                task.kind==TaskKind.VIDEO ->
+                                    wm.cancelUniqueWork("asterion-video-"+task.targetId)
+                                task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT) ->
+                                    wm.cancelAllWorkByTag("asterion-job-"+task.targetId)
+                                task.kind==TaskKind.SHEET_RENDER ->
+                                    wm.cancelUniqueWork("asterion-sheet-"+task.targetId)
+                                task.kind==TaskKind.MODEL_IMPORT ->
+                                    wm.cancelAllWorkByTag("asterion-model-import-"+task.id)
+                            }
                             repo.updateTask(task.id, TaskStatus.CANCELLED, "Cancelled by user")
                         }) { Text("Cancel") }
                     }

@@ -49,7 +49,8 @@ class NativeImageSmokeWorker(ctx:Context,params:WorkerParameters):
             val request=OneTimeWorkRequestBuilder<NativeImageSmokeWorker>()
                 .setInputData(Data.Builder()
                     .putString("model",modelId).putString("task",task.id).build())
-                .addTag("native-image-smoke").build()
+                .addTag("native-image-smoke")
+                .addTag("asterion-smoke-"+task.id).build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "asterion-native-image-smoke",ExistingWorkPolicy.APPEND_OR_REPLACE,
                 request)

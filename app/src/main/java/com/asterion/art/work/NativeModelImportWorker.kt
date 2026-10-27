@@ -34,7 +34,8 @@ class NativeModelImportWorker(context:Context,params:WorkerParameters):
                 .putString("model_label",label).putString("family",family)
                 .putString("task_id",task.id).build()
             val request=OneTimeWorkRequestBuilder<NativeModelImportWorker>()
-                .setInputData(data).addTag("asterion-native-import").build()
+                .setInputData(data).addTag("asterion-native-import")
+                .addTag("asterion-model-import-"+task.id).build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "asterion-model-import-serial",ExistingWorkPolicy.APPEND_OR_REPLACE,request)
             return task.id

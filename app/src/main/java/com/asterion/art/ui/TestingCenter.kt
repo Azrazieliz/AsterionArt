@@ -123,7 +123,7 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
                     val task=NativeImageSmokeWorker.enqueue(context,modelId)
                     "Native image smoke test queued: "+task+
                         ". Watch the job below for actual PASS/FAIL evidence."
-                }.getOrElse{it.message}
+                }.getOrElse{it.message?:it.javaClass.simpleName}
             }) {Text(if(pending)"Inference job running…" else "Run real native image test")}
             OutlinedButton(onClick=openModels){Text("Install / select local AI models")}
             OutlinedButton(onClick=openArtwork){Text("Open Artwork Creation")}

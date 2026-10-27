@@ -143,7 +143,8 @@ class ArtRepository(context: Context) {
     @Synchronized fun updateTask(id: String, status: TaskStatus, error: String? = null) {
         val current = readPersistedTasks()
         val updated = current.map {
-            if (it.id == id && it.status != TaskStatus.CANCELLED)
+            if (it.id == id && it.status in
+                setOf(TaskStatus.QUEUED,TaskStatus.RUNNING))
                 it.copy(status = status, error = error,
                 progressCurrent = if (status == TaskStatus.COMPLETED && it.progressTotal > 0)
                     it.progressTotal else it.progressCurrent) else it
@@ -157,8 +158,8 @@ class ArtRepository(context: Context) {
                                          bytesTotal: Long = 0L) {
         require(current >= 0 && total >= 0 && bytes >= 0 && bytesTotal >= 0)
         val updated = readPersistedTasks().map { task ->
-            if (task.id == id && task.status != TaskStatus.FAILED &&
-                task.status != TaskStatus.COMPLETED) {
+            if (task.id == id && task.status in
+                setOf(TaskStatus.QUEUED,TaskStatus.RUNNING)) {
                 task.copy(progressCurrent = current.coerceAtMost(total.takeIf { it > 0 } ?: current),
                     progressTotal = total, progressBytes = bytes,
                     progressBytesTotal = bytesTotal, stage = stage)
