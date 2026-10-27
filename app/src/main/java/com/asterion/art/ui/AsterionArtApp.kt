@@ -534,7 +534,7 @@ private fun LibraryHub(
         }
         Box(Modifier.weight(1f)) {
             when(tab) {
-                "Creations" -> GradingScreen(repo,onEdit=onEdit,onToolbox=onToolbox)
+                "Creations" -> AdvancedGradingScreen(repo,onEdit=onEdit,onToolbox=onToolbox)
                 "Designs" -> DesignLibraryScreen(repo)
                 "Sheets" -> SheetLibraryScreen(repo)
                 "Models" -> NativeModelLibraryScreen()

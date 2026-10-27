@@ -61,7 +61,7 @@ class CharacterBrainResolver(context:Context) {
         require(start>=0&&end>start){"Qwen3 returned no complete structured character"}
         return JSONObject(text.substring(start,end+1))
     }
-    suspend fun resolve(id:String,progress:(Int,Int,String)->Unit={}):CharacterPhaseOnePlan =
+    suspend fun resolve(id:String,progress:(Int,Int,String)->Unit={_,_,_->}):CharacterPhaseOnePlan =
         BrainInferenceLock.mutex.withLock {
             val plan=plans.load(id)
             require(plan.status=="DESIGNING")
