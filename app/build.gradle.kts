@@ -29,7 +29,10 @@ android {
     }
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("persistentRelease")
+            if (!System.getenv("ASTERION_RELEASE_KEYSTORE").isNullOrBlank() &&
+                !System.getenv("ASTERION_RELEASE_PASSWORD").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("persistentRelease")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
         }
