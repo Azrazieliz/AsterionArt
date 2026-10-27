@@ -15,6 +15,7 @@ import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.models.HubPath
 import com.asterion.art.nativeengine.NativeModelLibrary
+import com.asterion.art.nativeengine.OriginalCheckpointLibrary
 import com.asterion.art.vision.VisionCatalog
 import com.asterion.art.vision.VisionModelStore
 import kotlinx.coroutines.Dispatchers
@@ -196,6 +197,8 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
                     check(partial.renameTo(target)){
                         "Could not finalize downloaded model file"
                     }
+                    OriginalCheckpointLibrary(applicationContext).registerDownloaded(
+                        target,fileName)
                     val meta=File(target.path+".json")
                     GeneratedImagePublisher.atomicWrite(meta,JSONObject().apply {
                         put("schema",1);put("repo",id);put("revision",rev)

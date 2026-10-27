@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
@@ -46,6 +47,59 @@ class OriginalCheckpointLibrary(private val context: Context) {
         }
         check(prefs.edit().putString("records", records.toString()).commit())
         return true
+    }
+
+    /**
+     * Register a Hugging Face original downloaded into this app's verified
+     * private Hub directory. No second model copy and no QNN compatibility
+     * claim. The durable catalogue points to the actual on-disk weights.
+     */
+    @Synchronized fun registerDownloaded(file:File,label:String):OriginalCheckpoint? {
+        val canonical=file.canonicalFile
+        val allowed=File(context.applicationContext.filesDir,
+            "hf-library").canonicalFile
+        require(canonical.path.startsWith(allowed.path+File.separator) &&
+            canonical.isFile){"Downloaded model is outside verified private storage"}
+        val extension=canonical.extension.lowercase()
+        if(extension !in setOf("safetensors","gguf","ckpt","pt","pth"))
+            return null
+        val bytes=canonical.length()
+        require(bytes>32L){"Model file is empty"}
+        val magic=canonical.inputStream().use{it.readNBytes(9)}
+        val kind=when(extension) {
+            "gguf"->{
+                require(magic.size>=4 &&
+                    String(magic,0,4,Charsets.US_ASCII)=="GGUF"){
+                    "Downloaded GGUF has invalid model header"
+                }
+                "GGUF"
+            }
+            "safetensors"->{
+                require(magic.size==9&&
+                    ByteBuffer.wrap(magic,0,8).order(ByteOrder.LITTLE_ENDIAN).long
+                        in 2L..100_000_000L&&magic[8]=='{'.code.toByte()){
+                    "Downloaded safetensors file has invalid model header"
+                }
+                "SAFETENSORS"
+            }
+            else->"ORIGINAL_CHECKPOINT"
+        }
+        val uri=Uri.fromFile(canonical).toString()
+        val id=MessageDigest.getInstance("SHA-256")
+            .digest(uri.toByteArray(Charsets.UTF_8)).take(12)
+            .joinToString(""){"%02x".format(it)}
+        val record=OriginalCheckpoint(id,label.take(100).ifBlank{canonical.name},
+            kind,bytes,uri)
+        val json=JSONArray()
+        (list().filterNot{it.id==id}+record).forEach{item->
+            json.put(JSONObject().apply{
+                put("id",item.id);put("name",item.name)
+                put("format",item.format);put("bytes",item.sizeBytes)
+                put("uri",item.sourceUri)
+            })
+        }
+        check(prefs.edit().putString("records",json.toString()).commit())
+        return record
     }
 
     /** Return null only when this isn't a recognized original-checkpoint file. */

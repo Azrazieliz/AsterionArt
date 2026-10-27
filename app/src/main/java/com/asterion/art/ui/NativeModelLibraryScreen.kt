@@ -104,7 +104,8 @@ fun NativeModelLibraryScreen() {
     if (unregisterOriginalId != null) {
         AlertDialog(onDismissRequest={unregisterOriginalId=null},
             title={Text("Unregister original checkpoint?")},
-            text={Text("Only the catalogue reference will be removed. The original file remains in its document provider.")},
+            text={Text("Only the catalogue reference will be removed. The downloaded "+
+                "or externally stored original model file remains untouched.")},
             confirmButton={TextButton(onClick={
                 checkpointLibrary.unregister(requireNotNull(unregisterOriginalId))
                 originalFiles=checkpointLibrary.list()
@@ -204,7 +205,9 @@ fun NativeModelLibraryScreen() {
                             if(file.sizeBytes>=0)
                                 (file.sizeBytes/1048576L).toString()+" MiB"
                             else "Size unknown",color=Mist)
-                        Text("External SAF reference · no duplicate model copy",color=Mist,
+                        Text(if(file.sourceUri.startsWith("file:"))
+                            "Verified Hugging Face model · local app storage"
+                            else "External SAF reference · no duplicate model copy",color=Mist,
                             style=MaterialTheme.typography.bodySmall)
                         OutlinedButton(onClick={unregisterOriginalId=file.id}) {
                             Text("Unregister original")
