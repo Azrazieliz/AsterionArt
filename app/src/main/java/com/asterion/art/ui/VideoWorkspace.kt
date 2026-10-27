@@ -52,6 +52,7 @@ import com.asterion.art.video.VideoApiCredentials
 import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.video.VideoResultStore
 import com.asterion.art.work.VideoGenerationWorker
+import com.asterion.art.work.VideoJoinWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,6 +72,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
     var customMotion by remember { mutableStateOf("") }
     var showPromptReview by remember { mutableStateOf(false) }
     var resultsNonce by remember { mutableStateOf(0) }
+    var localClips by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope=rememberCoroutineScope()
 
     val picker=rememberLauncherForActivityResult(
@@ -88,6 +90,21 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                 if(good) images=(images+chosen.map { it.toString() }).distinct()
                 else diagnostic="Could not retain all selected image permissions."
             }
+        }
+    }
+    val clipsPicker=rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()){chosen->
+        if(chosen.isNotEmpty()) {
+            val approved=chosen.all{uri->
+                runCatching{
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }.isSuccess
+            }
+            if(approved) {
+                localClips=(localClips+chosen.map{it.toString()}).distinct()
+                diagnostic=null
+            } else diagnostic="Cannot retain all chosen MP4 permissions."
         }
     }
     val results=remember(resultsNonce) { VideoResultStore(context).list() }
@@ -250,6 +267,48 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
             Text(diagnostic.orEmpty(),Modifier.padding(horizontal=18.dp),color=Mist)
         }
         item {
+            Card(modifier=Modifier.fillMaxWidth().padding(horizontal=18.dp),
+                colors=CardDefaults.cardColors(containerColor=Panel)){
+                Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                    Text("OFFLINE MP4 ASSEMBLY TEST",color=Gold)
+                    Text("Join videos already on this phone without Nightmare, "+
+                        "network access or AI inference. Compatible audio/video "+
+                        "tracks are preserved; different codecs are reported.",
+                        color=Mist)
+                    OutlinedButton(onClick={clipsPicker.launch(arrayOf("video/mp4"))}){
+                        Text("Choose existing MP4 clips")
+                    }
+                    localClips.forEachIndexed { index,uri ->
+                        Row(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
+                            Text("Clip "+(index+1),Modifier.weight(1f),color=Mist)
+                            OutlinedButton(enabled=index>0,onClick={
+                                val list=localClips.toMutableList()
+                                val prior=list[index-1]
+                                list[index-1]=list[index];list[index]=prior
+                                localClips=list
+                            }){Text("↑")}
+                            OutlinedButton(enabled=index<localClips.lastIndex,onClick={
+                                val list=localClips.toMutableList()
+                                val following=list[index+1]
+                                list[index+1]=list[index];list[index]=following
+                                localClips=list
+                            }){Text("↓")}
+                            TextButton(onClick={
+                                localClips=localClips.filterIndexed{i,_->i!=index}
+                            }){Text("Remove")}
+                        }
+                    }
+                    Button(enabled=localClips.size>=2,onClick={
+                        diagnostic=runCatching{
+                            val id=VideoJoinWorker.enqueue(context,localClips)
+                            "MP4 assembly queued: "+id
+                        }.getOrElse{it.message?:"Cannot queue local video"}
+                        if(diagnostic?.startsWith("MP4 assembly queued")==true)onQueued()
+                    }){Text("Join and export existing MP4 clips")}
+                }
+            }
+        }
+        item {
             Column(Modifier.padding(horizontal=18.dp)) {
                 Text("VIDEO RESULTS",color=Gold)
                 OutlinedButton(onClick={resultsNonce++}) { Text("Refresh results") }
@@ -261,7 +320,9 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                 Column(Modifier.padding(14.dp),
                     verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text(result.engine,color=Gold)
-                    Text(result.segmentCount.toString()+" inferred segment(s)",color=Mist)
+                    Text(result.segmentCount.toString()+
+                        if(result.engine.startsWith("Offline")) " joined clip(s)"
+                        else " inferred segment(s)",color=Mist)
                     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         Button(onClick={
                             val intent=Intent(Intent.ACTION_VIEW).apply {
@@ -270,7 +331,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                             }
                             context.startActivity(intent)
                         }) { Text("Play") }
-                        OutlinedButton(onClick={
+                        if(!result.engine.startsWith("Offline")) OutlinedButton(onClick={
                             scope.launch {
                                 diagnostic=withContext(Dispatchers.IO) {
                                     runCatching { NoWorldExporter.export(context,result) }

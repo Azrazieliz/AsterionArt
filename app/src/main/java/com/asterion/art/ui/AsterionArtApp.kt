@@ -773,7 +773,10 @@ private fun QueueScreen(repo: ArtRepository) {
                                 task.kind==TaskKind.ENHANCEMENT ->
                                     wm.cancelAllWorkByTag("asterion-task-"+task.id)
                                 task.kind==TaskKind.VIDEO ->
-                                    wm.cancelUniqueWork("asterion-video-"+task.targetId)
+                                    wm.cancelUniqueWork(
+                                        if(task.targetId.startsWith("join_"))
+                                            "asterion-video-join-"+task.targetId
+                                        else "asterion-video-"+task.targetId)
                                 task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT) ->
                                     wm.cancelAllWorkByTag("asterion-job-"+task.targetId)
                                 task.kind==TaskKind.SHEET_RENDER ->
