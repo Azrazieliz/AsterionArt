@@ -1,6 +1,7 @@
 package com.asterion.art
 
 import com.asterion.art.models.HubPath
+import com.asterion.art.models.HubPagination
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -23,5 +24,30 @@ class HuggingFacePathTest {
     @Test fun doesNotTreatARepositoryNameAsAnInferenceCompatibilityGuarantee() {
         assertTrue(HubPath.file("model.safetensors").endsWith(".safetensors"))
         assertTrue(HubPath.file("model.gguf").endsWith(".gguf"))
+    }
+    @Test fun followsEveryExpandedTreePageWithoutChangingRepository() {
+        val revision="a".repeat(40)
+        val current="https://huggingface.co/api/models/example/Anima-QNN/tree/"+
+            revision+"?recursive=true&expand=true"
+        val next=current+"&cursor=page2"
+        val header="<"+next+">; rel=\"next\", <"+current+">; rel=\"prev\""
+        assertEquals(next,HubPagination.nextUrl(current,header))
+        assertNull(HubPagination.nextUrl(current,null))
+        assertNull(HubPagination.nextUrl(current,"<"+current+">; rel=\"prev\""))
+    }
+    @Test fun rejectsCrossHostOrCrossModelPagination() {
+        val revision="a".repeat(40)
+        val current="https://huggingface.co/api/models/example/Anima-QNN/tree/"+
+            revision+"?recursive=true&expand=true"
+        assertTrue(runCatching{
+            HubPagination.nextUrl(current,
+                "<https://evil.example/api/models/example/Anima-QNN/tree/"+
+                revision+"?cursor=2>; rel=\"next\"")
+        }.isFailure)
+        assertTrue(runCatching{
+            HubPagination.nextUrl(current,
+                "<https://huggingface.co/api/models/example/Other/tree/"+
+                revision+"?cursor=2>; rel=\"next\"")
+        }.isFailure)
     }
 }
