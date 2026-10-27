@@ -13,13 +13,13 @@ import urllib.request
 WEIGHTS = (
     ("Qwen_Qwen3-0.6B-Q5_K_M.gguf",
      "bartowski/Qwen_Qwen3-0.6B-GGUF",
-     551378336, "2DF7894C99EE7716F0ED3C7D454C2386A7AE976C4B0AD0E716D55399C1360648"),
+     551378336, "9d017e676272ce914f9dc65d959db574bedf71c2b4bfb882eb620f6fcc48ec17"),
     ("Qwen3VL-2B-Instruct-Q4_K_M.gguf",
      "Qwen/Qwen3-VL-2B-Instruct-GGUF",
-     None, "089d75c52f4b7ffc56ba998ffc50aae89fcafc755f9e7208aacca281dca6c2ae"),
+     1107409952, "06fb8948e506b2e751a0f81f6e365382a3b9ea5f304ade3c77a814adc9543109"),
     ("mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf",
      "Qwen/Qwen3-VL-2B-Instruct-GGUF",
-     None, "f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82"),
+     445053216, "df4d5f12ac5349b780b8a2d5033e9b529c14a82a30c5b69bbdcef52b79a56ff3"),
 )
 
 def digest(path: Path) -> str:

@@ -17,10 +17,10 @@ object BrainCatalog {
     val models=listOf(
         BrainWeights("qwen3_06_q5","Qwen3 0.6B · Q5_K_M",
             "bartowski/Qwen_Qwen3-0.6B-GGUF","Qwen_Qwen3-0.6B-Q5_K_M.gguf",
-            551378336L,"2DF7894C99EE7716F0ED3C7D454C2386A7AE976C4B0AD0E716D55399C1360648"),
+            551378336L,"9d017e676272ce914f9dc65d959db574bedf71c2b4bfb882eb620f6fcc48ec17"),
         BrainWeights("qwen3_17_q4","Qwen3 1.7B · Q4_K_M",
             "unsloth/Qwen3-1.7B-GGUF","Qwen3-1.7B-Q4_K_M.gguf",
-            1107409472L,"B139949C5BD74937AD8ED8C8CF3D9FFB1E99C866C823204DC42C0D91FA181897")
+            1107409472L,"de942b0819216caa3bfe487180dd1bb37398fa1c98cb42bb0bbac7ab7d6e8a12")
     )
     fun get(id:String)=models.firstOrNull{it.id==id}
 }
