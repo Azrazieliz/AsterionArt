@@ -109,7 +109,15 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
             val selectedPass = recipe.passes.last().copy(
                 denoise=job.strength,
                 positive=recipe.passes.last().positive+
-                    if(brainPlan!=null)"\n"+brainPlan.positive else "",
+                    (if(brainPlan!=null)"\n"+brainPlan.positive else "")+
+                    (if(job.correction.isNotBlank())
+                        "\nUSER-APPROVED MASKED CORRECTION (CHANGE ONLY MASK PIXELS):\n"+
+                            job.correction else "")+
+                    (if(job.preserve.isNotBlank())
+                        "\nUSER-PROTECTED FEATURES (DO NOT ALTER):\n"+
+                            job.preserve else "")+
+                    "\nNever rewrite the unmasked anatomy, other identities or "+
+                        "the frozen reference. Only the explicit white mask may change.",
                 negative=listOf(recipe.passes.last().negative,
                     brainPlan?.negative.orEmpty()).filter{it.isNotBlank()}
                     .distinct().joinToString(", "))

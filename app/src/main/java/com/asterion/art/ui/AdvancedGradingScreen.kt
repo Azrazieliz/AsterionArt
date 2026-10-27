@@ -2,6 +2,12 @@ package com.asterion.art.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import java.io.ByteArrayOutputStream
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -19,10 +25,17 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
+import com.asterion.art.data.EditJobStore
+import com.asterion.art.work.SelectiveEditWorker
 import com.asterion.art.learning.*
 import com.asterion.art.methodology.CharacterPlanStore
 import com.asterion.art.methodology.DetailedMethodologies
 import com.asterion.art.model.*
+import com.asterion.art.vision.VisionModelStore
+import com.asterion.art.vision.VisionDownloadWorker
+import com.asterion.art.vision.CharacterVisualAuditWorker
+import com.asterion.art.vision.CharacterVisualReportStore
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,6 +56,18 @@ fun AdvancedGradingScreen(repo:ArtRepository,
     var edited by remember{mutableStateOf<DetailedGrade?>(null)}
     var saving by remember{mutableStateOf(false)}
     val records=remember(revision){store.list()}
+    var visionReady by remember{mutableStateOf(
+        VisionModelStore(context).installed()!=null)}
+    var observationsVersion by remember{mutableIntStateOf(0)}
+    LaunchedEffect(Unit) {
+        while(true) {
+            delay(5000)
+            visionReady=withContext(Dispatchers.IO){
+                VisionModelStore(context).installed()!=null
+            }
+            observationsVersion++
+        }
+    }
     val exportPicker=rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")){uri->
         if(uri!=null)scope.launch {
@@ -129,11 +154,34 @@ fun AdvancedGradingScreen(repo:ArtRepository,
             Text("Export is explicit and local; no data is uploaded or trained "+
                 "in the cloud automatically.",color=Mist,
                 style=MaterialTheme.typography.labelSmall)
+            if(!visionReady) {
+                OutlinedButton(onClick={
+                    VisionDownloadWorker.enqueue(context)
+                    message="Free local Qwen3-VL installation queued "+
+                        "(about 1.6 GB, one time). Progress appears in the notification."
+                }) { Text("Install free offline visual intelligence") }
+            } else Text("Offline Qwen3-VL image analysis installed. "+
+                "Generated Character Creation sheets can be inspected "+
+                "against frozen anatomy and concept specifications.",
+                color=Mist,style=MaterialTheme.typography.labelSmall)
             message?.let{Text(it,color=Mist)}
         }
         if(repo.assets.isEmpty())item {Text("No images available.",color=Mist)}
         items(repo.assets.sortedByDescending{it.createdAt},key={it.uri}){asset->
             val grades=records.filter{it.assetUri==asset.uri}
+            val findings=remember(asset.uri,asset.sourceJobId,observationsVersion){
+                asset.sourceJobId?.let{job->
+                    runCatching{CharacterVisualReportStore(context)
+                        .findings(job).filter{it.sourceUri==asset.uri}
+                    }.getOrNull()
+                }.orEmpty()
+            }
+            val canAudit=remember(asset.sourceJobId){
+                asset.sourceJobId?.let{job->
+                    runCatching{GenerationJobStore(context).load(job)
+                        .characterPlanId!=null}.getOrDefault(false)
+                }?:false
+            }
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(12.dp),
                     verticalArrangement=Arrangement.spacedBy(9.dp)) {
@@ -142,6 +190,61 @@ fun AdvancedGradingScreen(repo:ArtRepository,
                         modifier=Modifier.fillMaxWidth().height(230.dp),
                         contentScale=ContentScale.Fit)
                     Text(grades.size.toString()+" detailed grade(s)",color=Gold)
+                    if(canAudit&&visionReady){
+                        OutlinedButton(onClick={
+                            val job=requireNotNull(asset.sourceJobId)
+                            CharacterVisualAuditWorker.enqueue(context,job)
+                            message="Offline visual inspection queued; "+
+                                "observations will appear below."
+                        },modifier=Modifier.fillMaxWidth()){
+                            Text("Inspect each character with Qwen3-VL")
+                        }
+                    }
+                    findings.forEach{finding->
+                        HorizontalDivider()
+                        Text("MACHINE OBSERVATION · "+finding.characterId,
+                            color=Gold)
+                        Text("Unverified visual inference; not your grading.",
+                            color=Mist,style=MaterialTheme.typography.labelSmall)
+                        finding.conceptEvidence.forEach{(name,observed)->
+                            Text(name+": "+observed,
+                                style=MaterialTheme.typography.bodySmall)
+                        }
+                        finding.visibleFeatures.take(4).forEach{
+                            Text("Visible: "+it,style=MaterialTheme.typography.bodySmall)
+                        }
+                        finding.uncertainty.forEach{
+                            Text("Uncertain: "+it,color=Mist,
+                                style=MaterialTheme.typography.bodySmall)
+                        }
+                        finding.correctionCandidates().take(8).forEach{
+                            Text("Candidate issue: "+it,
+                                style=MaterialTheme.typography.bodySmall)
+                        }
+                        if(finding.correctionCandidates().isNotEmpty()) {
+                            OutlinedButton(onClick={
+                                val index=finding.characterId
+                                    .removePrefix("D").toIntOrNull()
+                                val target=index?.let{number->
+                                    CreativeMemoryStore(context).list().firstOrNull{
+                                        it.jobId==asset.sourceJobId&&it.ordinal==number
+                                    }
+                                }
+                                edited=DetailedGrade(
+                                    assetUri=asset.uri,
+                                    targetDesignId=target?.id,
+                                    jobId=asset.sourceJobId,
+                                    creationMode=CreationMode.CHARACTER,
+                                    concepts=finding.conceptEvidence.keys.toList(),
+                                    feature="Review observed issues for "+
+                                        finding.characterId,
+                                    correct=finding.correctionCandidates()
+                                        .joinToString("\n"),
+                                    preserve="")
+                                active=asset
+                            }) {Text("Review these issues as a grading draft")}
+                        }
+                    }
                     if(asset.autoScore!=null)Text(
                         "Pixel-only technical screening: "+
                             "%.0f".format(asset.autoScore)+"/100; not semantic grading",
@@ -152,6 +255,49 @@ fun AdvancedGradingScreen(repo:ArtRepository,
                             Text("Edit assessment: "+(grade.targetDesignId?:"whole image")+
                                 (grade.feature.takeIf{it.isNotBlank()}
                                     ?.let{" / "+it}?: ""))
+                        }
+                        if(grade.correct.isNotBlank()&&asset.sourceJobId!=null &&
+                            grade.region!=GradeRegion.FULL){
+                            OutlinedButton(onClick={
+                                runCatching{
+                                    val bounds=BitmapFactory.Options().apply{
+                                        inJustDecodeBounds=true
+                                    }
+                                    requireNotNull(context.contentResolver
+                                        .openInputStream(Uri.parse(asset.uri))).use{
+                                        BitmapFactory.decodeStream(it,null,bounds)
+                                    }
+                                    require(bounds.outWidth in 32..8192 &&
+                                        bounds.outHeight in 32..8192)
+                                    val mask=Bitmap.createBitmap(
+                                        bounds.outWidth,bounds.outHeight,
+                                        Bitmap.Config.ARGB_8888)
+                                    val raw=try {
+                                        val canvas=Canvas(mask)
+                                        canvas.drawColor(Color.BLACK)
+                                        val g=grade.region
+                                        canvas.drawRect(
+                                            bounds.outWidth*g.x,bounds.outHeight*g.y,
+                                            bounds.outWidth*(g.x+g.width),
+                                            bounds.outHeight*(g.y+g.height),
+                                            Paint().apply{color=Color.WHITE})
+                                        ByteArrayOutputStream().use{bytes->
+                                            check(mask.compress(
+                                                Bitmap.CompressFormat.PNG,100,bytes))
+                                            bytes.toByteArray()
+                                        }
+                                    } finally{mask.recycle()}
+                                    val edit=EditJobStore(context).create(
+                                        asset.uri,requireNotNull(asset.sourceJobId),
+                                        raw,0.35f,correction=grade.correct,
+                                        preserve=grade.preserve,gradeId=grade.id)
+                                    val task=repo.recordTask(edit.id,TaskKind.IMAGE_EDIT)
+                                    SelectiveEditWorker.enqueue(context,edit.id,task.id)
+                                }.onSuccess{
+                                    message="User-approved masked refinement queued. "+
+                                        "Unselected pixels are preserved."
+                                }.onFailure{message=it.message}
+                            }){Text("Refine only this graded image region")}
                         }
                     }
                     Button(onClick={edited=null;active=asset},
@@ -291,7 +437,10 @@ private fun GradeEditorDialog(
                     "The current Qwen3 model reads your authored corrections, "+
                     "not the pixels directly.",color=Mist,
                     style=MaterialTheme.typography.labelSmall)
-                if(existing!=null)TextButton(enabled=!saving,
+                if(existing!=null&&
+                    DetailedGradeStore(context).forAsset(asset.uri)
+                        .any{it.id==existing.id})
+                    TextButton(enabled=!saving,
                     onClick={onDelete(existing.id)}){Text("Delete assessment")}
                 error?.let{Text(it,color=Red)}
             }

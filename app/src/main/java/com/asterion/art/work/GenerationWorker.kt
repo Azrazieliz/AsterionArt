@@ -22,6 +22,11 @@ import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.methodology.CharacterPlanStore
 import com.asterion.art.methodology.CharacterPhaseOne
+import com.asterion.art.methodology.CharacterSheetCompiler
+import com.asterion.art.methodology.CharacterSheetComposer
+import com.asterion.art.vision.CharacterVisualAuditWorker
+import com.asterion.art.vision.VisionModelStore
+import kotlin.math.abs
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.StillImageEngine
 import com.asterion.art.nativeengine.EmbeddedEngineFactory
@@ -189,7 +194,11 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 })
             }
             var size = model.generationSize.coerceIn(512, 1536)
-            var resolution = if (job.settings.ratio == "16:9")
+            var resolution = if(characterPlan!=null)
+                model.resolutions.minByOrNull{(w,h)->
+                    abs(w.toDouble()/h-16.0/45.0)
+                } ?: (size to size)
+            else if (job.settings.ratio == "16:9")
                 model.resolutions.firstOrNull { (w,h) -> w*9==h*16 }
                     ?: (1024 to 576)
             else model.resolutions.firstOrNull() ?: (size to size)
@@ -288,8 +297,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 else characterPlan?.sheets ?: job.settings.batch.coerceIn(1,8)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
-            val oneShotCharacterSheet = job.creationMode == CreationMode.CHARACTER ||
-                !job.designPrompt.isNullOrBlank()
+            val oneShotCharacterSheet = !job.designPrompt.isNullOrBlank() ||
+                characterPlan!=null
             val stageSequence = if (oneShotCharacterSheet)
                 listOf(recipe.passes.first()) else recipe.passes
             val passesPerCandidate = stageSequence.size
@@ -298,6 +307,76 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 if (isStopped) throw CancellationException("Job stopped")
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
                 val candidateSettings = PreferenceLearning.candidate(job.settings,candidate - 1)
+                val image:ByteArray=if(characterPlan!=null) {
+                    val nativeSettings=candidateSettings.copy(ratio="9:16",batch=1)
+                    val tiles=(0 until CharacterPhaseOne.PER_SHEET).map{cell ->
+                        if(isStopped)throw CancellationException("Generation cancelled")
+                        val d=characterPlan.frozen[(candidate-1)*5+cell]
+                        val checkpoint=File(intermediate,
+                            "sheet_"+candidate+"_"+d.id+"_triptych.png")
+                        if(checkpoint.isFile && checkpoint.length()>1024L) {
+                            val existing=checkpoint.readBytes()
+                            check(TechnicalImageScorer.score(existing).score.isFinite())
+                            existing
+                        } else {
+                            thermalGate()
+                            val directive=CharacterSheetCompiler.individual(d)
+                            val identityAnchor=
+                                "Continue SAME frozen character "+d.id+
+                                " with exact concept anatomy "+
+                                d.primary.joinToString(" x "){it.name}+
+                                ". Never change body, facial identity, appendage roots, "+
+                                "clinical white field, or 2D illustration style.\n"
+                            val conditioning=ConditioningSchedule.compile(
+                                directive,CharacterPhaseOne.NEGATIVE,
+                                engine::inspectText,continuationHeader=identityAnchor)
+                            val ledger=JSONObject().apply{
+                                put("schema","asterion.character-triptych-conditioning.v1")
+                                put("job_id",job.id)
+                                put("character",d.id)
+                                put("native_image_encoder_expanded",false)
+                                put("chunks",JSONArray(conditioning.chunks.map{part->
+                                    JSONObject().put("index",part.index)
+                                        .put("tokens",part.verifiedTokens)
+                                        .put("limit",part.verifiedLimit)
+                                        .put("positive",part.positive)
+                                }))
+                            }
+                            GeneratedImagePublisher.atomicWrite(
+                                File(intermediate,"sheet_"+candidate+"_"+d.id+"_tokens.json"),
+                                ledger.toString(2).toByteArray(Charsets.UTF_8))
+                            var previous:ByteArray?=null
+                            for(part in conditioning.chunks) {
+                                val pass=GenerationPass(part.index,part.positive,
+                                    part.negative,part.denoise)
+                                if(isStopped)throw CancellationException()
+                                engine.verifyText(pass.positive)
+                                if(pass.negative.isNotBlank())
+                                    engine.verifyText(pass.negative)
+                                val progressStage="Sheet "+candidate+"/"+count+
+                                    " · identity "+d.id+
+                                    " · conditioning "+part.index+"/"+conditioning.chunks.size
+                                foreground(progressStage)
+                                val result=engine.generate(pass,nativeSettings,
+                                    resolution.first,resolution.second,previous,
+                                    seed+cell*104729L+part.index,
+                                    {isStopped},{step,totalSteps->
+                                        if(totalSteps>0&&step>=0&&step%4==0)
+                                            repo.updateTaskProgress(taskId,
+                                                (candidate-1)*100+cell*20+
+                                                    step*20/(5*totalSteps),
+                                                count*100,progressStage)
+                                    },referencePngs=referenceInputs)
+                                previous=result.png
+                            }
+                            val completed=previous?:
+                                error("Native model did not produce "+d.id)
+                            GeneratedImagePublisher.atomicWrite(checkpoint,completed)
+                            completed
+                        }
+                    }
+                    CharacterSheetComposer.assemble(tiles)
+                } else {
                 var current: ByteArray? = originalImage
                 for (stage in stageSequence) {
                     if (isStopped) throw CancellationException()
@@ -376,7 +455,8 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     setProgress(Data.Builder().putInt("candidate", candidate)
                         .putInt("pass", stage.number).putInt("total", count * passesPerCandidate).build())
                 }
-                val image = current ?: error("No image produced")
+                    current ?: error("No image produced")
+                }
                 val technical = TechnicalImageScorer.score(image)
                 if (technical.score > technicalLeaderScore) {
                     technicalLeaderScore = technical.score
@@ -493,7 +573,12 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("job_id", job.id)
                 put("model_id", model.id)
                 put("five_real_passes", !oneShotCharacterSheet)
-                put("one_shot_master_sheet_methodology", oneShotCharacterSheet)
+                put("one_shot_master_sheet_methodology", characterPlan==null&&
+                    oneShotCharacterSheet)
+                put("character_render_method",if(characterPlan!=null)
+                    "five_separate_frozen_identity_triptychs_composited_white_16_9"
+                    else JSONObject.NULL)
+                put("native_image_encoder_expanded",false)
                 put("methodology_certified", false)
                 put("reference_sheet_ids", JSONArray(job.sheetIds))
                 put("results", JSONArray(out))
@@ -515,7 +600,14 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 File(applicationContext.filesDir,
                     "generation-plans/" + job.id + "-results.json"),
                 provenance.toString(2).toByteArray(Charsets.UTF_8))
+            // Release the large QNN model BEFORE starting the separate
+            // local 2B vision + projector runtime, never simultaneously.
+            currentEngine?.release()
+            currentEngine=null
             repo.updateTask(taskId, TaskStatus.COMPLETED)
+            if(characterPlan!=null &&
+                VisionModelStore(applicationContext).installed()!=null)
+                CharacterVisualAuditWorker.enqueue(applicationContext,job.id)
             foreground("Generation completed")
             Result.success()
         } catch (cancel: CancellationException) {

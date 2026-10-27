@@ -27,7 +27,8 @@ object ConditioningSchedule {
      * No backend model supports arbitrarily large simultaneous cross attention.
      */
     fun compile(prompt:String,negative:String,tokenizer:(String)->TokenCapacity,
-                maximumPasses:Int=32):ConditioningPlan {
+                maximumPasses:Int=32,
+                continuationHeader:String?=null):ConditioningPlan {
         require(prompt.isNotBlank())
         require(maximumPasses in 1..64)
         val positive=prompt.trim()
@@ -47,7 +48,12 @@ object ConditioningSchedule {
         val chunks=mutableListOf<String>()
         var offset=0
         val shorter="Preserve prior image. Add these required details:\n"
+        val preferred=continuationHeader?.takeIf{it.isNotBlank()}
+        if(preferred!=null)require(tokenizer(preferred).fits){
+            "Character identity anchor exceeds native tokenizer capacity"
+        }
         val continuation=when {
+            preferred!=null -> preferred
             tokenizer(HEADER).fits -> HEADER
             tokenizer(shorter).fits -> shorter
             else -> error("Native context is too small for safe continuation")

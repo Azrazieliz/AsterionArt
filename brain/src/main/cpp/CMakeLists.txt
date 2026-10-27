@@ -34,6 +34,11 @@ set(LLAMA_SRC ${CMAKE_CURRENT_LIST_DIR}/../../../../native/llama.cpp)
 if(NOT EXISTS "${LLAMA_SRC}/include/llama.h")
  message(FATAL_ERROR "Pinned llama.cpp v0.7.0 source missing")
 endif()
+# Load the pinned llama.cpp multimodal encoder from the exact same source.
+# No on-phone subprocess or remote inference is used.
+set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "Library-only native build" FORCE)
+set(LLAMA_BUILD_MTMD ON CACHE BOOL "Enable on-device vision projector" FORCE)
+set(MTMD_VIDEO OFF CACHE BOOL "No FFmpeg required for still-image audit" FORCE)
 add_subdirectory(${LLAMA_SRC} build-llama)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
@@ -57,3 +62,14 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         llama-common
         android
         log)
+
+# Dedicated Android multimodal image assessor (Qwen3-VL GGUF + mmproj).
+# The existing Qwen3 text intelligence stays separate and cannot see pixels.
+add_library(asterion-vision SHARED vision_judge.cpp)
+target_include_directories(asterion-vision PRIVATE
+        ${LLAMA_SRC}/common
+        ${LLAMA_SRC}/include
+        ${LLAMA_SRC}/tools/mtmd
+        ${LLAMA_SRC}/ggml/include)
+target_link_libraries(asterion-vision PRIVATE
+        llama llama-common mtmd android log)
