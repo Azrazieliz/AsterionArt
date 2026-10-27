@@ -14,7 +14,10 @@ data class VideoClipJoinPlan(val id:String,val clips:List<String>) {
         require(id.matches(Regex("join_[a-f0-9]{32}")))
         require(clips.size>=2&&clips.none{it.isBlank()})
         require(clips.distinct().size==clips.size)
-        require(clips.all{raw->runCatching{\n            val uri=URI.create(raw)\n            uri.scheme=="content"&&!uri.authority.isNullOrBlank()\n        }.getOrDefault(false)})
+        require(clips.all{raw->runCatching{
+            val uri=URI.create(raw)
+            uri.scheme=="content"&&!uri.authority.isNullOrBlank()
+        }.getOrDefault(false)})
     }
     fun json():String=JSONObject().apply {
         put("schema","asterion.clip-join.v1")
