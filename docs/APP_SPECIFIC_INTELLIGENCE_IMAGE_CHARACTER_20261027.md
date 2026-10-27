@@ -4,7 +4,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 
 ## (1) Visual intelligence / corrected self-learning
 
-- The optional Qwen3-VL-2B-Instruct GGUF language model + matching Q8 mmproj are fetched directly from the Apache-2.0 upstream repository by explicit one-tap model installation. Two upstream SHA-256 digests are verified. No model weight files live in Git.
+- **Updated packaging instruction:** The full offline APK is configured to bundle Qwen3 1.7B reasoning (Q4_K_M), Qwen3-VL 2B vision language (Q4_K_M), and matching Q8 mmproj. These 2,659,872,640 bytes of Apache-2.0 weights are downloaded and SHA-256 checked ONLY on the authorized build host, then included as chunked assets. First launch reconstructs them onto app-owned storage offline and checks every part and full-model hash. No user-side model download/import and no large weights checked into Git.
 - The pinned `llama.cpp` v0.7.0 `mtmd` C API is compiled alongside the existing JNI runtime. `asterion-vision` is an independent Android-native CPU inference engine and consumes actual RGB pixels. It never sends images to a remote provider.
 - User-approved Advanced Grading remains the only labeled training source. Per-image-region numeric grading trains a small local score model by mode/dimension, with no false claims of semantic understanding. Keep/Reject are not used.
 - A new multilayer Qwen3-VL visual audit inspects actual generated pixels and each frozen character's anatomy, physical concept fusion, view identity and illustrated 2D grammar separately, preserving all frozen authority across pages. It distinguishes visible evidence, concerns, unknowns and inconclusive responses. It never issues an invented grade or overwrites the frozen design.
@@ -31,7 +31,10 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 ## Integrity and limitations
 
 - NO APK/build or test has been run since this branch diverged from main. Source-level changes and test cases exist, not runtime proof.
-- The downloadable Qwen3-VL requires approximately 1.6 GB for two checkpoints and significant additional runtime memory; mobile throughput is unmeasured.
+- The embedded Qwen3 1.7B + Qwen3-VL + projector require ~2.66 GB APK assets, plus at least ~2.66 GB of temporary or persistent app-owned filesystem space after first launch (and additional device RAM for model execution); mobile throughput is unmeasured. The actual APK size and ability to install a >2GB APK are unverified.
+- **Critical gap:** The 6+ GB native image-generation QNN checkpoints remain unbundled; the build-time vision/LLM models alone do not make actual image generation self-contained. The project does not currently have a verified redistribution-safe, handset-compatible image checkpoint source.
+- GitHub Releases limits each downloadable binary asset to <2 GiB. The full model-embedded APK may exceed this. Distribution through a direct single download has not been established and must not be claimed.
+- New heavy model packaging is manual-only, never launched by push or ordinary CI. Existing release signing identity is not available in GitHub; a persistent installable signed update has not been delivered.
 - `llama.cpp` multimodal `mtmd` is an experimental API and native compatibility with this device/model remains to be demonstrated.
 - A Qwen3-VL visual observation is a probabilistic model output, not guaranteed anatomical verification. It is explicit review evidence, not an unreviewed quality grade.
 - Separate per-identity rendering improves the conditioning problem structurally but does not prove that a generative diffusion model can render three geometrically consistent views.
@@ -42,7 +45,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 ## Next verification gates before release builds
 
 1. Android CMake/JNI compilation and Kotlin unit-test execution **only when the owner lifts the no-build restriction**.
-2. Import/install both Qwen3-VL files, start/stop real native vision inference, and measure memory/latency.
+2. Authorize packaging and verify all THREE APK-embedded checkpoints; let first-launch model preparation finish without network; start/stop real native vision inference and measure memory/latency.
 3. Generate an approved 1-sheet/five-character Phase-1 test; verify all 15 actual front/side/rear images, anatomical correctness, backgrounds, concept embodiment and differentiation.
 4. Submit detailed user-approved grades for failing regions; verify the exact masked correction was applied while unmasked pixels remain bit-identical.
 5. Benchmark multiple generation attempts against prior output before claiming higher visual quality or release readiness.

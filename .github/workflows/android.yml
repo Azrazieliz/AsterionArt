@@ -27,6 +27,8 @@ jobs:
           python -m unittest discover -s fusion -p 'test_*.py' -v
       - name: Validate native extraction
         run: python -m unittest discover -s native -p 'test_*.py' -v
+      - name: Verify model-pack source tests without downloading models
+        run: python -m unittest discover -s modelpack -p 'test_*.py' -v
       - name: Install Android NDK and native CMake
         run: |
           yes | sdkmanager "ndk;27.2.12479018" "cmake;3.31.6" >/dev/null
@@ -47,13 +49,9 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug --stacktrace
       - name: Verify embedded native long-context LLM
         run: unzip -l app/build/outputs/apk/debug/*.apk | grep "libai-chat.so"
-      - name: Assemble unsigned release for offline persistent-key signing
-        run: gradle --no-daemon :app:assembleRelease --stacktrace
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Asterion-Art-Android-unsigned-release
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+      # Full offline releases require heavyweight verified model assets.
+      # They are intentionally NOT assembled automatically on push.
+      # A separately gated manual packaging workflow is provided.
       - name: Verify packaged engine and Qualcomm runtime checksums
         run: python3 native/verify_apk_native.py
       - uses: actions/upload-artifact@v4

@@ -32,7 +32,8 @@ import com.asterion.art.methodology.CharacterPlanStore
 import com.asterion.art.methodology.DetailedMethodologies
 import com.asterion.art.model.*
 import com.asterion.art.vision.VisionModelStore
-import com.asterion.art.vision.VisionDownloadWorker
+import com.asterion.art.modelpack.EmbeddedModelInstallWorker
+import com.asterion.art.modelpack.EmbeddedModelPack
 import com.asterion.art.vision.CharacterVisualAuditWorker
 import com.asterion.art.vision.CharacterVisualReportStore
 import kotlinx.coroutines.delay
@@ -155,14 +156,19 @@ fun AdvancedGradingScreen(repo:ArtRepository,
                 "in the cloud automatically.",color=Mist,
                 style=MaterialTheme.typography.labelSmall)
             if(!visionReady) {
-                OutlinedButton(onClick={
-                    VisionDownloadWorker.enqueue(context)
-                    message="Free local Qwen3-VL installation queued "+
-                        "(about 1.6 GB, one time). Progress appears in the notification."
-                }) { Text("Install free offline visual intelligence") }
-            } else Text("Offline Qwen3-VL image analysis installed. "+
+                Text(if(EmbeddedModelPack(context).packaged())
+                    "Offline Qwen3-VL is included in this APK and preparing "+
+                        "its verified local files. No model download required."
+                    else "This APK does not contain the offline model pack.",
+                    color=Mist,style=MaterialTheme.typography.bodySmall)
+                if(EmbeddedModelPack(context).packaged())
+                    OutlinedButton(onClick={
+                        EmbeddedModelInstallWorker.enqueue(context)
+                        message="Preparing bundled Qwen3-VL directly from APK assets."
+                    }) { Text("Retry offline model preparation") }
+            } else Text("Bundled offline Qwen3-VL image analysis is ready. "+
                 "Generated Character Creation sheets can be inspected "+
-                "against frozen anatomy and concept specifications.",
+                "against their frozen design specifications.",
                 color=Mist,style=MaterialTheme.typography.labelSmall)
             message?.let{Text(it,color=Mist)}
         }

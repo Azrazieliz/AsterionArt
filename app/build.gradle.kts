@@ -43,6 +43,16 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    // Large model assets are generated at packaging time, not committed to Git
+    // and never fetched by the installed application.
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(layout.buildDirectory.dir("generated/embeddedModelsAssets"))
+        }
+    }
+    androidResources {
+        noCompress += "chunk"
+    }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
         jniLibs {
@@ -66,4 +76,23 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
+}
+
+/**
+ * A release lacking the complete preverified model assets is not release-ready.
+ * Debug and unit-test tasks may run without the expensive binary model package.
+ */
+val verifyOfflineEmbeddedModels by tasks.registering {
+    doLast {
+        val manifest=layout.buildDirectory.file(
+            "generated/embeddedModelsAssets/asterion_bundle/manifest.json"
+        ).get().asFile
+        check(manifest.isFile && manifest.length()>1000L) {
+            "Release requires pinned GGUF weight embedding. " +
+                "Run modelpack/prepare_embedded_models.py in the build job first."
+        }
+    }
+}
+tasks.matching { it.name=="mergeReleaseAssets" }.configureEach {
+    dependsOn(verifyOfflineEmbeddedModels)
 }

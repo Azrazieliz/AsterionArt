@@ -34,10 +34,19 @@ class BrainModelStore(context:Context) {
         .filter{Environment.getExternalStorageState(it)==Environment.MEDIA_MOUNTED}
         .map{File(it,"asterion-brain-models")}
     fun target(model:BrainWeights):File {
+        // A staged .partial model must finish in the SAME app-owned directory
+        // even after copying consumed the free-space reserve.
+        val staged=roots.map{File(it,model.filename)}.firstOrNull{
+            File(it.path+".partial").isFile
+        }
+        if(staged!=null)return staged
         val root=roots.drop(1).lastOrNull {
             (it.parentFile?.usableSpace?:0L)>model.bytes+512L*1024*1024
         }?:privateRoot
         root.mkdirs()
+        require(root.usableSpace>model.bytes+256L*1024*1024){
+            "Not enough free app storage to install embedded Qwen3 weights"
+        }
         return File(root,model.filename)
     }
     fun location(model:BrainWeights):File?=roots.map{File(it,model.filename)}

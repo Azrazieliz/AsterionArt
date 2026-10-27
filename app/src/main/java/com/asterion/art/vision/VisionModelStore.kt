@@ -35,9 +35,8 @@ class VisionModelStore(context:Context) {
             .firstOrNull{it.isFile || File(it.path+".partial").exists()}
         if(existing!=null)return existing
         val root=roots.firstOrNull{
-            (it.parentFile?.usableSpace?:0L)>2_500_000_000L
-        }
-            ?:error("At least 2.5 GB free app storage required for local vision models")
+            (it.parentFile?.usableSpace?:0L)>weight.bytesMax+256L*1024*1024
+        } ?:error("Not enough app-owned storage to unpack bundled vision weights")
         root.mkdirs()
         return File(root,weight.name)
     }
