@@ -1,7 +1,7 @@
 package com.asterion.art.video
 
 import android.content.Context
-import android.net.Uri
+import java.net.URI
 import com.asterion.art.data.GeneratedImagePublisher
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,7 +14,7 @@ data class VideoClipJoinPlan(val id:String,val clips:List<String>) {
         require(id.matches(Regex("join_[a-f0-9]{32}")))
         require(clips.size>=2&&clips.none{it.isBlank()})
         require(clips.distinct().size==clips.size)
-        require(clips.all{Uri.parse(it).scheme=="content"})
+        require(clips.all{raw->runCatching{\n            val uri=URI.create(raw)\n            uri.scheme=="content"&&!uri.authority.isNullOrBlank()\n        }.getOrDefault(false)})
     }
     fun json():String=JSONObject().apply {
         put("schema","asterion.clip-join.v1")
