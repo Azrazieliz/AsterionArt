@@ -107,7 +107,7 @@ import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
     HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), TOOLBOX("Toolbox"), LIBRARY("Library"),
-    JOBS("Jobs"), GRADING("Grading"), SETTINGS("Parameters")
+    JOBS("Jobs"), GRADING("Grading"), TEST("Testing"), SETTINGS("Parameters")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -191,6 +191,11 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.CORE -> CoreSheetBrowser(repo) { current = Page.HOME }
                     Page.VIDEO -> VideoWorkspace(repo) { current = Page.HOME }
                     Page.MODELS -> NativeModelLibraryScreen()
+                    Page.TEST -> TestingCenter(repo,
+                        openModels={current=Page.MODELS},
+                        openSheets={current=Page.SHEET},
+                        openArtwork={current=Page.ARTWORK},
+                        openVideo={current=Page.VIDEO})
                     Page.LIBRARY -> LibraryHub(repo,
                         onEdit={ asset -> editingAsset=asset;current=Page.EDIT },
                         onToolbox={ asset -> editingAsset=asset;current=Page.TOOLBOX })
@@ -319,6 +324,9 @@ private fun HomeScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 Icon(Icons.Default.Star,null)
                 Spacer(Modifier.width(8.dp))
                 Text("Review and edit artworks")
+            }
+            Button(onClick={navigate(Page.TEST)},modifier=Modifier.fillMaxWidth()){
+                Text("Run actual app and AI tests")
             }
         }
         item {
