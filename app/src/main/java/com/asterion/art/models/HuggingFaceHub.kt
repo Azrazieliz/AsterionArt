@@ -134,7 +134,7 @@ class HuggingFaceHub {
 
 /** Strictly follow Hub pagination without allowing cross-host or cross-repository redirects. */
 internal object HubPagination {
-    private val nextRelation=Regex("""<([^>]+)>\\s*;\\s*rel\\s*=\\s*"?next"?""",
+    private val nextRelation=Regex("""<([^>]+)>\s*;\s*rel\s*=\s*"?next"?""",
         RegexOption.IGNORE_CASE)
     fun requireOfficialApiUrl(url:String) {
         val parsed=java.net.URI(url)
