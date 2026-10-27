@@ -100,11 +100,18 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             require(job.mode != RenderMode.ANIMATION) {
                 "Animation needs the video backend, not the still generator"
             }
-            val sheets = job.sheetIds.map { id ->
+            val storedSheets = job.sheetIds.map { id ->
                 repo.sheets.firstOrNull { it.id == id }
                     ?: error("Source sheet missing: " + id)
             }
-            require(sheets.all { it.outputUri != null }) {
+            val directSheets=job.directReferenceUris.flatMap{(role,uris)->
+                uris.map{uri->
+                    SheetRecord(role=role,label="Direct "+role.display+" reference",
+                        sourceUris=listOf(uri),referenceSlots=listOf("PRIMARY"))
+                }
+            }
+            val sheets=storedSheets+directSheets
+            require(storedSheets.all { it.outputUri != null }) {
                 "Reference sheet creation is not complete"
             }
             repo.updateTask(taskId, TaskStatus.RUNNING)
@@ -149,10 +156,15 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
                 ?: models.firstOrNull { it.ditKind == "klein" }
             var model = models.firstOrNull { it.id == preferredId }
-            if(job.designReferenceUris.size>1 &&
+            val imageSourceCount=(sheets.flatMap{it.sourceUris}+
+                job.designReferenceUris+listOfNotNull(job.sourceImageUri)).distinct().size
+            require(imageSourceCount<=10){
+                "More than 10 source images; select a bounded visual reference set"
+            }
+            if(imageSourceCount>1 &&
                 model?.ditKind !in listOf("qwen21","klein")) {
                 model=visualModel ?: error(
-                    "Fusion of multiple saved design images requires an installed " +
+                    "Conditioning on multiple image references requires an installed " +
                     "reference-capable Qwen/Klein QNN model; source pixels cannot " +
                     "be silently discarded or replaced with text alone.")
             }

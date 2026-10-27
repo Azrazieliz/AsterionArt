@@ -4,6 +4,7 @@ import android.content.Context
 import com.asterion.art.model.GeneratorSettings
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
+import com.asterion.art.model.SheetRole
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -22,7 +23,8 @@ data class GenerationJob(
     val designNegative: String? = null,
     val parentDesignIds: List<String> = emptyList(),
     val characterPlanId: String? = null,
-    val designReferenceUris: List<String> = emptyList()
+    val designReferenceUris: List<String> = emptyList(),
+    val directReferenceUris: Map<SheetRole,List<String>> = emptyMap()
 )
 
 class GenerationJobStore(context: Context) {
@@ -36,11 +38,13 @@ class GenerationJobStore(context: Context) {
                designNegative: String? = null,
                parentDesignIds: List<String> = emptyList(),
                characterPlanId: String? = null,
-               designReferenceUris: List<String> = emptyList()): GenerationJob {
+               designReferenceUris: List<String> = emptyList(),
+               directReferenceUris: Map<SheetRole,List<String>> = emptyMap()): GenerationJob {
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
             settings, System.currentTimeMillis(),creationMode,sourceImageUri,
             concepts.distinct(),designPrompt,designNegative,parentDesignIds.distinct(),
-            characterPlanId,designReferenceUris.distinct())
+            characterPlanId,designReferenceUris.distinct(),
+            directReferenceUris.mapValues{(_,uris)->uris.distinct()})
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -65,6 +69,11 @@ class GenerationJobStore(context: Context) {
             put("design_negative",job.designNegative ?: JSONObject.NULL)
             put("design_parents",JSONArray(job.parentDesignIds))
             put("design_reference_images",JSONArray(job.designReferenceUris))
+            put("direct_reference_images",JSONObject().apply {
+                job.directReferenceUris.forEach { (role,uris) ->
+                    put(role.name,JSONArray(uris))
+                }
+            })
             put("character_phase1_plan",job.characterPlanId ?: JSONObject.NULL)
             put("settings", s)
         }
@@ -112,6 +121,13 @@ class GenerationJobStore(context: Context) {
             root.optString("character_phase1_plan","").takeIf { it.isNotBlank() && it!="null" },
             root.optJSONArray("design_reference_images")?.let { arr ->
                 (0 until arr.length()).map { arr.getString(it) }
+            }.orEmpty(),
+            root.optJSONObject("direct_reference_images")?.let { direct ->
+                SheetRole.entries.mapNotNull{role->
+                    direct.optJSONArray(role.name)?.let { array ->
+                        role to (0 until array.length()).map{array.getString(it)}
+                    }
+                }.toMap()
             }.orEmpty()
         )
     }

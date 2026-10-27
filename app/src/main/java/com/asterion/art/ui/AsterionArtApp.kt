@@ -602,6 +602,29 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     var sourceArtwork by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var sourceWarning by remember { mutableStateOf<String?>(null) }
+    var directReferenceRole by remember { mutableStateOf(SheetRole.CHARACTER) }
+    var directReferences by remember { mutableStateOf<Map<SheetRole,List<String>>>(emptyMap()) }
+    val directReferencePicker=rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if(uris.isNotEmpty()) {
+            val retained=uris.map{uri->
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }.isSuccess
+            }
+            if(retained.all{it}) {
+                val old=directReferences[directReferenceRole].orEmpty()
+                val combined=(old+uris.map{it.toString()}).distinct()
+                if(directReferences.filterKeys{it!=directReferenceRole}.values.sumOf{it.size}+
+                    combined.size>10)sourceWarning="At most 10 independent image references per generation."
+                else {
+                    directReferences=directReferences+(directReferenceRole to combined)
+                    sourceWarning=null
+                }
+            } else sourceWarning="Cannot retain access to selected source images."
+        }
+    }
     val sourcePicker=rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) {
@@ -613,7 +636,10 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         }
     }
     val grouped = repo.sheets.groupBy { it.role }
-    val counts = repo.sheets.filter { it.id in selected }.groupingBy { it.role }.eachCount()
+    val sheetCounts=repo.sheets.filter { it.id in selected }.groupingBy{it.role}.eachCount()
+    val counts=SheetRole.entries.associateWith{role->
+        sheetCounts.getOrDefault(role,0)+directReferences[role].orEmpty().size
+    }
     val roleFailures=if(creationMode==null) {
         if(ArtPolicies.eligibleForAutomation(counts))emptyList()
         else listOf("Character, Art Style and Theme sheets are required")
@@ -645,6 +671,29 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 Text(role.display.uppercase(), color = Gold, style = MaterialTheme.typography.labelMedium)
             }
             val these = grouped[role].orEmpty()
+            item {
+                OutlinedButton(onClick={
+                    directReferenceRole=role
+                    directReferencePicker.launch(arrayOf("image/*"))
+                },modifier=Modifier.fillMaxWidth()) {
+                    Text("Add "+role.display+" reference image directly")
+                }
+                directReferences[role].orEmpty().forEachIndexed{index,source->
+                    Row(verticalAlignment=Alignment.CenterVertically,
+                        horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        AsyncImage(model=Uri.parse(source),contentDescription=role.display+" reference",
+                            modifier=Modifier.size(64.dp),contentScale=ContentScale.Fit)
+                        Text("Reference "+(index+1),Modifier.weight(1f),color=Mist)
+                        TextButton(onClick={
+                            directReferences=directReferences+(role to
+                                directReferences[role].orEmpty().filterIndexed{i,_->i!=index})
+                        }){Text("Remove")}
+                    }
+                }
+                Text("You may use an existing master sheet or select actual image references. "+
+                    "All chosen source pixels remain linked to the job.",color=Mist,
+                    style=MaterialTheme.typography.bodySmall)
+            }
             if (these.isEmpty()) {
                 item {
                     OutlinedButton(onClick = { navigate(Page.SHEET) }) {
@@ -681,6 +730,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 }
             }
         }
+        if(sourceWarning!=null)item { Text(sourceWarning.orEmpty(),color=Red) }
         item {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -703,7 +753,8 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                                     mode,repo.settings,repo.assets)?.settings ?: repo.settings
                             else repo.settings
                             val job = GenerationJobStore(context).create(
-                                mode, selected.toList(), preferred,creationMode,sourceArtwork)
+                                mode, selected.toList(), preferred,creationMode,sourceArtwork,
+                                directReferenceUris=directReferences.filterValues{it.isNotEmpty()})
                             val task = repo.recordTask(job.id, TaskKind.STILL_IMAGE)
                             GenerationWorker.enqueue(context, job.id, task.id)
                             navigate(Page.JOBS)
