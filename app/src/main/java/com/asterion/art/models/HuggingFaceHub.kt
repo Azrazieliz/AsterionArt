@@ -10,12 +10,13 @@ data class HubRepository(val id:String,val revision:String,val downloads:Long,
     val gated:Boolean)
 data class HubModelFile(val path:String,val bytes:Long,val sha256:String?) {
     val kind:String get()=when {
-        path.lowercase().endsWith(".gguf")->"GGUF reasoning/vision weights"
+        path.lowercase().endsWith(".gguf")->"GGUF (runtime compatibility must be checked)"
         path.lowercase().endsWith(".zip")->"Model package (QNN ZIP when compatible)"
         path.lowercase().endsWith(".safetensors")->"Original checkpoint / adapter"
         path.lowercase().endsWith(".ckpt")->"Original checkpoint"
         path.lowercase().endsWith(".bin")->"Model weights"
-        else->"Supporting model file"
+        path.lowercase().endsWith(".onnx")->"ONNX (runtime required)"
+        else->"Model component / tokenizer / configuration (not independently runnable)"
     }
 }
 
@@ -45,6 +46,15 @@ object HubPath {
             revision(revision)+"/"+file(path).split('/')
                 .joinToString("/"){java.net.URLEncoder.encode(it,"UTF-8").replace("+","%20")}+
             "?download=true"
+
+    /** Include non-executable tokenizer/configuration dependencies in file browsing. */
+    fun supportsFileSelection(path:String):Boolean {
+        val lower=path.lowercase()
+        return listOf(".zip",".gguf",".ggml",".safetensors",".ckpt",".bin",
+            ".onnx",".pt",".pth",".model",".json",".yaml",".yml",
+            ".tiktoken",".spm",".vocab",".merges",".bpe",".onnx_data")
+            .any{lower.endsWith(it)}
+    }
 }
 
 class HuggingFaceHub {
@@ -120,8 +130,7 @@ class HuggingFaceHub {
             val path=info.optString("path")
             if(runCatching{HubPath.file(path)}.isFailure)return@mapNotNull null
             val lower=path.lowercase()
-            if(!listOf(".zip",".gguf",".safetensors",".ckpt",".bin",".onnx")
-                    .any{lower.endsWith(it)})return@mapNotNull null
+            if(!HubPath.supportsFileSelection(lower))return@mapNotNull null
             val lfs=info.optJSONObject("lfs")
             val size=lfs?.optLong("size",0L)?.takeIf{it>0}
                 ?:info.optLong("size",0L)
