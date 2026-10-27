@@ -49,12 +49,25 @@ jobs:
         run: unzip -l app/build/outputs/apk/debug/*.apk | grep "libai-chat.so"
       - name: Verify packaged engine and Qualcomm runtime checksums
         run: python3 native/verify_apk_native.py
+      - name: Build release APK for persistent local signing
+        run: |
+          # CI must never generate or rotate an Android signing identity.
+          # The unsigned release is signed using the long-lived private key
+          # kept OFF GitHub on the owner's authorized signing computer.
+          gradle --no-daemon :app:assembleRelease --stacktrace
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          python3 native/verify_apk_native.py --apk app/build/outputs/apk/release/app-release-unsigned.apk
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Asterion-Art-UNSIGNED-RELEASE-requires-persistent-signature
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Asterion-Art-Android-debug
+          name: Asterion-Art-DEBUG-DIAGNOSTICS-NOT-FOR-INSTALL
           path: |
-            app/build/outputs/apk/debug/*.apk
             app/build/test-results/testDebugUnitTest/**/*.xml
             app/build/reports/tests/testDebugUnitTest/**
           if-no-files-found: warn
