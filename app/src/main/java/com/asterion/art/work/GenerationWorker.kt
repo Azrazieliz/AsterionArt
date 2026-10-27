@@ -232,7 +232,14 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
                     job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
                 size = model.generationSize.coerceIn(512, 1536)
-                resolution = if(job.settings.ratio=="16:9")
+                // A fallback QNN engine must preserve the narrow, upright
+                // individual-character triptych, never switch to the final
+                // 16:9 five-character sheet's landscape resolution.
+                resolution = if(characterPlan!=null)
+                    model.resolutions.minByOrNull { (w,h)->
+                        abs(w.toDouble()/h-16.0/45.0)
+                    } ?: (size to size)
+                else if(job.settings.ratio=="16:9")
                     model.resolutions.firstOrNull { (w,h)->w*9==h*16 } ?: (1024 to 576)
                 else model.resolutions.firstOrNull() ?: (size to size)
                 foreground("Prompt exceeded text context; using " + model.name + " visual conditioning")

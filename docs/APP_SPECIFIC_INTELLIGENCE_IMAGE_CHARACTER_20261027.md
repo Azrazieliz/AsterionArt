@@ -49,3 +49,9 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 3. Generate an approved 1-sheet/five-character Phase-1 test; verify all 15 actual front/side/rear images, anatomical correctness, backgrounds, concept embodiment and differentiation.
 4. Submit detailed user-approved grades for failing regions; verify the exact masked correction was applied while unmasked pixels remain bit-identical.
 5. Benchmark multiple generation attempts against prior output before claiming higher visual quality or release readiness.
+
+## 2026-10-27 additional source-level integration corrections
+
+- Character Creation now observes asynchronous bundled Qwen3 readiness instead of retaining a stale initial “not installed” snapshot; no manual model import is required by this route.
+- When native conditioning selects a fallback image engine, the generation resolver retains the per-character upright triptych resolution policy instead of accidentally using the final sheet’s 16:9 landscape policy. The existing five-column white final composition and clinical Phase 1 specification are unchanged.
+- These are source corrections only. No APK/native compilation, device output, anatomy, or image-quality validation was performed.
