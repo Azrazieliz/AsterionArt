@@ -54,6 +54,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
@@ -602,6 +603,8 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     var sourceArtwork by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var sourceWarning by remember { mutableStateOf<String?>(null) }
+    var userScenePrompt by rememberSaveable { mutableStateOf("") }
+    var userNegativePrompt by rememberSaveable { mutableStateOf("") }
     var directReferenceRole by remember { mutableStateOf(SheetRole.CHARACTER) }
     var directReferences by remember { mutableStateOf<Map<SheetRole,List<String>>>(emptyMap()) }
     val directReferencePicker=rememberLauncherForActivityResult(
@@ -730,6 +733,21 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 }
             }
         }
+        item {
+            Text("YOUR ARTWORK DIRECTION",color=Gold)
+            OutlinedTextField(value=userScenePrompt,
+                onValueChange={userScenePrompt=it},
+                label={Text("Pose, expression, scene, details and composition")},
+                minLines=3,maxLines=8,modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(value=userNegativePrompt,
+                onValueChange={userNegativePrompt=it},
+                label={Text("Additional details to avoid (optional)")},
+                minLines=2,maxLines=4,modifier=Modifier.fillMaxWidth())
+            Text("These instructions combine with selected visual references. "+
+                "They never replace the authoritative identity, style, theme "+
+                "or element constraints.",color=Mist,
+                style=MaterialTheme.typography.bodySmall)
+        }
         if(sourceWarning!=null)item { Text(sourceWarning.orEmpty(),color=Red) }
         item {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
@@ -754,7 +772,9 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                             else repo.settings
                             val job = GenerationJobStore(context).create(
                                 mode, selected.toList(), preferred,creationMode,sourceArtwork,
-                                directReferenceUris=directReferences.filterValues{it.isNotEmpty()})
+                                directReferenceUris=directReferences.filterValues{it.isNotEmpty()},
+                                userScenePrompt=userScenePrompt,
+                                userNegativePrompt=userNegativePrompt)
                             val task = repo.recordTask(job.id, TaskKind.STILL_IMAGE)
                             GenerationWorker.enqueue(context, job.id, task.id)
                             navigate(Page.JOBS)
