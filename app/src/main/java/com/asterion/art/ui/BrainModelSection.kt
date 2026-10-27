@@ -80,9 +80,10 @@ fun BrainModelSection() {
             verticalArrangement=Arrangement.spacedBy(9.dp)) {
             Text("ASTERION DESIGN BRAIN",color=Gold,
                 style=MaterialTheme.typography.titleMedium)
-            Text("Qwen3 reasoning weights are included inside the full offline "+
-                "Asterion Art package and prepared from local APK assets on first "+
-                "launch. No model download or model-file import is required.",
+            Text("Qwen3 reasoning and Qwen3-VL visual assessment checkpoints "+
+                "are included in the neural-model package and extracted from "+
+                "local APK assets. The diffusion image-generation weights are NOT "+
+                "yet bundled; a complete offline image-creation release is not ready.",
                 color=Mist,style=MaterialTheme.typography.bodySmall)
             if(!packaged){
                 Text("THIS BUILD HAS NO BUNDLED GGUF WEIGHTS. The full offline "+

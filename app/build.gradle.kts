@@ -91,6 +91,22 @@ val verifyOfflineEmbeddedModels by tasks.registering {
             "Release requires pinned GGUF weight embedding. " +
                 "Run modelpack/prepare_embedded_models.py in the build job first."
         }
+        // Verify the actual staged bytes, not just a JSON manifest. This
+        // deliberately adds a full streaming SHA-256 pass to release assembly
+        // so a stale, truncated or tampered chunk cannot pass the source gate.
+        val python=System.getenv("ASTERION_PYTHON")?.takeIf { it.isNotBlank() }
+            ?: "python3"
+        val checkProcess=ProcessBuilder(
+            python,"modelpack/prepare_embedded_models.py",
+            "--output",manifest.parentFile.parentFile.absolutePath,
+            "--verify-only"
+        ).directory(rootProject.projectDir)
+            .redirectErrorStream(true).start()
+        val report=checkProcess.inputStream.bufferedReader().use { it.readText() }
+        check(checkProcess.waitFor()==0) {
+            "Release model-byte verification failed before asset merge:\n"+
+                report.takeLast(4000)
+        }
     }
 }
 tasks.matching { it.name=="mergeReleaseAssets" }.configureEach {

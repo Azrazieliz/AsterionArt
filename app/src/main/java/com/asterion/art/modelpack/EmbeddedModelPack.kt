@@ -36,8 +36,22 @@ class EmbeddedModelPack(private val context:Context) {
                 "f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82"))
     }
 
+    /**
+     * A manifest by itself is not a model package. Check that the signed
+     * APK exposes every declared asset before reporting an embedded pack.
+     * SHA-256 is subsequently verified during extraction, not on the UI thread.
+     */
     fun packaged():Boolean=runCatching {
-        app.assets.open("$ASSET_ROOT/manifest.json").use{it.read()!=-1}
+        val models=readManifest()
+        models.isNotEmpty() && models.all { model ->
+            val filenames=app.assets.list("$ASSET_ROOT/${model.id}")
+                ?.toSet().orEmpty()
+            model.parts.all { part ->
+                part.name.substringAfterLast('/') in filenames &&
+                    app.assets.open("$ASSET_ROOT/${part.name}")
+                        .use { it.read()!=-1 }
+            }
+        }
     }.getOrDefault(false)
 
     data class Part(val name:String,val bytes:Long,val sha256:String)

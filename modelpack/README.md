@@ -54,3 +54,10 @@ A PASS from these scripts verifies package bytes, not model inference quality or
 - Verify Android native compilation, Runtime `mtmd` operation and image-model decode on actual device (only after build restriction is lifted).
 - Make a demonstrably installable, persistently signed offline distribution that fits the publishing channel's limits.
 - Run at least one full clinical Character Creation 5-character, 15-view sheet; inspect real visual fidelity and validate targeted correction.
+
+## Additional source integrity gate (2026-10-27)
+
+- Android now treats a manifest without its declared model chunks as **not packaged**, instead of announcing that the neural models are included. This lightweight presence check is not an SHA-256 test; complete checksums are verified on extraction.
+- Before any manually authorized release asset merge, Gradle invokes the stdlib-only offline `--verify-only` packager to hash every staged chunk and reconstruct the pinned complete-model SHA-256. Configure `ASTERION_PYTHON` only if the packaging host does not provide `python3`. No model download or Android build is initiated by this document or commit.
+- Post-assembly verification refuses misleading claims that image diffusion weights have been included when only the reviewed reasoning/VL/projector baseline has been staged.
+- This is **not** a complete integrated image-generation distribution. Installing a QNN checkpoint still requires a separate engineering and licensing decision, and final delivery must be tested against Android/publishing-channel size limits before any release.

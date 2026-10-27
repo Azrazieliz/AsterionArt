@@ -25,6 +25,13 @@ def verify(apk: Path, spec_path: Path) -> dict:
             raise ValueError("APK was assembled WITHOUT bundled neural weights") from exc
         if manifest.get("schema") != "asterion.embedded-model-pack.v1":
             raise ValueError("Unexpected model-pack schema")
+        if (manifest.get("offline_after_install") is not True
+                or manifest.get("on_device_download_required") is not False):
+            raise ValueError("APK does not declare an entirely local model install")
+        # No image-generation tensor is in the reviewed three-weight baseline.
+        # A boolean claim cannot substitute for a pinned QNN checkpoint.
+        if manifest.get("image_diffusion_checkpoint_included") is not False:
+            raise ValueError("Unverified image checkpoint inclusion claim")
         if manifest.get("total_bytes") != sum(
                 item["bytes"] for item in sources["models"]):
             raise ValueError("APK embedded byte budget does not match exact source")
@@ -35,7 +42,7 @@ def verify(apk: Path, spec_path: Path) -> dict:
         for source in sources["models"]:
             model=models[source["id"]]
             if any(model[field]!=source[field]
-                   for field in ("filename","bytes","sha256","component")):
+                   for field in ("filename","bytes","sha256","component","license")):
                 raise ValueError("Incorrect packaged model checkpoint")
             chunks=model["parts"]
             if not chunks:
