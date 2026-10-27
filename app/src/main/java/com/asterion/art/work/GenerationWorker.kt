@@ -26,6 +26,7 @@ import com.asterion.art.methodology.CharacterSheetCompiler
 import com.asterion.art.methodology.CharacterSheetComposer
 import com.asterion.art.vision.CharacterVisualAuditWorker
 import com.asterion.art.vision.VisionModelStore
+import com.asterion.art.vision.ReferenceVisualInterpreter
 import kotlin.math.abs
 import com.asterion.art.engine.LocalDreamBridge
 import com.asterion.art.engine.StillImageEngine
@@ -108,7 +109,17 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             repo.updateTask(taskId, TaskStatus.RUNNING)
             repo.updateTaskProgress(taskId,0,100,"Reading source sheets")
             foreground("Reading source sheet evidence")
-            val evidence = sheets.map { SheetTextReader.read(applicationContext, it) }
+            val transcriptions = sheets.map { SheetTextReader.read(applicationContext, it) }
+            // Extract local multimodal visual facts from each actual reference
+            // before loading the separate QNN generation model. This never
+            // replaces source pixels and never writes a user training grade.
+            val evidence = if(sheets.isNotEmpty() &&
+                VisionModelStore(applicationContext).installed()!=null) {
+                ReferenceVisualInterpreter(applicationContext).enrich(
+                    sheets,transcriptions) { stage ->
+                        repo.updateTaskProgress(taskId,0,100,stage)
+                    }
+            } else transcriptions
             require(job.creationMode != CreationMode.STYLE_CORRECTION ||
                 job.sourceImageUri != null) {
                 "Style correction requires a source illustration, not just a style sheet."
@@ -176,7 +187,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     jobId=job.id,
                     candidateCount=if(job.creationMode==CreationMode.CHARACTER &&
                         job.designPrompt==null)15 else catalogue.coerceIn(1,15),
-                    sheetSources=evidence.flatMap { it.all() }.take(40),
+                    sheetSources=evidence.flatMap { it.all() },
                     onStage={ stage -> repo.updateTaskProgress(taskId,0,0,stage) },
                     creationMode=job.creationMode,
                     renderMode=job.mode,
@@ -588,6 +599,11 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 put("native_image_encoder_expanded",false)
                 put("methodology_certified", false)
                 put("reference_sheet_ids", JSONArray(job.sheetIds))
+                put("local_vision_reference_observations",
+                    evidence.map{it.all()}.flatten().any{
+                        it.startsWith("Unverified local visual observation of actual source pixels:")
+                    })
+                put("reference_observations_user_grading",false)
                 put("results", JSONArray(out))
                 put("automated_scoring", "technical-only; sheet fidelity not evaluated")
                 put("native_reference_images", referenceInputs.size)

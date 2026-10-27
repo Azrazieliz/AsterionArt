@@ -45,7 +45,13 @@ class EmbeddedNpuEngine(context: Context): StillImageEngine {
 }
 
 object EmbeddedEngineFactory {
-    fun open(context:Context):StillImageEngine =
-        if(EmbeddedNativeRunner.isEmbedded(context)) EmbeddedNpuEngine(context)
-        else LocalDreamBridge()
+    fun open(context:Context):StillImageEngine {
+        if (!EmbeddedNativeRunner.isEmbedded(context)) {
+            throw com.asterion.art.engine.BackendUnavailable(
+                "This build is missing Asterion Art's native QNN inference runtime. "+
+                "A separate Local Dream application or internet service cannot "+
+                "silently substitute for the embedded offline engine.")
+        }
+        return EmbeddedNpuEngine(context)
+    }
 }
