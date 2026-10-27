@@ -48,10 +48,9 @@ object HubPath {
 }
 
 class HuggingFaceHub {
-    private fun get(url:String):String {
-        require(url.startsWith("https://huggingface.co/api/models")) {
-            "Only the official Hugging Face model catalogue is supported"
-        }
+    private data class Page(val body:String,val next:String?)
+    private fun getPage(url:String):Page {
+        HubPagination.requireOfficialApiUrl(url)
         val connection=(URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod="GET"
             connectTimeout=18_000
@@ -65,14 +64,20 @@ class HuggingFaceHub {
                     if(connection.responseCode==401||connection.responseCode==403)
                         " (repository may require authentication)" else ""
             }
-            val limit=3_000_000
-            return connection.inputStream.bufferedReader(Charsets.UTF_8).use{
-                val text=it.readText()
-                require(text.length<=limit){"Hub catalogue response exceeds size limit"}
-                text
+            // Expand=true limits the Hub tree to 50 entries per response.
+            // Read Link pagination instead of hiding every file after page one.
+            val link=connection.getHeaderField("Link")
+            val text=connection.inputStream.bufferedReader(Charsets.UTF_8).use{
+                val content=it.readText()
+                require(content.length<=3_000_000){
+                    "Hub catalogue page exceeds size limit"
+                }
+                content
             }
+            return Page(text,HubPagination.nextUrl(url,link))
         }finally{connection.disconnect()}
     }
+    private fun get(url:String):String=getPage(url).body
     fun search(query:String):List<HubRepository> {
         val term=query.trim().take(100)
         require(term.length>=2){"Enter at least two characters"}
@@ -92,10 +97,23 @@ class HuggingFaceHub {
     fun files(repo:HubRepository):List<HubModelFile> {
         val id=HubPath.repository(repo.id)
         val revision=HubPath.revision(repo.revision)
-        val raw=get("https://huggingface.co/api/models/"+id+"/tree/"+revision+
-            "?recursive=true&expand=true")
-        val tree=JSONArray(raw)
-        require(tree.length()<=5000){"Repository contains too many files to browse"}
+        val tree=JSONArray()
+        var next:String?="https://huggingface.co/api/models/"+id+"/tree/"+revision+
+            "?recursive=true&expand=true"
+        val seen=mutableSetOf<String>()
+        while(next!=null) {
+            val pageUrl=next
+            require(seen.add(pageUrl) && seen.size<=120) {
+                "Hub file listing exceeded its pagination safety limit"
+            }
+            val page=getPage(pageUrl)
+            val entries=JSONArray(page.body)
+            require(tree.length()+entries.length()<=5000) {
+                "Repository contains over 5,000 entries; narrow the model selection"
+            }
+            for(index in 0 until entries.length())tree.put(entries.get(index))
+            next=page.next
+        }
         return (0 until tree.length()).mapNotNull{index->
             val info=tree.optJSONObject(index)?:return@mapNotNull null
             if(info.optString("type")!="file")return@mapNotNull null
@@ -111,5 +129,30 @@ class HuggingFaceHub {
                 ?.takeIf{it.matches(Regex("[a-fA-F0-9]{64}"))}
             HubModelFile(path,size,hash)
         }.sortedWith(compareBy({it.path.substringAfterLast('.')},{it.path}))
+    }
+}
+
+/** Strictly follow Hub pagination without allowing cross-host or cross-repository redirects. */
+internal object HubPagination {
+    private val nextRelation=Regex("""<([^>]+)>\\s*;\\s*rel\\s*=\\s*"?next"?""",
+        RegexOption.IGNORE_CASE)
+    fun requireOfficialApiUrl(url:String) {
+        val parsed=java.net.URI(url)
+        require(parsed.scheme=="https" && parsed.host=="huggingface.co" &&
+            parsed.port==-1 && parsed.rawUserInfo==null &&
+            parsed.rawFragment==null && parsed.path.startsWith("/api/models/")) {
+            "Only official Hugging Face model API pages are allowed"
+        }
+    }
+    fun nextUrl(current:String,link:String?):String? {
+        if(link.isNullOrBlank())return null
+        requireOfficialApiUrl(current)
+        val match=nextRelation.find(link)?:return null
+        val resolved=java.net.URI(current).resolve(match.groupValues[1]).toString()
+        requireOfficialApiUrl(resolved)
+        require(java.net.URI(current).path==java.net.URI(resolved).path) {
+            "Hub pagination may not switch repositories or revisions"
+        }
+        return resolved
     }
 }
