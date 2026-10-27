@@ -3,6 +3,9 @@ on:
   push:
     branches: ['research/model-capabilities-no-build-20261027']
   workflow_dispatch:
+concurrency:
+  group: asterion-android-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   android:
     runs-on: ubuntu-latest
