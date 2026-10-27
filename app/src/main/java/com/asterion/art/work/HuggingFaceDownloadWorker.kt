@@ -16,7 +16,6 @@ import com.asterion.art.model.TaskStatus
 import com.asterion.art.models.HubPath
 import com.asterion.art.nativeengine.NativeModelLibrary
 import com.asterion.art.nativeengine.OriginalCheckpointLibrary
-import com.asterion.art.nativeengine.OriginalCheckpointLibrary
 import com.asterion.art.vision.VisionCatalog
 import com.asterion.art.vision.VisionModelStore
 import kotlinx.coroutines.Dispatchers
