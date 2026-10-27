@@ -120,7 +120,7 @@ class HuggingFaceDownloadWorker(context:Context,params:WorkerParameters):
                     JSONObject(File(target.path+".json").readText())
                 }.getOrNull()
                 val recorded=metadata?.optString("sha256").orEmpty()
-                val matches=metadata?.optString("repo")==id &&
+                val matches=metadata!=null && metadata.optString("repo")==id &&
                     metadata.optString("revision")==rev &&
                     metadata.optString("file")==path &&
                     metadata.optLong("size")==target.length() &&
