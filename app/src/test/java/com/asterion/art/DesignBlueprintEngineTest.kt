@@ -58,7 +58,10 @@ class DesignBlueprintEngineTest {
             unique+CharacterPhaseOne.DRAWING).repeat(4)
         return FrozenCharacter(index,p,a,a,a,
             "Oni Cloud share cranial load-bearing condensation pathways. "+a,
-            a,a,render,a)
+            a,a,render,a,
+            pairwise=listOf(PairwisePhysicalFusion("Oni","Cloud",
+                "Both Oni and Cloud produce an integrated tensile horn, " +
+                "spinal condensation substrate and shared rib-rooted support system.")))
     }
     @Test fun everySheetUsesExactlyFiveSelfContainedAnatomicalDesigns() {
         val population=(1..10).map(::frozen)
