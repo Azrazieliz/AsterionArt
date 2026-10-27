@@ -117,7 +117,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
         val ready=requireNotNull(plan)
         AlertDialog(
             onDismissRequest={review=false},
-            title={Text("Validate frozen character prompts")},
+            title={Text("Inspect frozen character prompts")},
             text={
                 Column(Modifier.heightIn(max=500.dp)
                     .verticalScroll(rememberScrollState()),
@@ -139,8 +139,8 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     }
                 }
             },
-            confirmButton={TextButton(onClick=::authorizeGeneration) {
-                Text("Validate & generate "+ready.sheets+" sheet(s)")
+            confirmButton={TextButton(onClick={review=false}) {
+                Text("Close inspection")
             }},
             dismissButton={TextButton(onClick={review=false}){Text("Back")}}
         )
@@ -260,10 +260,17 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     Button(
                         enabled=ready.status=="READY",
                         modifier=Modifier.fillMaxWidth(),
-                        onClick={review=true}){
+                        onClick=::authorizeGeneration){
                         Text(if(ready.status=="AUTHORIZED")
                             "Generation already authorized"
-                            else "Review full prompts · Validate & generate")
+                            else "Validate & Generate "+ready.sheets+" sheet(s)")
+                    }
+                    if(ready.status=="READY") {
+                        OutlinedButton(
+                            modifier=Modifier.fillMaxWidth(),
+                            onClick={review=true}) {
+                            Text("Inspect frozen design specifications")
+                        }
                     }
                 }
                 "FAILED"->Text("Design resolution blocked: "+
