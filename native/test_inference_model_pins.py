@@ -29,7 +29,7 @@ class TestInferenceModelPins(unittest.TestCase):
         sources=(BRAIN.read_text(encoding="utf-8")+
             "\n"+VISION.read_text(encoding="utf-8")).lower().replace("_","")
         for filename,repository,size,sha in prepare_inference_weights.WEIGHTS:
-            self.assertIn(filename.lower(),sources)
+            self.assertIn(filename.lower().replace("_",""),sources)
             self.assertRegex(sha,r"^[0-9a-f]{64}$")
             self.assertIn(sha.lower(),sources)
             self.assertIsInstance(size,int)
