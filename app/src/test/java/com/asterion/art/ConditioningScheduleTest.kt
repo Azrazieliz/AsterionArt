@@ -31,6 +31,24 @@ class ConditioningScheduleTest {
             ConditioningSchedule.compile(impossible,"",native,maximumPasses=2)
         }.isFailure)
     }
+    @Test fun characterContinuationRetainsFrozenIdentityAnchor() {
+        val header="SAME D017 Oni Crystal preserve roots and face.\n"
+        val original=("Anatomical structure in dense clinical detail. ").repeat(19)
+        val plan=ConditioningSchedule.compile(
+            original,"",native,maximumPasses=20,
+            continuationHeader=header)
+        assertTrue(plan.chunks.size>1)
+        assertEquals(original.length,plan.emittedCharacters)
+        assertTrue(plan.chunks.drop(1).all{it.positive.startsWith(header)})
+        assertTrue(plan.chunks.all{native(it.positive).fits})
+    }
+    @Test fun overlongFrozenAnchorFailsRatherThanInventingShorterAuthority() {
+        assertTrue(runCatching{
+            ConditioningSchedule.compile(
+                "Character anatomy ".repeat(40),"",native,
+                continuationHeader="Frozen character ".repeat(40))
+        }.isFailure)
+    }
     @Test fun unverifiedTokenizerCannotClaimExtendedContext() {
         val bad:(String)->TokenCapacity={TokenCapacity(100,0,-1)}
         assertTrue(runCatching {

@@ -16,6 +16,7 @@ import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.methodology.CharacterPhaseOne
+import com.asterion.art.methodology.CharacterSheetCompiler
 import com.asterion.art.methodology.CharacterPlanStore
 import com.asterion.art.methodology.CharacterPhaseOnePlan
 import com.asterion.art.model.CreationMode
@@ -109,12 +110,19 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     .verticalScroll(rememberScrollState()),
                     verticalArrangement=Arrangement.spacedBy(10.dp)) {
                     Text("All "+ready.total+" characters have been designed and frozen. "+
-                        "Inspect the exact sheet-local instruction before authorizing " +
-                        "image generation. Visual quality requires post-render grading.",
+                        "Each character will be rendered independently as a clinical "+
+                        "front/side/rear reference, then five are assembled onto "+
+                        "one uninterrupted white sheet. The selected native model "+
+                        "may use separate verified conditioning passes. "+
+                        "Visual accuracy remains unverified until inspection.",
                         color=Mist)
-                    ready.prompts.forEachIndexed{i,prompt->
-                        Text("SHEET "+(i+1),color=Gold)
-                        Text(prompt,style=MaterialTheme.typography.bodySmall)
+                    Text("SHEET COMPOSITION CONTRACT",color=Gold)
+                    Text(CharacterPhaseOne.PRESENTATION,
+                        style=MaterialTheme.typography.bodySmall)
+                    ready.frozen.forEach{character->
+                        Text("FROZEN "+character.id,color=Gold)
+                        Text(CharacterSheetCompiler.individual(character),
+                            style=MaterialTheme.typography.bodySmall)
                     }
                 }
             },

@@ -72,6 +72,83 @@ object CharacterVisualProtocol {
                 .append(d.materials.take(1400)).append('\n')
         }
     }
+    /**
+     * Multimodal audit in bounded independent layers. Unlike substring .take(),
+     * every character of frozen source evidence is included in some page.
+     * Each page is assessed against the actual image, not Qwen text alone.
+     *
+     * The 3500-character split is a resource budget, NOT a token context
+     * expansion. The native multimodal evaluator checks its actual KV budget.
+     */
+    fun questions(d:FrozenCharacter):List<String> {
+        d.validate()
+        val shared="Character "+d.id+"; primary concepts: "+
+            d.primary.joinToString(" × "){it.name}+
+            ". Compare the ACTUAL image against the frozen authority for this "+
+            "specific layer; report only visibly grounded observations, "+
+            "concrete mismatch, viewpoint consistency, and uncertainty. "+
+            "Never invent a failure or imply that this is user-approved grading. "+
+            "Clinical unclothed female anatomical reference; 2D anime/manhwa. "+
+            "Return JSON fields: visible_features (string array), "+
+            "concept_evidence (object keyed by exact primary concept names), "+
+            "anatomy_concerns (array), view_consistency_concerns (array), "+
+            "drawing_concerns (array), uncertainty (array). "+
+            "For unobserved concepts, use 'unclear'.\n"
+        val sections=listOf(
+            "ANATOMY AND BODY SUPPORT" to (d.anatomy+"\n"+d.topology),
+            "COMPLETE PHYSICAL CONCEPT FUSION" to (
+                d.fusion+"\n"+d.pairwise.joinToString("\n"){
+                    it.first+" × "+it.second+": "+it.mechanism
+                }+"\n"+d.higherOrder),
+            "IDENTITY AND TWO-DIMENSIONAL PRESENTATION" to (
+                d.faceEyesHair+"\n"+d.materials+"\n"+
+                    d.differentiation+"\n"+d.renderDescription))
+        val questions=mutableListOf<String>()
+        for((name,text) in sections) {
+            var index=0
+            val raw=text.trim()
+            while(index<raw.length) {
+                // All evidence is represented in ordered partitions.
+                val end=minOf(raw.length,index+3500)
+                val content=raw.substring(index,end)
+                questions+=shared+"EVIDENCE LAYER: "+name+
+                    " · part "+(questions.size+1)+
+                    "\nFROZEN REQUIREMENTS:\n"+content+
+                    "\nReturn only JSON describing what can be seen."
+                index=end
+            }
+        }
+        require(questions.size in 3..32) {
+            "Full visual audit requires too many evidence pages; no source may be dropped"
+        }
+        return questions
+    }
+
+    /** Consolidate independent image-conditioned observations; do not invent text. */
+    fun merge(parts:List<CharacterVisualFinding>):CharacterVisualFinding {
+        require(parts.isNotEmpty())
+        val first=parts.first()
+        require(parts.all{it.characterId==first.characterId&&
+            it.sourceSha256==first.sourceSha256&&it.sourceUri==first.sourceUri})
+        val concepts=linkedMapOf<String,String>()
+        for(part in parts)for((name,evidence) in part.conceptEvidence){
+            val prev=concepts[name]
+            if(prev==null||prev.equals("unclear",true))
+                concepts[name]=evidence
+        }
+        fun all(selector:(CharacterVisualFinding)->List<String>)=
+            parts.flatMap(selector).filter{it.isNotBlank()}.distinct()
+        return first.copy(
+            visibleFeatures=all{it.visibleFeatures},
+            conceptEvidence=concepts,
+            anatomyConcerns=all{it.anatomyConcerns},
+            viewConsistencyConcerns=all{it.viewConsistencyConcerns},
+            drawingConcerns=all{it.drawingConcerns},
+            uncertainty=all{it.uncertainty},
+            status=if(parts.all{it.status=="UNVERIFIED_MACHINE_OBSERVATION"})
+                "UNVERIFIED_MACHINE_OBSERVATION" else "UNVERIFIED_PARTIAL")
+    }
+
     private fun readTextArray(source:JSONObject,key:String):List<String> {
         val array=source.getJSONArray(key)
         require(array.length()<=40){"Unbounded visual findings"}

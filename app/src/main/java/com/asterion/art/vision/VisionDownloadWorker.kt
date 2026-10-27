@@ -96,7 +96,16 @@ class VisionDownloadWorker(context:Context,params:WorkerParameters):
                     }
                 } finally {conn.disconnect()}
                 show("Verifying SHA-256 · "+model.name,model.bytesMax,model.bytesMax)
-                store.verifyAndCommit(model,partial)
+                try {
+                    store.verifyAndCommit(model,partial)
+                } catch(e:Exception) {
+                    // A corrupted complete file cannot be resumed into a valid
+                    // GGUF. Delete only the app's partial copy and permit retry.
+                    if(e.message.orEmpty().contains("SHA-256",true)||
+                        e.message.orEmpty().contains("Not a GGUF",true))
+                        partial.delete()
+                    throw e
+                }
             }
             require(store.installed()!=null){"Both neural components are required"}
             Result.success()

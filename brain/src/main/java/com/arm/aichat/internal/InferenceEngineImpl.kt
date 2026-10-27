@@ -89,6 +89,9 @@ internal class InferenceEngineImpl private constructor(
     private external fun configureContext(contextTokens: Int): Int
 
     @FastNative
+    private external fun countTokensNative(text:String):Int
+
+    @FastNative
     private external fun attachLora(adapterPath: String): Int
 
     @FastNative
@@ -203,6 +206,26 @@ internal class InferenceEngineImpl private constructor(
                 "Load a compatible base GGUF model first"
             }
             check(attachLora(adapterPath)==0) { "Incompatible GGUF LoRA adapter" }
+        }
+
+    override suspend fun countTokens(text:String):Int =
+        withContext(llamaDispatcher) {
+            check(_state.value is InferenceEngine.State.ModelReady){
+                "Qwen3 tokenizer requires a loaded model"
+            }
+            countTokensNative(text).also{
+                check(it>=0){"Native Qwen tokenizer failed"}
+            }
+        }
+
+    override suspend fun restartConversation(systemPrompt:String) =
+        withContext(llamaDispatcher) {
+            require(systemPrompt.isNotBlank())
+            check(_state.value is InferenceEngine.State.ModelReady)
+            val result=processSystemPrompt(systemPrompt)
+            check(result==0){
+                "Qwen3 neural context reset failed, code "+result
+            }
         }
 
     override suspend fun setSystemPrompt(prompt: String) =

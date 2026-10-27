@@ -298,23 +298,6 @@ static void reset_long_term_states(const bool clear_kv_cache = true) {
         llama_memory_clear(llama_get_memory(g_context), false);
 }
 
-/**
- * TODO-hyin: implement sliding-window version as a better alternative
- *
- * Context shifting by discarding the older half of the tokens appended after system prompt:
- * - take the [system_prompt_position] first tokens from the original prompt
- * - take half of the last (system_prompt_position - system_prompt_position) tokens
- * - recompute the logits in batches
- */
-static void shift_context() {
-    const int n_discard = (current_position - system_prompt_position) / 2;
-    LOGi("%s: Discarding %d tokens", __func__, n_discard);
-    llama_memory_seq_rm(llama_get_memory(g_context), 0, system_prompt_position, system_prompt_position + n_discard);
-    llama_memory_seq_add(llama_get_memory(g_context), 0, system_prompt_position + n_discard, current_position, -n_discard);
-    current_position -= n_discard;
-    LOGi("%s: Context shifting done! Current position: %d", __func__, current_position);
-}
-
 static std::string chat_add_and_format(const std::string &role, const std::string &content) {
     common_chat_msg new_msg;
     new_msg.role = role;
@@ -355,10 +338,10 @@ static int decode_tokens_in_batches(
         batch.clear();
         LOGv("%s: Preparing a batch size of %d starting at: %d", __func__, cur_batch_size, i);
 
-        // Shift context if current batch cannot fit into the context
+        // Hard fail rather than silently shifting away approved authority.
         if (start_pos + i + cur_batch_size >= (int) llama_n_ctx(g_context) - OVERFLOW_HEADROOM) {
-            LOGw("%s: Current batch won't fit into context! Shifting...", __func__);
-            shift_context();
+            LOGe("%s: Neural context full. Refusing source truncation.", __func__);
+            return 3;
         }
 
         // Add tokens to the batch with proper positions
@@ -377,6 +360,18 @@ static int decode_tokens_in_batches(
         }
     }
     return 0;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_arm_aichat_internal_InferenceEngineImpl_countTokensNative(
+        JNIEnv *env,jobject,jstring jtext) {
+    if(!g_context || !jtext) return -1;
+    const char *raw=env->GetStringUTFChars(jtext,nullptr);
+    if(!raw)return -1;
+    const std::string value(raw);
+    env->ReleaseStringUTFChars(jtext,raw);
+    return static_cast<jint>(common_tokenize(g_context,value,false,false).size());
 }
 
 extern "C"
@@ -457,10 +452,10 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processUserPrompt(
         LOGv("token: `%s`\t -> `%d`", common_token_to_piece(g_context, id).c_str(), id);
     }
 
-    // Ensure user prompt doesn't exceed the context size by truncating if necessary.
+    // Preflight formatted user prompt + generated token reserve; never truncate.
     const int user_prompt_size = (int) user_tokens.size();
     const int max_batch_size = (int) llama_n_ctx(g_context) - OVERFLOW_HEADROOM;
-    if (user_prompt_size > max_batch_size) {
+    if (current_position + user_prompt_size + n_predict > max_batch_size) {
         const int skipped_tokens = user_prompt_size - max_batch_size;
         // NEVER truncate methodology or concept evidence.
         LOGe("%s: User prompt exceeds context by %d tokens", __func__, skipped_tokens);
@@ -519,10 +514,11 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_generateNextToken(
         JNIEnv *env,
         jobject /*unused*/
 ) {
-    // Infinite text generation via context shifting
+    // Stop safely at the hard context boundary: never shift away the
+    // accepted character-methodology or canonical concept evidence.
     if (current_position >= (int) llama_n_ctx(g_context) - OVERFLOW_HEADROOM) {
-        LOGw("%s: Context full! Shifting...", __func__);
-        shift_context();
+        LOGe("%s: Generation stopped at verified context boundary", __func__);
+        return nullptr;
     }
 
     // Stop if reaching the marked position

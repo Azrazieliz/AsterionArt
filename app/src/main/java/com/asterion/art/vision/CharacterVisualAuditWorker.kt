@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Runs AFTER the image engine has been released. It observes real pixels using
@@ -76,6 +77,22 @@ class CharacterVisualAuditWorker(context:Context,params:WorkerParameters):
                     val entry=rendered.getJSONObject(sheetNumber-1)
                     val uri=entry.getString("uri")
                     val sha=entry.getString("sha256")
+                    val digest=MessageDigest.getInstance("SHA-256")
+                    applicationContext.contentResolver.openInputStream(Uri.parse(uri))
+                        .use{stream->
+                            requireNotNull(stream)
+                            val buffer=ByteArray(512*1024)
+                            while(true) {
+                                val n=stream.read(buffer)
+                                if(n<0)break
+                                digest.update(buffer,0,n)
+                            }
+                        }
+                    val observedHash=digest.digest()
+                        .joinToString(""){"%02x".format(it)}
+                    require(observedHash.equals(sha,true)){
+                        "Rendered image bytes differ from frozen generation provenance"
+                    }
                     val opts=BitmapFactory.Options().apply {inJustDecodeBounds=true}
                     applicationContext.contentResolver.openInputStream(Uri.parse(uri))
                         .use{stream->
@@ -100,22 +117,29 @@ class CharacterVisualAuditWorker(context:Context,params:WorkerParameters):
                             val left=image.width*index/5
                             val right=image.width*(index+1)/5
                             val crop=Bitmap.createBitmap(image,left,0,right-left,image.height)
-                            val answer=try {
+                            val assessments=try {
                                 val frame=NativeVisionSession.rgb(crop)
-                                foreground("Inspecting "+identity.id+" / "+plan.total)
-                                vision.analyze(frame,CharacterVisualProtocol.prompt(identity),700)
-                            } finally {crop.recycle()}
-                            val finding=runCatching{
-                                CharacterVisualProtocol.parse(identity,
-                                    sheetNumber,uri,sha,answer)
-                            }.getOrElse{problem->
-                                CharacterVisualFinding(identity.id,sheetNumber,
-                                    uri,sha,emptyList(),emptyMap(),
-                                    emptyList(),emptyList(),emptyList(),
-                                    listOf("Visual assessment was inconclusive: "+
-                                        (problem.message?:"malformed response")),
-                                    status="UNVERIFIED_INCONCLUSIVE")
-                            }
+                                CharacterVisualProtocol.questions(identity)
+                                    .mapIndexed{step,question->
+                                        foreground("Inspecting "+identity.id+
+                                            " · visual layer "+(step+1))
+                                        runCatching{
+                                            val raw=vision.analyze(frame,question,520)
+                                            CharacterVisualProtocol.parse(identity,
+                                                sheetNumber,uri,sha,raw)
+                                        }.getOrElse{problem->
+                                            CharacterVisualFinding(identity.id,
+                                                sheetNumber,uri,sha,emptyList(),
+                                                emptyMap(),emptyList(),emptyList(),
+                                                emptyList(),listOf(
+                                                    "Vision layer "+(step+1)+
+                                                        " inconclusive: "+
+                                                        (problem.message?:"unknown")),
+                                                status="UNVERIFIED_INCONCLUSIVE")
+                                        }
+                                    }
+                            } finally{crop.recycle()}
+                            val finding=CharacterVisualProtocol.merge(assessments)
                             saved.removeAll{it.characterId==finding.characterId}
                             saved+=finding
                             evidence.save(jobId,saved)

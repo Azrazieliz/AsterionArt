@@ -34,7 +34,9 @@ class VisionModelStore(context:Context) {
         val existing=roots.map{File(it,weight.name)}
             .firstOrNull{it.isFile || File(it.path+".partial").exists()}
         if(existing!=null)return existing
-        val root=roots.firstOrNull{it.usableSpace>2_500_000_000L}
+        val root=roots.firstOrNull{
+            (it.parentFile?.usableSpace?:0L)>2_500_000_000L
+        }
             ?:error("At least 2.5 GB free app storage required for local vision models")
         root.mkdirs()
         return File(root,weight.name)

@@ -72,6 +72,39 @@ class CharacterVisualProtocolTest {
         assertTrue(result.correctionCandidates().contains("Root appears disconnected"))
         assertTrue(result.uncertainty.isNotEmpty())
     }
+    @Test fun allFrozenAnatomyAndFusionEvidenceReachTheVisionPasses() {
+        val design=identity()
+        val questions=CharacterVisualProtocol.questions(design)
+        assertTrue(questions.size>=3)
+        val full=questions.joinToString("\n")
+        assertTrue(full.contains(design.anatomy))
+        assertTrue(full.contains(design.topology))
+        assertTrue(full.contains(design.fusion))
+        design.pairwise.forEach {pair->
+            assertTrue(full.contains(pair.mechanism))
+        }
+        assertTrue(full.contains(design.higherOrder))
+        assertTrue(full.contains(design.renderDescription))
+    }
+    @Test fun auditedMachineObservationsCanMergeWithoutBecomingGrades() {
+        val response=JSONObject().put("visible_features",JSONArray(listOf("front face")))
+            .put("concept_evidence",JSONObject().put("Oni","horns rooted")
+                .put("Crystal","unclear").put("Cloud","unclear"))
+            .put("anatomy_concerns",JSONArray(listOf("rear roots unclear")))
+            .put("view_consistency_concerns",JSONArray())
+            .put("drawing_concerns",JSONArray())
+            .put("uncertainty",JSONArray())
+        val first=CharacterVisualProtocol.parse(identity(),1,"content://art","123",
+            response.toString())
+        val second=first.copy(conceptEvidence=mapOf(
+            "Oni" to "unclear","Crystal" to "body crystals","Cloud" to "unclear"),
+            visibleFeatures=listOf("rear silhouette"))
+        val merged=CharacterVisualProtocol.merge(listOf(first,second))
+        assertEquals("horns rooted",merged.conceptEvidence["Oni"])
+        assertEquals("body crystals",merged.conceptEvidence["Crystal"])
+        assertEquals(2,merged.visibleFeatures.size)
+        assertEquals("UNVERIFIED_MACHINE_OBSERVATION",merged.status)
+    }
     @Test fun malformedVisionResponsesFailRatherThanInventEvidence() {
         assertTrue(runCatching {
             CharacterVisualProtocol.parse(identity(),1,
