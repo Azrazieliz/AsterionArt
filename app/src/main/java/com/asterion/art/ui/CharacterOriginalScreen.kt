@@ -41,6 +41,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     var sheets by rememberSaveable{mutableIntStateOf(CharacterPhaseOne.DEFAULT_SHEETS)}
     var search by remember{mutableStateOf("")}
     var query by remember{mutableStateOf("")}
+    var openLiteral by remember{mutableStateOf("")}
     var activePlanId by rememberSaveable{mutableStateOf<String?>(null)}
     var plan by remember{mutableStateOf<CharacterPhaseOnePlan?>(null)}
     var error by remember{mutableStateOf<String?>(null)}
@@ -167,6 +168,22 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     }){Text("Remove")}
                 }
             }
+        }
+        item {
+            Text("OPEN FIXED CONCEPT",color=Gold)
+            OutlinedTextField(value=openLiteral,
+                onValueChange={openLiteral=it},
+                modifier=Modifier.fillMaxWidth(),singleLine=true,
+                label={Text("Literal concept not in canonical taxonomy")},
+                placeholder={Text("A concept to interpret literally")})
+            OutlinedButton(enabled=!locked&&slots.size<8&&
+                openLiteral.trim().isNotBlank(),onClick={
+                slots=slots+openLiteral.trim()
+                openLiteral=""
+            }){Text("Add fixed literal")}
+            Text("Noncanonical fixed literals retain their original wording; "+
+                "they are never silently replaced or given invented SC identifiers.",
+                color=Mist,style=MaterialTheme.typography.bodySmall)
         }
         item {
             Text("WILDCARD",color=Gold)
