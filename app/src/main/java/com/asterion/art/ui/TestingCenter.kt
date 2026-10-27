@@ -25,7 +25,8 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
-    openSheets:()->Unit,openArtwork:()->Unit,openVideo:()->Unit) {
+    openSheets:()->Unit,openArtwork:()->Unit,openVideo:()->Unit,
+    openGallery:()->Unit,openGrading:()->Unit,openCore:()->Unit) {
     val context=LocalContext.current
     val scope=rememberCoroutineScope()
     var probes by remember { mutableStateOf<List<RuntimeProbe>>(emptyList()) }
@@ -34,6 +35,8 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
     var evaluating by remember{mutableStateOf(false)}
     var sheetTesting by remember{mutableStateOf(false)}
     var sheetOutcome by remember{mutableStateOf<String?>(null)}
+    var editTesting by remember{mutableStateOf(false)}
+    var editOutcome by remember{mutableStateOf<String?>(null)}
     var note by remember{mutableStateOf<String?>(null)}
     suspend fun refresh() {
         val values=withContext(Dispatchers.IO) {
@@ -102,6 +105,26 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
             Text("Uses temporary local test images, not AI drawings; cleans up "+
                 "test media. Your reference library and grades are unchanged.",color=Mist)
             OutlinedButton(onClick=openSheets){Text("Open Sheet Creation")}
+        }
+        item {
+            Text("EDITING AND IMAGE TOOLBOX",color=Gold)
+            Button(enabled=!editTesting,onClick={
+                scope.launch {
+                    editTesting=true;editOutcome=null
+                    try {
+                        editOutcome=withContext(Dispatchers.IO) {
+                            RuntimeProbes.editAndToolboxRoundTrip(context)
+                        }
+                    }catch(t:Throwable) {
+                        editOutcome="FAIL: "+(t.message?:t.javaClass.simpleName)
+                    }finally{editTesting=false}
+                }
+            }){Text(if(editTesting)"Testing image editing…" else
+                "Test masked editing and image enhancements")}
+            editOutcome?.let{Text(it,color=if(it.startsWith("PASS"))Green else Red)}
+            OutlinedButton(onClick=openGallery){Text("Open Gallery and editing tools")}
+            OutlinedButton(onClick=openGrading){Text("Open Advanced Grading")}
+            OutlinedButton(onClick=openCore){Text("Open Asterion Core integration")}
         }
         item {
             Text("REAL IMAGE INFERENCE TEST",color=Gold)

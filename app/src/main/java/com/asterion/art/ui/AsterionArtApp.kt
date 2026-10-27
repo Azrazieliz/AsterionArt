@@ -195,7 +195,10 @@ fun AsterionArtApp(repo: ArtRepository) {
                         openModels={current=Page.MODELS},
                         openSheets={current=Page.SHEET},
                         openArtwork={current=Page.ARTWORK},
-                        openVideo={current=Page.VIDEO})
+                        openVideo={current=Page.VIDEO},
+                        openGallery={current=Page.LIBRARY},
+                        openGrading={current=Page.GRADING},
+                        openCore={current=Page.CORE})
                     Page.LIBRARY -> LibraryHub(repo,
                         onEdit={ asset -> editingAsset=asset;current=Page.EDIT },
                         onToolbox={ asset -> editingAsset=asset;current=Page.TOOLBOX })

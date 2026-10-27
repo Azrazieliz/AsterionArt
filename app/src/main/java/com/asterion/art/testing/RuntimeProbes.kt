@@ -6,6 +6,11 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
+import com.asterion.art.engine.SelectiveImageEditor
+import com.asterion.art.enhancement.AsterionImageToolbox
+import com.asterion.art.enhancement.ImageToolSettings
+import java.io.ByteArrayOutputStream
 import android.net.Uri
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.core.CoreSheetBridge
@@ -143,4 +148,71 @@ object RuntimeProbes {
             folder.deleteRecursively()
         }
     }
+    /**
+     * Exercises the real user-facing CPU pixel-editing and toolbox algorithms.
+     * Synthetic images stay in cache, nothing enters the user's design/grade
+     * history. Native generative inpainting is deliberately not impersonated.
+     */
+    fun editAndToolboxRoundTrip(context:Context):String {
+        val app=context.applicationContext
+        val folder=File(app.cacheDir,"image-edit-diagnostic-"+UUID.randomUUID())
+        check(folder.mkdirs())
+        val source=Bitmap.createBitmap(192,192,Bitmap.Config.ARGB_8888)
+        val mask=Bitmap.createBitmap(192,192,Bitmap.Config.ARGB_8888)
+        var result:Bitmap?=null
+        try {
+            val baseline=Color.rgb(130,145,165)
+            Canvas(source).drawColor(baseline)
+            Canvas(mask).apply {
+                drawColor(Color.BLACK)
+                drawRect(RectF(56f,56f,136f,136f),
+                    Paint().apply{color=Color.WHITE})
+            }
+            val prepared=SelectiveImageEditor.prepare(source,mask,128,128)
+            check(prepared.imagePng.size>100&&prepared.maskPng.size>100)
+            val replacement=Bitmap.createBitmap(128,128,Bitmap.Config.ARGB_8888)
+            val replacementPng=try {
+                Canvas(replacement).drawColor(Color.rgb(210,70,90))
+                ByteArrayOutputStream().use {output->
+                    check(replacement.compress(Bitmap.CompressFormat.PNG,100,output))
+                    output.toByteArray()
+                }
+            } finally {replacement.recycle()}
+            val merged=SelectiveImageEditor.composite(
+                source,replacementPng,mask,prepared.rectangle)
+            result=BitmapFactory.decodeByteArray(merged,0,merged.size)
+                ?:error("Selective editing result cannot be decoded")
+            check(result.getPixel(10,10)==source.getPixel(10,10)) {
+                "Selective edit altered protected pixels outside the mask"
+            }
+            check(result.getPixel(90,90)!=source.getPixel(90,90)) {
+                "Selective edit did not modify pixels inside the mask"
+            }
+            val inputFile=File(folder,"synthetic.png")
+            inputFile.outputStream().use {output->
+                check(source.compress(Bitmap.CompressFormat.PNG,100,output))
+            }
+            val adjusted=AsterionImageToolbox.process(
+                app,Uri.fromFile(inputFile),
+                ImageToolSettings(brightness=18f,contrast=1.1f,
+                    saturation=0.9f,sharpen=0.4f),
+                {false},{_,_->})
+            val bitmap=BitmapFactory.decodeByteArray(adjusted,0,adjusted.size)
+                ?:error("Image Toolbox output is not decodable")
+            try {
+                check(bitmap.width==source.width&&bitmap.height==source.height)
+                check(bitmap.getPixel(96,96)!=source.getPixel(96,96)) {
+                    "Image Toolbox did not apply the requested adjustment"
+                }
+            }finally{bitmap.recycle()}
+            return "PASS: selective masked edit preserves untouched pixels, "+
+                "changes selected pixels; Image Toolbox applied and exported PNG."
+        }finally{
+            result?.recycle()
+            source.recycle()
+            mask.recycle()
+            folder.deleteRecursively()
+        }
+    }
+
 }
