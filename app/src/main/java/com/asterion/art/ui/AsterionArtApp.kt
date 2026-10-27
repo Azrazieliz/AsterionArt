@@ -98,6 +98,7 @@ import com.asterion.art.render.SheetRenderer
 import com.asterion.art.work.NeuralEnhancementWorker
 import com.asterion.art.enhancement.EmbeddedRealSr
 import com.asterion.art.work.SheetRenderWorker
+import com.asterion.art.work.SheetMasterGenerationWorker
 import com.asterion.art.work.GenerationWorker
 import kotlinx.coroutines.delay
 import com.asterion.art.learning.UserPreferenceStore
@@ -391,7 +392,9 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             Header(
                 "Normalized production",
                 "Sheet builder",
-                "Choose a sheet type and real reference images. The renderer creates a standard sheet without inventing visual details."
+                "One source picture is enough. AI reconstructs a complete sheet with "+
+                    "new angles, anatomical and outfit views, and role-specific details "+
+                    "using the original as visual authority."
             )
         }
         item {
@@ -421,8 +424,8 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                     )
                 }
             }
-            Text("Selected images are assigned to " + SheetLayouts.label(kind, activeSlot) +
-                ". Primary is mandatory; optional panels only appear when you supply images.",
+            Text("One main image is the normal workflow. Other sources are optional "+
+                "and only add evidence, never a requirement for pre-cropped panels.",
                 color = Mist, style = MaterialTheme.typography.bodySmall)
         }
         item {
@@ -509,7 +512,7 @@ private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                     runCatching {
                         val sheet = repo.addSheet(kind, sources.map { it.first }, sources.map { it.second })
                         val task = repo.recordTask(sheet.id, TaskKind.SHEET_RENDER)
-                        SheetRenderWorker.enqueue(context, sheet.id, task.id)
+                        SheetMasterGenerationWorker.enqueue(context, sheet.id, task.id)
                     }.onSuccess {
                         sources = emptyList()
                         note = null
