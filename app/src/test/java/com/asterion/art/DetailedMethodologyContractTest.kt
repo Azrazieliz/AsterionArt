@@ -66,4 +66,15 @@ class DetailedMethodologyContractTest {
         assertTrue(DetailedMethodologies.validate(MethodologyRequest(
             CreationMode.CREATURE,conceptIds=listOf("SC016"))).isEmpty())
     }
+    @Test fun outfitAndWeaponRequireARealFrozenHost() {
+        for(mode in listOf(CreationMode.OUTFIT,CreationMode.WEAPON)) {
+            assertTrue(DetailedMethodologies.validate(
+                MethodologyRequest(mode)).isNotEmpty())
+            assertTrue(DetailedMethodologies.validate(
+                MethodologyRequest(mode,sourceIllustrationPresent=true)).isEmpty())
+            assertTrue(DetailedMethodologies.validate(
+                MethodologyRequest(mode,
+                    sheetRoles=setOf(SheetRole.CHARACTER))).isEmpty())
+        }
+    }
 }

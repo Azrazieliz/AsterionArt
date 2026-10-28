@@ -83,7 +83,7 @@ object DetailedMethodologies {
         MethodologyContract(
             CreationMode.OUTFIT,"Outfit Creation",
             "Outfit Creation/Outfit Creation.md",
-            emptySet(),SourcePolicy.OPTIONAL,0,ten,portrait,
+            emptySet(),SourcePolicy.CHARACTER_OR_IMAGE,0,ten,portrait,
             freeze,setOf("Garment construction","Coverage","Materials","Outfit colors","Ornament"),
             "Freeze source character body, face, hair, proportions and concept anatomy. Default exactly ten structurally and materially different outfits on one 16:9 white 2x5 catalogue. Use analytical headless forms matching frozen morphology when needed. Do not reauthor body, insert weapons or scenes. Selected preview: exact 9:16 white full-body original character wearing chosen outfit.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW,StageAction.CONSTRUCTION)
@@ -91,7 +91,7 @@ object DetailedMethodologies {
         MethodologyContract(
             CreationMode.WEAPON,"Weapon Creation",
             "Weapon Creation/Weapon Creation.md",
-            emptySet(),SourcePolicy.OPTIONAL,0,ten,portrait,
+            emptySet(),SourcePolicy.CHARACTER_OR_IMAGE,0,ten,portrait,
             freeze + setOf("Selected frozen outfit"),setOf("Category","Weapon geometry","Grip","Materials","Ornament"),
             "Freeze character and selected outfit. Default exactly ten distinct, complete, ISOLATED readable weapons on a single white 16:9 two-row by five-column catalogue. No character, hand, scene or decorative effects. Simple category-recognizable macro structure with premium character-specific fine construction. Preview may show original full-body character holding selected weapon only after user selection.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW,StageAction.CONSTRUCTION)
