@@ -23,20 +23,21 @@ class EmbeddedInferenceInstallWorker(ctx:Context,params:WorkerParameters):
     companion object {
         const val UNIQUE="asterion-offline-inference-asset-install"
         private const val CHANNEL="asterion-offline-inference"
-        fun enqueueIfBundled(context:Context) {
+        /** True if the complete offline pack is bundled, or already installed. */
+        fun enqueueIfBundled(context:Context):Boolean {
+            val brain=BrainModelStore(context)
+            val vision=VisionModelStore(context)
+            if(brain.selected()!=null && vision.installed()!=null)return true
             val files=context.assets.list("inference").orEmpty()
             val mandatory=listOf(BrainCatalog.models.first().filename)+
                 VisionCatalog.all.map{it.name}
-            if(!mandatory.all{it in files})return
-            val brain=BrainModelStore(context)
-            val vision=VisionModelStore(context)
-            if(brain.location(BrainCatalog.models.first())!=null&&
-                vision.installed()!=null)return
+            if(!mandatory.all{it in files})return false
             val request=OneTimeWorkRequestBuilder<EmbeddedInferenceInstallWorker>()
                 .addTag("asterion-embedded-inference")
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 UNIQUE,ExistingWorkPolicy.KEEP,request)
+            return true
         }
     }
     override suspend fun doWork():Result=withContext(Dispatchers.IO){

@@ -25,6 +25,8 @@ class VisionDownloadWorker(context:Context,params:WorkerParameters):
         private const val CHANNEL="asterion-vision-download"
         fun enqueue(context:Context) {
             val request=OneTimeWorkRequestBuilder<VisionDownloadWorker>()
+                .setConstraints(Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .addTag("asterion-vision-install").build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 UNIQUE,ExistingWorkPolicy.KEEP,request)

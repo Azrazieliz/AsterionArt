@@ -24,7 +24,12 @@ class BrainDownloadWorker(context:Context,params:WorkerParameters):
             val data=Data.Builder().putString("model",modelId)
                 .putString("uri",sourceUri).build()
             val request=OneTimeWorkRequestBuilder<BrainDownloadWorker>()
-                .setInputData(data).addTag("asterion-brain-download").addTag(modelId).build()
+                .setInputData(data)
+                .setConstraints(Constraints.Builder()
+                    .setRequiredNetworkType(
+                        if(sourceUri==null)NetworkType.CONNECTED else NetworkType.NOT_REQUIRED)
+                    .build())
+                .addTag("asterion-brain-download").addTag(modelId).build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "asterion-brain-"+modelId,ExistingWorkPolicy.KEEP,request)
         }
