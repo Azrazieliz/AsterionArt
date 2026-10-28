@@ -149,70 +149,171 @@ class CharacterBrainResolver(context:Context) {
                             append(grading)
                         }
                     }
-                    val authorityPages=BrainEvidencePager.pages(authority,
-                        (context-1650).coerceAtLeast(256)){engine.countTokens(it)}
-                    val notes=mutableListOf<String>()
-                    for(page in authorityPages) {
-                        notes+=answer("Analyze and preserve every binding character-design " +
-                            "requirement, physical concept contribution and pairwise " +
-                            "fusion mechanism. No final output yet. PAGE "+
-                            page.index+"/"+page.total+"\n"+page.text,
-                            minOf(620,context/6))
+                    // Model-generated designs are authoritative, but a single long
+                    // JSON response must not be responsible for 8 fields, up to
+                    // 28 pairwise interactions AND a higher-order structure.
+                    // Missing schema fields caused repeated full expensive jobs
+                    // on actual phone traces. Split the budget by output role.
+                    val format="Return one FLAT valid JSON object with EXACTLY " +
+                        "eight STRING keys: anatomy, face_eyes_hair, topology, " +
+                        "fusion, materials, differentiation, render_description, " +
+                        "audit_evidence. All values must be prose strings, NEVER " +
+                        "nested JSON or arrays. Each string must be at least 60 " +
+                        "characters; render_description must be 600+ characters. " +
+                        "Fully design one original anatomical character, with " +
+                        "complete feminine silhouette, original face/eyes/hair, " +
+                        "rooted appendages, consequential integration of EVERY " +
+                        "named primary concept, materials, identity-specific 2D " +
+                        "drawing and independently authored facial structure. " +
+                        "The render description is a complete positive self-contained " +
+                        "2D reconstruction, not a brief summary. No clothes, no " +
+                        "props, no scenes. Do not include pairwise or higher_order " +
+                        "in THIS response; these are authored separately with an " +
+                        "independent output budget. No Markdown or commentary."
+                    val outputLimit=minOf(2300,context/2)
+                    val directInput=format+"\nCHARACTER "+selection.id+
+                        "\nPRIMARY: "+selection.names.joinToString(" × ")+
+                        "\n"+CharacterPhaseOne.DRAWING+
+                        "\nDESIGN EVIDENCE:\n"+authority+"\n/no_think"
+                    // If the ENTIRE original study fits, avoid the old redundant
+                    // per-character LLM summary pass. Keep all source evidence.
+                    val study=if(engine.countTokens(directInput)+
+                            engine.countTokens(SYSTEM)+outputLimit+160<context)
+                        authority else {
+                        val authorityPages=BrainEvidencePager.pages(authority,
+                            (context-1650).coerceAtLeast(256)){engine.countTokens(it)}
+                        val notes=mutableListOf<String>()
+                        for(page in authorityPages) {
+                            progress(index,plan.total,
+                                "Reading full design evidence "+page.index+"/"+
+                                    page.total+" for "+selection.id)
+                            notes+=answer(
+                                "Preserve all binding anatomical, material and " +
+                                "pairwise concept-fusion requirements; no character " +
+                                "output yet. PAGE "+page.index+"/"+page.total+
+                                "\n"+page.text,minOf(620,context/6))
+                        }
+                        notes.joinToString("\n")
                     }
-                    val study=notes.joinToString("\n")
-                    val format="Return ONE valid JSON object with complete string fields: " +
-                        "anatomy, face_eyes_hair, topology, fusion, materials, " +
-                        "differentiation, render_description, audit_evidence. " +
-                        "Body must have complete female silhouette, proportion, bones, " +
-                        "joint systems and physically integrated concepts. Face/eyes/hair " +
-                        "must be original. Topology must specify rooted body systems. " +
-                        "Fusion must explicitly name EACH primary concept, " +
-                        "all pairwise physical interactions and an overall higher-order " +
-                        "construction for three or more. Materials specify illustrated " +
-                        "material and colour/value behavior. Differentiation must " +
-                        "explain independent authored identity. Render_description " +
-                        "must be a SELF-CONTAINED positive 600+ character anatomical " +
-                        "2D visual reconstruction covering EVERY named primary concept, " +
-                        "without outfits, props, scenes or semantic labels as substitutes. " +
-                        "Audit evidence must be concrete rather than a generic PASS. " +
-                        "Return pairwise as an array of JSON objects with exact concept " +
-                        "names first and second and a physical mechanism 65+ characters " +
-                        "long for EVERY unordered pair. Each mechanism must be a shared " +
-                        "consequential body structure, not a theme or metaphor. " +
-                        "For 3+ concepts add higher_order (110+ characters) describing " +
-                        "a single complete-set structure requiring all concepts. " +
-                        "For two primary concepts set higher_order to empty string. " +
-                        "No Markdown, no surrounding prose."
-                    suspend fun author(extra:String):FrozenCharacter {
-                        val input=format+"\nCHARACTER "+selection.id+"\nPRIMARY: "+
-                            selection.names.joinToString(" × ")+"\n"+
-                            CharacterPhaseOne.DRAWING+"\nDESIGN STUDY:\n"+
-                            study+"\n"+extra+"\n/no_think"
-                        val raw=answer(input,minOf(2200,context/2))
-                        val data=objectFrom(raw)
-                        return FrozenCharacter(selection.number,selection.concepts,
-                            data.getString("anatomy"),data.getString("face_eyes_hair"),
-                            data.getString("topology"),data.getString("fusion"),
-                            data.getString("materials"),data.getString("differentiation"),
-                            data.getString("render_description"),data.getString("audit_evidence"),
-                            data.getJSONArray("pairwise").let{pairs->
-                                (0 until pairs.length()).map{i->
-                                    val p=pairs.getJSONObject(i)
-                                    PairwisePhysicalFusion(p.getString("first"),
-                                        p.getString("second"),p.getString("mechanism"))
+                    val baseInput=format+"\nCHARACTER "+selection.id+
+                        "\nPRIMARY: "+selection.names.joinToString(" × ")+
+                        "\n"+CharacterPhaseOne.DRAWING+
+                        "\nDESIGN EVIDENCE:\n"+study+"\n/no_think"
+                    val raw=answer(baseInput,outputLimit)
+                    val data=runCatching{objectFrom(raw)}.getOrElse{problem->
+                        // The local model may exhaust its token cap before
+                        // closing JSON. Repair the SCHEMA, not the entire
+                        // expensive anatomy/evidence reading stage.
+                        objectFrom(answer(
+                            "Your previous JSON was incomplete or nested. "+
+                            "Return exactly the EIGHT flat STRING fields from "+
+                            "your already-developed design, with 600+ characters "+
+                            "in render_description and all named concepts. "+
+                            "Do not add pairwise yet. No nested objects. "+
+                            "Previous response:\n"+raw.take(4500)+
+                            "\nPRIMARY: "+selection.names.joinToString(" × ")+
+                            "\n/no_think",outputLimit))
+                    }
+                    val names=listOf("anatomy","face_eyes_hair","topology",
+                        "fusion","materials","differentiation",
+                        "render_description","audit_evidence")
+                    for(field in names) {
+                        val existing=data.opt(field)
+                        val minimum=if(field=="render_description")600 else 60
+                        if(existing is String && existing.trim().length>=minimum)
+                            continue
+                        progress(index,plan.total,"Repairing "+field+
+                            " for "+selection.id)
+                        val others=names.mapNotNull{key->
+                            (data.opt(key) as? String)?.takeIf{it.length>=60}
+                                ?.let{key+": "+it.take(320)}
+                        }.joinToString("\n")
+                        val text=answer(
+                            "Produce ONLY the missing character-design prose " +
+                            "field "+field+" for the SAME independently authored "+
+                            selection.id+". Minimum "+minimum+" characters. "+
+                            "Use every primary concept in physically meaningful "+
+                            "anatomy, not ornament; preserve the already designed "+
+                            "identity. No JSON, no fields besides "+field+
+                            ".\nPRIMARY: "+selection.names.joinToString(" × ")+
+                            "\nRETAINED DESIGN:\n"+others+
+                            "\nBINDING STUDY:\n"+study.take(2400)+
+                            "\n/no_think",
+                            minOf(if(minimum>=600)1000 else 550,context/4))
+                        require(text.length>=minimum) {
+                            selection.id+": neural "+field+" remains incomplete"
+                        }
+                        data.put(field,text)
+                    }
+                    val narrative=names.joinToString("\n"){field->
+                        field+": "+data.getString(field).take(420)
+                    }
+                    val pairs=mutableListOf<PairwisePhysicalFusion>()
+                    val required=selection.concepts.flatMapIndexed { n,first->
+                        selection.concepts.drop(n+1).map{second->
+                            first.name to second.name
+                        }
+                    }
+                    for(group in required.chunked(3)) {
+                        progress(index,plan.total,
+                            "Resolving physical concept pairs "+pairs.size+
+                                "/"+required.size+" for "+selection.id)
+                        val specification=group.joinToString("\n"){
+                            (first,second)->first+" + "+second
+                        }
+                        val response=runCatching {
+                            objectFrom(answer(
+                                "Return exactly one JSON object with key pairwise "+
+                                "whose value is an ARRAY of "+group.size+
+                                " objects. Every object must have STRING keys "+
+                                "first, second and mechanism. Mechanism must be "+
+                                "at least 65 characters of concrete, shared "+
+                                "physical anatomy; no labels, metaphors, icons "+
+                                "or decorative attachment substitutes. The "+
+                                "primary names must match exactly. REQUIRED PAIRS:\n"+
+                                specification+"\nFROZEN DESIGN:\n"+narrative+
+                                "\n/no_think",minOf(1000,context/4)))
+                        }.getOrNull()?.optJSONArray("pairwise")
+                        for((first,second) in group) {
+                            val matched=if(response==null)null else
+                                (0 until response.length()).mapNotNull{idx->
+                                    response.optJSONObject(idx)
+                                }.firstOrNull{p->
+                                    p.optString("first").equals(first,true)&&
+                                        p.optString("second").equals(second,true)&&
+                                        p.optString("mechanism").trim().length>=65
                                 }
-                            },data.getString("higher_order"))
-                            .also{it.validate()}
+                            val mechanism=matched?.optString("mechanism")?:
+                                answer(
+                                    "Write ONLY a concrete 90+ character shared "+
+                                    "physical anatomical mechanism for "+first+
+                                    " AND "+second+" within THIS frozen female "+
+                                    "character. No metaphor or decorative "+
+                                    "substitution.\nIDENTITY:\n"+narrative+
+                                    "\n/no_think",minOf(400,context/6))
+                            require(mechanism.trim().length>=65){
+                                selection.id+": unresolved physical fusion "+
+                                    first+" + "+second
+                            }
+                            pairs+=PairwisePhysicalFusion(first,second,mechanism)
+                        }
                     }
-                    var resolved=runCatching{author("")}
-                    if(resolved.isFailure) {
-                        val problem=resolved.exceptionOrNull()?.message.orEmpty()
-                        resolved=runCatching{author(
-                            "CORRECT FAILED FULL-RESOLUTION CHECK: "+problem+
-                                ". Reconstruct the SAME primary concept character, "+
-                                "do not omit required visible details.")}
-                    }
-                    val character=resolved.getOrThrow()
+                    val higher=if(selection.concepts.size<3)"" else answer(
+                        "Write ONLY a concrete 140+ character anatomically "+
+                        "consequential higher-order structure which physically "+
+                        "requires ALL the primary concepts together, not merely "+
+                        "pairwise associations. Same frozen identity. "+
+                        "PRIMARY: "+selection.names.joinToString(" × ")+
+                        "\nDESIGN:\n"+narrative+"\n/no_think",
+                        minOf(500,context/6))
+                    val character=FrozenCharacter(
+                        selection.number,selection.concepts,
+                        data.getString("anatomy"),data.getString("face_eyes_hair"),
+                        data.getString("topology"),data.getString("fusion"),
+                        data.getString("materials"),data.getString("differentiation"),
+                        data.getString("render_description"),
+                        data.getString("audit_evidence"),pairs,higher)
+                        .also{it.validate()}
                     require(completed.none{it.signature()==character.signature()}) {
                         "Duplicate body/fusion architecture; population cannot render"
                     }
