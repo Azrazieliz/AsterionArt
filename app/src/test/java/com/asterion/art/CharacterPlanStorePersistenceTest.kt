@@ -52,7 +52,7 @@ class CharacterPlanStorePersistenceTest {
         val resume=store.retryFailed(p.id)
         assertEquals("PENDING",resume.status)
         assertEquals(1,resume.frozen.size)
-        assertEquals(identity.anatomy,store.begin(p.id).frozen.single().anatomy)
         assertTrue(store.load(p.id).progressStage.contains("1/5"))
+        assertEquals(identity.anatomy,store.begin(p.id).frozen.single().anatomy)
     }
 }
