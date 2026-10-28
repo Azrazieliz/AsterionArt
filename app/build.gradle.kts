@@ -11,8 +11,8 @@ android {
         applicationId = "com.asterion.art"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
     }
     signingConfigs {
         create("persistentRelease") {
@@ -21,7 +21,7 @@ android {
             if(!store.isNullOrBlank() && !pass.isNullOrBlank()) {
                 storeFile = file(store)
                 storePassword = pass
-                keyAlias = "asterion-art-release"
+                keyAlias = System.getenv("ASTERION_RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "asterion-art-release"
                 keyPassword = pass
                 storeType = "pkcs12"
             }
