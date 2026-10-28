@@ -59,12 +59,6 @@ class CharacterBrainResolver(context:Context) {
             else->target
         }
     }
-    private fun objectFrom(text:String):JSONObject {
-        val start=text.indexOf('{')
-        val end=text.lastIndexOf('}')
-        require(start>=0&&end>start){"Qwen3 returned no complete structured character"}
-        return JSONObject(text.substring(start,end+1))
-    }
     suspend fun resolve(id:String,progress:(Int,Int,String)->Unit={_,_,_->}):CharacterPhaseOnePlan =
         BrainInferenceLock.mutex.withLock {
             val plan=plans.load(id)
@@ -208,11 +202,11 @@ class CharacterBrainResolver(context:Context) {
                     progress(index,plan.total,
                         "Qwen3 authoring full anatomical identity "+selection.id)
                     val raw=answer(baseInput,outputLimit)
-                    val data=runCatching{objectFrom(raw)}.getOrElse{problem->
+                    val data=runCatching{CharacterOutputSchema.parseObject(raw)}.getOrElse{problem->
                         // The local model may exhaust its token cap before
                         // closing JSON. Repair the SCHEMA, not the entire
                         // expensive anatomy/evidence reading stage.
-                        objectFrom(answer(
+                        CharacterOutputSchema.parseObject(answer(
                             "Your previous JSON was incomplete or nested. "+
                             "Return exactly the EIGHT flat STRING fields from "+
                             "your already-developed design, with 600+ characters "+
@@ -222,13 +216,11 @@ class CharacterBrainResolver(context:Context) {
                             "\nPRIMARY: "+selection.names.joinToString(" × ")+
                             "\n/no_think",outputLimit))
                     }
-                    val names=listOf("anatomy","face_eyes_hair","topology",
-                        "fusion","materials","differentiation",
-                        "render_description","audit_evidence")
+                    val names=CharacterOutputSchema.identityFields
                     for(field in names) {
                         val existing=data.opt(field)
-                        val minimum=if(field=="render_description")600 else 60
-                        if(existing is String && existing.trim().length>=minimum)
+                        val minimum=CharacterOutputSchema.minimumLength(field)
+                        if(field !in CharacterOutputSchema.missingFields(data))
                             continue
                         progress(index,plan.total,"Repairing "+field+
                             " for "+selection.id)
@@ -257,11 +249,7 @@ class CharacterBrainResolver(context:Context) {
                         field+": "+data.getString(field).take(420)
                     }
                     val pairs=mutableListOf<PairwisePhysicalFusion>()
-                    val required=selection.concepts.flatMapIndexed { n,first->
-                        selection.concepts.drop(n+1).map{second->
-                            first.name to second.name
-                        }
-                    }
+                    val required=CharacterOutputSchema.requiredPairs(selection.names)
                     for(group in required.chunked(3)) {
                         progress(index,plan.total,
                             "Resolving physical concept pairs "+pairs.size+
@@ -281,17 +269,11 @@ class CharacterBrainResolver(context:Context) {
                                 "primary names must match exactly. REQUIRED PAIRS:\n"+
                                 specification+"\nFROZEN DESIGN:\n"+narrative+
                                 "\n/no_think",minOf(1000,context/4)))
-                        }.getOrNull()?.optJSONArray("pairwise")
+                        }.onFailure{if(it is kotlinx.coroutines.CancellationException)throw it}
+                            .getOrNull()
                         for((first,second) in group) {
-                            val matched=if(response==null)null else
-                                (0 until response.length()).mapNotNull{idx->
-                                    response.optJSONObject(idx)
-                                }.firstOrNull{p->
-                                    p.optString("first").equals(first,true)&&
-                                        p.optString("second").equals(second,true)&&
-                                        p.optString("mechanism").trim().length>=65
-                                }
-                            val mechanism=matched?.optString("mechanism")?:
+                            val mechanism=CharacterOutputSchema.validMechanism(
+                                response,first,second)?:
                                 answer(
                                     "Write ONLY a concrete 90+ character shared "+
                                     "physical anatomical mechanism for "+first+
