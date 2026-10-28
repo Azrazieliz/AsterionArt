@@ -37,8 +37,7 @@ class NeuralVideoBridge(private val context:Context) {
         seconds:Int,target:File,canvas:Pair<Int,Int>,cancelled:()->Boolean,
         progress:(Int,Int)->Unit):NeuralVideoClip {
         require(prompt.isNotBlank()&&seconds in 1..5)
-        val weights=WanVideoModelPack.ready(context)
-            ?:error("Install the three verified Wan 2.2 components in Video Model Setup")
+        val weights=WanVideoModelPack.verifiedForInference(context,cancelled)
         val framesRequested=WanVideoRules.frameCount(seconds)
         val fps=WanVideoRules.outputFps(seconds)
         val init=readSource(first,canvas)
