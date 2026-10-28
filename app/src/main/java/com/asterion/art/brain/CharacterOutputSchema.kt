@@ -64,8 +64,8 @@ internal object CharacterOutputSchema {
         if(parsed!=null)return parsed
         val recovered=JSONObject()
         val pattern=Regex(
-            "\\\"("+identityFields.joinToString("|")+")\\\"\\\\s*:\\\\s*"+
-                "(\\\"(?:\\\\\\\\.|[^\\\"\\\\\\\\])*\\\")")
+            "\"("+identityFields.joinToString("|")+")\"\\s*:\\s*"+
+                "(\"(?:\\\\.|[^\"\\\\])*\")")
         for(match in pattern.findAll(raw)) {
             val name=match.groupValues[1]
             if(recovered.has(name))continue
