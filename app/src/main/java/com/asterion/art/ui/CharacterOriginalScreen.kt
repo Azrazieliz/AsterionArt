@@ -44,6 +44,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     var query by remember{mutableStateOf("")}
     var openLiteral by remember{mutableStateOf("")}
     var activePlanId by rememberSaveable{mutableStateOf<String?>(null)}
+    var attempt by rememberSaveable{mutableIntStateOf(0)}
     var plan by remember{mutableStateOf<CharacterPhaseOnePlan?>(null)}
     var error by remember{mutableStateOf<String?>(null)}
     var review by remember{mutableStateOf(false)}
@@ -63,7 +64,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     val preparing=plan?.status=="PENDING"||plan?.status=="DESIGNING"
     val locked=preparing || plan?.ready==true
 
-    LaunchedEffect(activePlanId) {
+    LaunchedEffect(activePlanId,attempt) {
         val id=activePlanId?:return@LaunchedEffect
         while(true) {
             val fresh=withContext(Dispatchers.IO) {
@@ -276,8 +277,23 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                         }
                     }
                 }
-                "FAILED"->Text("Design resolution blocked: "+
-                    plan?.failure.orEmpty(),color=Red)
+                "FAILED"->{
+                    Text("Design resolution blocked: "+
+                        plan?.failure.orEmpty(),color=Red)
+                    OutlinedButton(modifier=Modifier.fillMaxWidth(),onClick={
+                        runCatching{
+                            val id=requireNotNull(activePlanId)
+                            val resume=store.retryFailed(id)
+                            plan=resume
+                            error=null
+                            attempt++
+                            CharacterPreparationWorker.enqueue(context,id)
+                        }.onFailure{error=it.message}
+                    }){
+                        Text("Retry unresolved design · preserve "+
+                            (plan?.frozen?.size?:0)+" completed characters")
+                    }
+                }
                 else->{
                     Button(modifier=Modifier.fillMaxWidth(),
                         enabled=!locked&&slots.size>=2,

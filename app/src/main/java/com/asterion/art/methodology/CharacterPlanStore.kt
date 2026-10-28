@@ -145,6 +145,19 @@ class CharacterPlanStore(context:Context) {
             j.optString("progress_stage","")
         )
     }
+    /**
+     * Retry a failed Qwen design without discarding the fully validated
+     * identities already frozen in the original durable population.
+     */
+    @Synchronized fun retryFailed(id:String):CharacterPhaseOnePlan {
+        val p=load(id)
+        require(p.status=="FAILED"){"Only a failed resolution may be resumed"}
+        p.frozen.forEach{it.validate()}
+        require(p.frozen.size<=p.total)
+        return p.copy(status="PENDING",failure=null,
+            progressStage="Resuming after "+p.frozen.size+
+                "/"+p.total+" completed character identities").also(::persist)
+    }
     @Synchronized fun begin(id:String):CharacterPhaseOnePlan {
         val plan=load(id)
         require(plan.status=="PENDING"||plan.status=="DESIGNING") {
