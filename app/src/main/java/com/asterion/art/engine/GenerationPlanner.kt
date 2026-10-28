@@ -43,9 +43,10 @@ object GenerationPlanner {
                              concepts: List<String>, sourceIllustration: Boolean) {
         val selected = sources.groupingBy { it.role }.eachCount()
         val errors = if (creation==null) {
-            listOf(SheetRole.CHARACTER,SheetRole.ART_STYLE,SheetRole.THEME)
-                .filter { selected.getOrDefault(it,0)<1 }
-                .map { it.display+" reference required" }
+            // Artwork may begin from ONE actual image or any selected image
+            // authority; it must not require three unrelated sheet types.
+            if(sourceIllustration||sources.isNotEmpty())emptyList()
+            else listOf("Select at least one image or master-sheet reference")
         } else MethodologyRegistry.validate(
             creation,selected,concepts.size,sourceIllustration)
         require(errors.isEmpty()) { errors.joinToString("; ") }
@@ -124,6 +125,37 @@ object GenerationPlanner {
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings),
             creation,concepts,sources,resolver)
+    }
+
+    /**
+     * One-source artwork: the actual image remains the neural img2img input.
+     * This is not a prompt-only substitute and requires source pixels in the
+     * corresponding GenerationWorker invocation.
+     */
+    fun compileFromSource(mode:RenderMode,settings:GeneratorSettings):GenerationRecipe {
+        val base=when(mode) {
+            RenderMode.ANIME -> "Create a coherent high-quality original anime illustration"
+            RenderMode.REALISTIC -> "Create a coherent photorealistic illustration"
+            RenderMode.COSPLAY -> "Create a cohesive realistic cosplay interpretation"
+            RenderMode.OTHER -> "Create a coherent illustration for the selected visual category"
+            RenderMode.ANIMATION -> error("Use the video engine for animation")
+        }+" conditioned on the PROVIDED SOURCE IMAGE PIXELS. Preserve exact "+
+            "recognizable identity, face and hair architecture, character anatomy, "+
+            "established clothing and materials, source objects and composition "+
+            "unless the user explicitly requests a localized change. Do not invent "+
+            "alternate characters or erase the provided source authority."
+        val corrections=listOf(
+            "Reconstruct source-consistent geometry and material appearance.",
+            "Refine face, hair, anatomy and preserved primary identity.",
+            "Improve local shading, physical material behavior and perspective.",
+            "Clarify small clothing and object construction without changing identity.",
+            "Finalize line quality and visual coherence without scene drift."
+        )
+        val strength=listOf(settings.denoise,
+            minOf(settings.denoise,0.45f),0.30f,0.20f,0.12f)
+        return GenerationRecipe(mode,corrections.mapIndexed{i,detail->
+            GenerationPass(i+1,base+" "+detail,"",strength[i])
+        },emptyList(),settings)
     }
 
     /**
