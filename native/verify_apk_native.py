@@ -26,6 +26,17 @@ def verify(apk: Path, provenance: Path) -> dict:
         }
         if not needs.issubset(expected):
             raise ValueError("Upstream provenance missing essential binaries")
+        # Native image generation alone is insufficient: the installed release
+        # must contain its independent reasoning, multimodal and RealSR engines.
+        required_local = {
+            "lib/arm64-v8a/libai-chat.so",
+            "lib/arm64-v8a/libasterion-vision.so",
+            "lib/arm64-v8a/libasterion_realsr_cli.so",
+        }
+        absent = required_local - archive_names
+        if absent:
+            raise ValueError("Compiled APK lacks required local inference engine(s): "+
+                             ", ".join(sorted(absent)))
         results = []
         for source, checksum in expected.items():
             if source.startswith("jniLibs/"):
@@ -42,6 +53,7 @@ def verify(apk: Path, provenance: Path) -> dict:
                 raise ValueError("Packaged native file differs from trusted extraction: " + inside)
             results.append(inside)
     return {"apk":str(apk),"native_files_verified":len(results),
+            "other_engines_verified":sorted(required_local),
             "native_executable": "lib/arm64-v8a/libstable_diffusion_core.so",
             "upstream_apk_sha256":record["apk_sha256"]}
 
