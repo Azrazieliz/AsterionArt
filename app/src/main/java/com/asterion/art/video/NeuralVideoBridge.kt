@@ -39,10 +39,12 @@ class NeuralVideoBridge(private val context:Context) {
         val fps=WanVideoRules.outputFps(seconds)
         val init=readSource(first)
         val scope=CoroutineScope(SupervisorJob()+Dispatchers.Default)
-        DeviceInferenceGate.acquire(cancelled)
+        var gateHeld=false
         val active=AtomicBoolean(true)
         var edge:LLMEdge?=null
         try {
+            DeviceInferenceGate.acquire(cancelled)
+            gateHeld=true
             if(cancelled())throw CancellationException("Video request cancelled")
             val runtime=LLMEdge.create(context,scope)
             edge=runtime
@@ -102,8 +104,8 @@ class NeuralVideoBridge(private val context:Context) {
             active.set(false)
             try{edge?.close()}finally{
                 scope.cancel()
-                init.recycle()
-                DeviceInferenceGate.release()
+                if(!init.isRecycled)init.recycle()
+                if(gateHeld)DeviceInferenceGate.release()
             }
         }
     }
@@ -126,7 +128,8 @@ class NeuralVideoBridge(private val context:Context) {
         val scale=512.0/maxOf(original.width,original.height)
         val width=((original.width*scale/64.0).toInt().coerceIn(4,15))*64
         val height=((original.height*scale/64.0).toInt().coerceIn(4,15))*64
-        return try{Bitmap.createScaledBitmap(original,width,height,true)}
-        finally{original.recycle()}
+        return if(original.width==width && original.height==height)original
+        else try{Bitmap.createScaledBitmap(original,width,height,true)}
+            finally{original.recycle()}
     }
 }
