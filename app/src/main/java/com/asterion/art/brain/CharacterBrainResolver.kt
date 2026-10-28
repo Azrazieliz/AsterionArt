@@ -106,18 +106,27 @@ class CharacterBrainResolver(context:Context) {
                     }
                     engine.setSystemPrompt(SYSTEM)
                 }
-                val readAuthorities=mutableMapOf<String,String>()
+                val canonicalFull=mutableMapOf<String,String>()
+                val canonicalSummaries=mutableMapOf<String,String>()
                 val explicitGrades=DetailedGradeStore(app).list()
-                suspend fun conceptEvidence(c:PrimaryConcept):String {
+                suspend fun conceptEvidence(c:PrimaryConcept,summarize:Boolean):String {
                     val record=taxonomy.find(c.canonicalId?:c.name)
                         ?:return "FIXED OPEN LITERAL: "+c.name+
                             ". Derive complete physical meaning; never replace or invent SC IDs."
-                    readAuthorities[record.id]?.let{return it}
-                    val full="CANONICAL "+record.id+": "+record.name+"\n"+record.fullRecord
+                    val full=canonicalFull.getOrPut(record.id) {
+                        "CANONICAL "+record.id+": "+record.name+"\n"+record.fullRecord
+                    }
+                    // Reading source directly does not require generating hundreds
+                    // of new Qwen tokens. Preserve the exact canonical text when
+                    // the full design request fits the loaded model's context.
+                    if(!summarize)return full
+                    canonicalSummaries[record.id]?.let{return it}
                     val pages=BrainEvidencePager.pages(full,
                         (context-1900).coerceAtLeast(256)){engine.countTokens(it)}
                     val notes=mutableListOf<String>()
                     for(page in pages) {
+                        progress(completed.size,plan.total,
+                            "Interpreting canonical "+record.id+" "+page.index+"/"+page.total)
                         notes+=answer(
                             "Extract ALL mandatory major recognizable anatomical, material, " +
                                 "fusion, symbiosis and interpretation-boundary knowledge from " +
@@ -127,14 +136,13 @@ class CharacterBrainResolver(context:Context) {
                     }
                     val evidence="CANONICAL "+record.id+" "+record.name+"\n"+
                         notes.joinToString("\n")
-                    readAuthorities[record.id]=evidence
+                    canonicalSummaries[record.id]=evidence
                     return evidence
                 }
                 for((index,selection) in selections.withIndex()) {
                     if(index<completed.size)continue
                     progress(index,plan.total,"Designing "+selection.id)
-                    val descriptions=mutableListOf<String>()
-                    for(p in selection.concepts)descriptions+=conceptEvidence(p)
+                    val descriptions=selection.concepts.map {conceptEvidence(it,false)}
                     val prior=completed.takeLast(10).joinToString("\n"){
                         it.id+": "+it.anatomy.take(180)+"; "+it.topology.take(120)+
                             "; "+it.fusion.take(160)+"; "+it.faceEyesHair.take(110)
@@ -142,14 +150,14 @@ class CharacterBrainResolver(context:Context) {
                     val grading=GradingGuidance.evidence(
                         GradingGuidance.applicable(
                             explicitGrades,CreationMode.CHARACTER,selection.names))
-                    val authority=buildString{
+                    fun authorityFor(evidence:List<String>)=buildString{
                         append("AUTHOR COMPLETE CHARACTER ").append(selection.id)
                         append("\nRESOLVED FIXED CONCEPTS: ")
                         append(selection.names.joinToString(" × "))
                         append("\n").append(CharacterPhaseOne.AUTHORING)
                         append("\nDRAWING: ").append(CharacterPhaseOne.DRAWING)
                         append("\nPRIMARY CANONICAL CONCEPT EVIDENCE:\n")
-                        append(descriptions.joinToString("\n"))
+                        append(evidence.joinToString("\n"))
                         append("\nEXISTING INDEPENDENT IDENTITIES (DO NOT COPY):\n")
                         append(prior)
                         if(grading.isNotBlank()){
@@ -180,15 +188,24 @@ class CharacterBrainResolver(context:Context) {
                         "in THIS response; these are authored separately with an " +
                         "independent output budget. No Markdown or commentary."
                     val outputLimit=minOf(2300,context/2)
-                    val directInput=format+"\nCHARACTER "+selection.id+
+                    fun inputFor(evidence:String)=format+"\nCHARACTER "+selection.id+
                         "\nPRIMARY: "+selection.names.joinToString(" × ")+
                         "\n"+CharacterPhaseOne.DRAWING+
-                        "\nDESIGN EVIDENCE:\n"+authority+"\n/no_think"
-                    // If the ENTIRE original study fits, avoid the old redundant
-                    // per-character LLM summary pass. Keep all source evidence.
-                    val study=if(engine.countTokens(directInput)+
-                            engine.countTokens(SYSTEM)+outputLimit+160<context)
-                        authority else {
+                        "\nDESIGN EVIDENCE:\n"+evidence+"\n/no_think"
+                    suspend fun fits(evidence:String):Boolean =
+                        engine.countTokens(inputFor(evidence))+
+                            engine.countTokens(SYSTEM)+outputLimit+160<context
+                    // Route full canonical evidence to synthesis unchanged whenever
+                    // it fits. Only call Qwen's expensive evidence summarization
+                    // for requests that genuinely cannot fit the model's context.
+                    val fullAuthority=authorityFor(descriptions)
+                    val study=if(fits(fullAuthority)) {
+                        progress(index,plan.total,"Using complete canonical evidence directly")
+                        fullAuthority
+                    } else {
+                        val compressed=selection.concepts.map {conceptEvidence(it,true)}
+                        val authority=authorityFor(compressed)
+                        if(fits(authority))authority else {
                         val authorityPages=BrainEvidencePager.pages(authority,
                             (context-1650).coerceAtLeast(256)){engine.countTokens(it)}
                         val notes=mutableListOf<String>()
@@ -203,11 +220,9 @@ class CharacterBrainResolver(context:Context) {
                                 "\n"+page.text,minOf(620,context/6),"design_authority_pages")
                         }
                         notes.joinToString("\n")
+                        }
                     }
-                    val baseInput=format+"\nCHARACTER "+selection.id+
-                        "\nPRIMARY: "+selection.names.joinToString(" × ")+
-                        "\n"+CharacterPhaseOne.DRAWING+
-                        "\nDESIGN EVIDENCE:\n"+study+"\n/no_think"
+                    val baseInput=inputFor(study)
                     progress(index,plan.total,
                         "Qwen3 authoring full anatomical identity "+selection.id)
                     val raw=answer(baseInput,outputLimit,"identity_json")
