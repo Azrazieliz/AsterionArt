@@ -145,62 +145,63 @@ class AsterionReasoner(context:Context) {
             val canonical=section(domain,concepts)
             val guidance=learnedEvidence(
                 creationMode,renderMode,concepts,targetDesignId)
-            onStage("Layer 1 · complete paged authority interpretation")
-            val authority=listOf(
-                "DOMAIN:\n"+domain.name,
-                "FULL METHODOLOGY:\n"+canonicalMethod,
-                "CANONICAL CONCEPT RECORDS:\n"+canonical,
-                "SOURCE EVIDENCE:\n"+sheetSources.joinToString("\n"),
-                "POSITIVE AUTHORITY:\n"+basePositive,
-                "NEGATIVE AUTHORITY:\n"+baseNegative
-            ).joinToString("\n\n")
-            // Reserve native KV space for role templates and generated output.
-            // Paging counts the exact loaded tokenizer, not words or characters.
-            val pages=BrainEvidencePager.pages(authority,
-                (contextSize-2200).coerceAtLeast(256)){text->
-                engine.countTokens(text)
-            }
-            val notes=mutableListOf<String>()
-            for(page in pages) {
-                engine.restartConversation(SYSTEM)
-                onStage("Layer 1 · authority page "+page.index+"/"+pages.size)
-                notes+=answer(
-                    "Extract every critical identity, physical mechanism, " +
-                        "construction rule, concept interaction, prohibitions and " +
-                        "output requirement in this authority page. " +
-                        "Quote exact numbered constraints and preserve source names. " +
-                        "Do not design yet. PAGE "+page.index+"/"+pages.size+"\n" +
-                        page.text+"\n/no_think",700)
-            }
-            // Hierarchical consolidation is explicit. Full source pages remain
-            // preserved in a manifest; the learned interpretation is compressed.
-            var consolidated=notes.toList()
-            repeat(5) { level ->
-                val joined=consolidated.joinToString("\n\n")
-                if(engine.countTokens(joined)<contextSize/3)
-                    return@repeat
-                val groups=BrainEvidencePager.pages(joined,
-                    (contextSize/2).coerceAtLeast(256)){text->
+            // No reason to ask the model to re-summarize all authority when
+            // the *unaltered* evidence fits the native Qwen context. This
+            // used to add a full CPU inference pass even to simple tasks.
+            val directAuthority=engine.countTokens(authority) <=
+                (contextSize/6).coerceAtLeast(256)
+            val pages=if(directAuthority)emptyList() else
+                BrainEvidencePager.pages(authority,
+                    (contextSize-2200).coerceAtLeast(256)){text->
                     engine.countTokens(text)
                 }
-                val newer=mutableListOf<String>()
-                for(group in groups) {
+            val notes=mutableListOf<String>()
+            val first=if(directAuthority) {
+                onStage("Layer 1 · complete authority fits without inference rewrite")
+                authority
+            } else {
+                onStage("Layer 1 · complete paged authority interpretation")
+                for(page in pages) {
                     engine.restartConversation(SYSTEM)
-                    newer+=answer(
-                        "Consolidate these already-interpreted constraints " +
-                            "without losing named identities, required counts, " +
-                            "construction mechanisms and forbidden changes. " +
-                            "Keep each mandatory condition checkable.\n"+
-                            group.text+"\n/no_think",1100)
+                    onStage("Layer 1 · authority page "+page.index+"/"+pages.size)
+                    notes+=answer(
+                        "Extract every critical identity, physical mechanism, " +
+                            "construction rule, concept interaction, prohibitions and " +
+                            "output requirement in this authority page. " +
+                            "Quote exact numbered constraints and preserve source names. " +
+                            "Do not design yet. PAGE "+page.index+"/"+pages.size+"\n" +
+                            page.text+"\n/no_think",700)
                 }
-                require(newer.joinToString("").length<joined.length) {
-                    "Neural consolidation is not reducing context; refusing source loss"
+                // Each source page remains in evidence. Consolidate only when
+                // essential to fit the model; do not drop original knowledge.
+                var consolidated=notes.toList()
+                repeat(5) {
+                    val joined=consolidated.joinToString("\n\n")
+                    if(engine.countTokens(joined)<contextSize/3)
+                        return@repeat
+                    val groups=BrainEvidencePager.pages(joined,
+                        (contextSize/2).coerceAtLeast(256)){text->
+                        engine.countTokens(text)
+                    }
+                    val newer=mutableListOf<String>()
+                    for(group in groups) {
+                        engine.restartConversation(SYSTEM)
+                        newer+=answer(
+                            "Consolidate these already-interpreted constraints " +
+                                "without losing named identities, required counts, " +
+                                "construction mechanisms and forbidden changes. " +
+                                "Keep each mandatory condition checkable.\n"+
+                                group.text+"\n/no_think",1100)
+                    }
+                    require(newer.joinToString("").length<joined.length) {
+                        "Neural consolidation is not reducing context; refusing source loss"
+                    }
+                    consolidated=newer
                 }
-                consolidated=newer
+                consolidated.joinToString("\n\n")
             }
-            val first=consolidated.joinToString("\n\n")
             require(engine.countTokens(first)<contextSize/2) {
-                "Full authority could not be safely condensed into the design context"
+                "Full authority could not be safely fit into design context"
             }
             engine.restartConversation(SYSTEM)
             onStage("Layer 2 · distinct structural synthesis")
@@ -260,9 +261,10 @@ class AsterionReasoner(context:Context) {
                 put("sheets",JSONArray(result.sheetPrompts))
                 put("authority_pages",pages.size)
                 put("authority_chars",authority.length)
-                put("all_authority_pages_processed",notes.size==pages.size)
+                put("all_authority_pages_processed",directAuthority||notes.size==pages.size)
                 put("original_source_evidence",authority)
-                put("hierarchical_consolidation",notes.size>1)
+                put("hierarchical_consolidation",!directAuthority&&notes.size>1)
+                put("direct_original_authority_used",directAuthority)
                 put("model_training_applied",false)
                 put("learning_method","user-authored detailed grading; contextual evidence only")
                 put("grading_evidence_applied",guidance.isNotBlank())
