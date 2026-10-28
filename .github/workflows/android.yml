@@ -81,7 +81,7 @@ jobs:
             gradle --no-daemon :app:assembleRelease --stacktrace
             test -s app/build/outputs/apk/release/app-release.apk
             python3 native/verify_apk_native.py --apk app/build/outputs/apk/release/app-release.apk
-            python3 native/verify_release_signing.py apk app/build/outputs/apk/release/app-release.apk \\
+            python3 native/verify_release_signing.py apk app/build/outputs/apk/release/app-release.apk \
               "$KEYFILE" "$ANDROID_HOME/build-tools/35.0.0/apksigner"
             echo 'signed=true' >> "$GITHUB_OUTPUT"
           else
