@@ -145,6 +145,14 @@ class AsterionReasoner(context:Context) {
             val canonical=section(domain,concepts)
             val guidance=learnedEvidence(
                 creationMode,renderMode,concepts,targetDesignId)
+            val authority=listOf(
+                "DOMAIN:\n"+domain.name,
+                "FULL METHODOLOGY:\n"+canonicalMethod,
+                "CANONICAL CONCEPT RECORDS:\n"+canonical,
+                "SOURCE EVIDENCE:\n"+sheetSources.joinToString("\n"),
+                "POSITIVE AUTHORITY:\n"+basePositive,
+                "NEGATIVE AUTHORITY:\n"+baseNegative
+            ).joinToString("\n\n")
             // No reason to ask the model to re-summarize all authority when
             // the *unaltered* evidence fits the native Qwen context. This
             // used to add a full CPU inference pass even to simple tasks.
