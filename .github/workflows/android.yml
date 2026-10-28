@@ -59,18 +59,50 @@ jobs:
           test -s app/src/main/assets/inference/Qwen_Qwen3-0.6B-Q5_K_M.gguf
           test -s app/src/main/assets/inference/Qwen3VL-2B-Instruct-Q4_K_M.gguf
           test -s app/src/main/assets/inference/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf
-      - name: Build unsigned release APK for persistent owner-only signing
+      - name: Build and verify release; sign ONLY with existing owner identity
+        id: release
+        shell: bash
+        env:
+          ASTERION_RELEASE_KEYSTORE_B64: ${{ secrets.ASTERION_RELEASE_KEYSTORE_B64 }}
+          ASTERION_RELEASE_PASSWORD: ${{ secrets.ASTERION_RELEASE_PASSWORD }}
         run: |
-          # Push builds install pinned Qwen3/Qwen3-VL using on-device WorkManager
-          # on first run, so CI need not download or embed 2+ GiB each commit.
-          # workflow_dispatch can optionally embed these weights. CI NEVER signs.
-          gradle --no-daemon :app:assembleRelease --stacktrace
-          test -s app/build/outputs/apk/release/app-release-unsigned.apk
-          python3 native/verify_apk_native.py --apk app/build/outputs/apk/release/app-release-unsigned.apk
+          set -euo pipefail
+          KEYFILE="$RUNNER_TEMP/asterion-art-release.p12"
+          trap 'rm -f "$KEYFILE"' EXIT
+          if [ -n "$ASTERION_RELEASE_KEYSTORE_B64" ] || [ -n "$ASTERION_RELEASE_PASSWORD" ]; then
+            test -n "$ASTERION_RELEASE_KEYSTORE_B64" && test -n "$ASTERION_RELEASE_PASSWORD" || {
+              echo "::error::Incomplete original signing identity; release blocked"
+              exit 1
+            }
+            umask 077
+            printf '%s' "$ASTERION_RELEASE_KEYSTORE_B64" | base64 --decode > "$KEYFILE"
+            python3 native/verify_release_signing.py keystore "$KEYFILE"
+            export ASTERION_RELEASE_KEYSTORE="$KEYFILE"
+            gradle --no-daemon :app:assembleRelease --stacktrace
+            test -s app/build/outputs/apk/release/app-release.apk
+            python3 native/verify_apk_native.py --apk app/build/outputs/apk/release/app-release.apk
+            python3 native/verify_release_signing.py apk app/build/outputs/apk/release/app-release.apk \\
+              "$KEYFILE" "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+            echo 'signed=true' >> "$GITHUB_OUTPUT"
+          else
+            # Explicitly diagnostic, NOT a deliverable. Inference weights
+            # provision on first run only after an authorized signed install.
+            gradle --no-daemon :app:assembleRelease --stacktrace
+            test -s app/build/outputs/apk/release/app-release-unsigned.apk
+            python3 native/verify_apk_native.py --apk app/build/outputs/apk/release/app-release-unsigned.apk
+            echo "::warning::No original owner signing key in protected GitHub secrets; release APK remains UNSIGNED."
+            echo 'signed=false' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/upload-artifact@v4
-        if: success()
+        if: success() && steps.release.outputs.signed == 'true'
         with:
-          name: Asterion-Art-UNSIGNED-RELEASE-requires-persistent-signature
+          name: Asterion-Art-ORIGINAL-KEY-SIGNED-RELEASE-CANDIDATE
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: success() && steps.release.outputs.signed == 'false'
+        with:
+          name: Asterion-Art-UNSIGNED-DIAGNOSTIC-NOT-INSTALLABLE
           path: app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
