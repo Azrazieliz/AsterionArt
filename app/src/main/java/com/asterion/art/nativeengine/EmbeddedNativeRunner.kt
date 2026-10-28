@@ -8,7 +8,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.Semaphore
 
 /**
  * Local Dream ARM64 executable lives in THIS APK and runs in THIS app sandbox.
@@ -23,7 +22,6 @@ class EmbeddedNativeRunner(private val context: Context) {
         private const val BINARY = "libstable_diffusion_core.so"
         // The embedded HTTP backend uses one fixed loopback port and QNN
         // context. Never run multiple simultaneous model workers over it.
-        private val enginePermit=Semaphore(1,true)
         const val PORT = 18081
 
         fun isEmbedded(context: Context): Boolean =
@@ -104,9 +102,7 @@ class EmbeddedNativeRunner(private val context: Context) {
         val appNativeDir=File(context.applicationInfo.nativeLibraryDir)
         val libPath=listOf(libs.absolutePath,appNativeDir.absolutePath,
             "/system/lib64","/vendor/lib64","/vendor/lib64/egl").joinToString(":")
-        while(!enginePermit.tryAcquire(1,TimeUnit.SECONDS)) {
-            if(cancelled())throw CancellationException("Waiting for native engine cancelled")
-        }
+        DeviceInferenceGate.acquire(cancelled)
         holdsNativeEngine=true
         val builder=ProcessBuilder(command).apply {
             directory(appNativeDir)
@@ -154,7 +150,7 @@ class EmbeddedNativeRunner(private val context: Context) {
         }
         if(holdsNativeEngine) {
             holdsNativeEngine=false
-            enginePermit.release()
+            DeviceInferenceGate.release()
         }
     }
 }
