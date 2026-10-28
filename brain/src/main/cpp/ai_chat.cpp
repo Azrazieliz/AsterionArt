@@ -298,15 +298,38 @@ static void reset_long_term_states(const bool clear_kv_cache = true) {
         llama_memory_clear(llama_get_memory(g_context), false);
 }
 
+// Qwen3's GGUF template defaults to thinking mode. The old legacy
+// template formatter could not pass enable_thinking=false and consumed
+// precious CPU output tokens on <think> text before any design was authored.
+// Apply the model's actual Jinja chat template in non-thinking mode and
+// preserve the exact incremental-prefix formatting semantics of llama.cpp.
 static std::string chat_add_and_format(const std::string &role, const std::string &content) {
     common_chat_msg new_msg;
     new_msg.role = role;
     new_msg.content = content;
-    auto formatted = common_chat_format_single(
-            g_chat_templates.get(), chat_msgs, new_msg, role == ROLE_USER, /* use_jinja */ false);
+    common_chat_templates_inputs inputs;
+    inputs.use_jinja = true;
+    inputs.enable_thinking = false;
+    std::string prefix;
+    if (!chat_msgs.empty()) {
+        inputs.messages = chat_msgs;
+        inputs.add_generation_prompt = false;
+        prefix = common_chat_templates_apply(g_chat_templates.get(), inputs).prompt.str();
+    }
+    std::ostringstream formatted;
+    if (role == ROLE_USER && !prefix.empty() && prefix.back() == '\n') {
+        formatted << "\n";
+    }
+    inputs.messages.push_back(new_msg);
+    inputs.add_generation_prompt = role == ROLE_USER;
+    const auto full = common_chat_templates_apply(g_chat_templates.get(), inputs).prompt.str();
+    if (full.size() < prefix.size() || full.compare(0, prefix.size(), prefix) != 0) {
+        LOGe("%s: Qwen3 non-thinking chat template changed an earlier message prefix", __func__);
+        return std::string();
+    }
+    formatted << full.substr(prefix.size());
     chat_msgs.push_back(new_msg);
-    LOGi("%s: Formatted and added %s message: \n%s\n", __func__, role.c_str(), formatted.c_str());
-    return formatted;
+    return formatted.str();
 }
 
 /**
