@@ -29,6 +29,8 @@ class OwnerReleaseSigningTests(unittest.TestCase):
             digest_from_apksigner("Signer #1 certificate SHA-256 digest: "+digest)
         with self.assertRaises(ValueError):
             digest_from_apksigner(output+"Signer #1 certificate SHA-256 digest: "+digest)
+        with self.assertRaises(ValueError):
+            digest_from_apksigner(output+"Signer #2 certificate SHA-256 digest: "+digest)
 
 if __name__=="__main__":
     unittest.main()

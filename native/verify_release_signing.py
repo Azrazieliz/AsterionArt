@@ -39,11 +39,12 @@ def digest_from_keytool(stdout: str) -> str:
 
 def digest_from_apksigner(stdout: str) -> str:
     results = re.findall(
-        r"^Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9]{64})\s*$",
+        r"^Signer #(\d+) certificate SHA-256 digest:\s*([a-fA-F0-9]{64})\s*$",
         stdout,flags=re.MULTILINE)
-    if len(results)!=1 or "Verified using v2 scheme (APK Signature Scheme v2): true" not in stdout:
+    if (len(results)!=1 or results[0][0]!="1" or
+        "Verified using v2 scheme (APK Signature Scheme v2): true" not in stdout):
         raise ValueError("APK lacks a unique valid V2 owner signing certificate")
-    return results[0].lower()
+    return results[0][1].lower()
 
 
 def run(args: list[str]) -> str:
