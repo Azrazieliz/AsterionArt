@@ -279,7 +279,7 @@ class CharacterBrainResolver(context:Context) {
                                 specification+"\nFROZEN DESIGN:\n"+narrative+
                                 "\n/no_think",minOf(1000,context/4),"pairwise_batch"))
                         }.onFailure{if(it is kotlinx.coroutines.CancellationException)throw it}
-                            .getOrNull()
+                            .getOrNull()?.optJSONArray("pairwise")
                         for((first,second) in group) {
                             val mechanism=CharacterOutputSchema.validMechanism(
                                 response,first,second)?:
