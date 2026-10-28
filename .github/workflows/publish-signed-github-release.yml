@@ -1,0 +1,52 @@
+name: Publish verified signed Asterion Art APK
+on:
+  push:
+    branches: [research/model-capabilities-no-build-20261027]
+    paths:
+      - .github/workflows/publish-signed-github-release.yml
+      - release/assemble_signed_apk.py
+      - release/v2_public_signature.bin
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact original successful-build APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 40617886336 --repo "$GITHUB_REPOSITORY" --name Asterion-Art-UNSIGNED-DIAGNOSTIC-NOT-INSTALLABLE --dir unsigned
+          test -s unsigned/app-release-unsigned.apk
+      - name: Recover original owner-signed APK without uploading private key
+        run: |
+          python3 release/assemble_signed_apk.py \
+            --source unsigned/app-release-unsigned.apk \
+            --patch release/v2_public_signature.bin \
+            --output output/AsterionArt_Release_SIGNED_2026-10-28.apk
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - name: Independently verify Android APK signature and exact certificate
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs \
+            output/AsterionArt_Release_SIGNED_2026-10-28.apk | tee signature-report.txt
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
+          grep -Fqi 'Signer #1 certificate SHA-256 digest: 41f5c305f3756fcbfb7fea207f670ce22a4f3c91044e953e4ed8277fe91146fb' signature-report.txt
+      - name: Publish signed APK on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='asterion-art-newkey-2026-10-28'
+          gh release create "$tag" output/AsterionArt_Release_SIGNED_2026-10-28.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target b5d7c8b9d51cdc9a99f9b273722f41657bd9305b \
+            --title 'Asterion Art · Signed Android APK · 2026-10-28' \
+            --notes 'Release-signed APK reconstructed byte-for-byte from successful build 40617886336 and its PUBLIC APK v2 signature block. SHA256 21b244417ecbe4b2cb4cb5facc29d2fffbe5fde7df6dbeab9de9bcd24f0f0461. Certificate SHA256 41f5c305f3756fcbfb7fea207f670ce22a4f3c91044e953e4ed8277fe91146fb. This newly generated release key does not permit upgrades of apps previously signed with a different certificate. Device AI inference is not verified.' \
+            --latest=false
