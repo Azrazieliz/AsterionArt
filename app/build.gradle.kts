@@ -74,5 +74,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Robolectric-free JVM unit tests need a real org.json implementation.
     testImplementation("org.json:json:20240303")
+    testImplementation("org.mockito:mockito-core:5.17.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
