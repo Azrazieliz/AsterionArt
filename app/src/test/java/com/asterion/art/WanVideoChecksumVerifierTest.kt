@@ -17,7 +17,9 @@ class WanVideoChecksumVerifierTest {
             val data=ByteArray(8192){it.toByte()}
             file.writeBytes(data)
             WanVideoChecksumVerifier.check(file,sha(data))
+            val observedModified=file.lastModified()
             file.writeBytes(ByteArray(data.size){42})
+            check(file.setLastModified(observedModified+3000L))
             assertTrue(runCatching {
                 WanVideoChecksumVerifier.check(file,sha(data))
             }.isFailure)

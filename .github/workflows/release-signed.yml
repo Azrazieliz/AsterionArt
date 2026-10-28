@@ -17,15 +17,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     environment: asterion-release
-    env:
-      ASTERION_RELEASE_KEYSTORE_B64: ${{ secrets.ASTERION_RELEASE_KEYSTORE_B64 }}
-      ASTERION_RELEASE_PASSWORD: ${{ secrets.ASTERION_RELEASE_PASSWORD }}
+    if: github.ref == 'refs/heads/research/model-capabilities-no-build-20261027'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Fail closed unless the ORIGINAL owner release identity is present
         shell: bash
+        env:
+          ASTERION_RELEASE_KEYSTORE_B64: ${{ secrets.ASTERION_RELEASE_KEYSTORE_B64 }}
+          ASTERION_RELEASE_PASSWORD: ${{ secrets.ASTERION_RELEASE_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "$ASTERION_RELEASE_KEYSTORE_B64" || {
@@ -80,6 +81,8 @@ jobs:
       - name: Test Android app and original creation contracts
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
       - name: Build only the APK signed with the ORIGINAL owner key
+        env:
+          ASTERION_RELEASE_PASSWORD: ${{ secrets.ASTERION_RELEASE_PASSWORD }}
         run: |
           set -euo pipefail
           gradle --no-daemon :app:assembleRelease --stacktrace
