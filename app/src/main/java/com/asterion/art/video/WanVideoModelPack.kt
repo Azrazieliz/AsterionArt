@@ -59,8 +59,7 @@ object WanVideoModelPack {
         if(missing.isEmpty())return emptyList()
         val hub=HuggingFaceHub()
         return missing.groupBy{it.repo}.flatMap{(id,required)->
-            val repo=hub.search(id.substringAfter('/')).singleOrNull{it.id==id}
-                ?:error("Expected public Wan repository is unavailable: "+id)
+            val repo=hub.repository(id)
             require(!repo.gated){"Model repository requires authorization: "+id}
             val files=hub.files(repo).associateBy{it.path}
             required.map{part->

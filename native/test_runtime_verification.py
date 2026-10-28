@@ -43,7 +43,8 @@ class VerifyInstalledEnginesTests(unittest.TestCase):
                 "assets/qnnlibs/libQnnSystem.so",
                 "lib/arm64-v8a/libai-chat.so",
                 "lib/arm64-v8a/libasterion-vision.so",
-                "lib/arm64-v8a/libasterion_realsr_cli.so"]
+                "lib/arm64-v8a/libasterion_realsr_cli.so",
+                "lib/arm64-v8a/libsdcpp.so"]
             with zipfile.ZipFile(archive,"w") as z:
                 for name in members:z.writestr(name,fake)
             provenance=root/"native.json"
@@ -55,7 +56,7 @@ class VerifyInstalledEnginesTests(unittest.TestCase):
                               "assets/qnnlibs/libQnnSystem.so")]
             }))
             report=verify(archive,provenance)
-            self.assertEqual(3,len(report["other_engines_verified"]))
+            self.assertEqual(4,len(report["other_engines_verified"]))
 
 if __name__=="__main__":
     unittest.main()

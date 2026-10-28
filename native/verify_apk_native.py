@@ -32,6 +32,8 @@ def verify(apk: Path, provenance: Path) -> dict:
             "lib/arm64-v8a/libai-chat.so",
             "lib/arm64-v8a/libasterion-vision.so",
             "lib/arm64-v8a/libasterion_realsr_cli.so",
+            # llmedge's embedded stable-diffusion.cpp Wan runtime.
+            "lib/arm64-v8a/libsdcpp.so",
         }
         absent = required_local - archive_names
         if absent:

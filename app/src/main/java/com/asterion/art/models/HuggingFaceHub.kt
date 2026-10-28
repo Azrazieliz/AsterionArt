@@ -96,6 +96,19 @@ class HuggingFaceHub {
         }finally{connection.disconnect()}
     }
     private fun get(url:String):String=getPage(url).body
+
+    /** Deterministic repository lookup: never depend on search rank or top-30. */
+    fun repository(id:String):HubRepository {
+        val exact=HubPath.repository(id)
+        val data=JSONObject(get("https://huggingface.co/api/models/"+exact))
+        require(data.optString("id")==exact) {
+            "Hugging Face returned metadata for a different model repository"
+        }
+        val pinned=HubPath.revision(data.optString("sha"))
+        val gate=data.optString("gated")
+        return HubRepository(exact,pinned,data.optLong("downloads"),
+            gate=="true" || gate=="manual" || gate=="auto")
+    }
     fun search(query:String):List<HubRepository> {
         val term=query.trim().take(100)
         require(term.length>=2){"Enter at least two characters"}
