@@ -358,8 +358,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             var technicalLeaderScore = Double.NEGATIVE_INFINITY
             var technicalLeader: ByteArray? = null
             var technicalLeaderUri: android.net.Uri? = null
-            val count = if(!job.designPrompt.isNullOrBlank()) 1
-                else characterPlan?.sheets ?: job.settings.batch.coerceIn(1,8)
+            val count = com.asterion.art.engine.OriginalOutputPolicy.imageCount(
+                job.creationMode,!job.designPrompt.isNullOrBlank(),
+                characterPlan?.sheets,job.settings.batch)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
             val oneShotCharacterSheet = !job.designPrompt.isNullOrBlank() ||
