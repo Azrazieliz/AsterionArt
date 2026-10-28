@@ -267,7 +267,7 @@ class CharacterBrainResolver(context:Context) {
                             (first,second)->first+" + "+second
                         }
                         val response=runCatching {
-                            objectFrom(answer(
+                            CharacterOutputSchema.parseObject(answer(
                                 "Return exactly one JSON object with key pairwise "+
                                 "whose value is an ARRAY of "+group.size+
                                 " objects. Every object must have STRING keys "+
