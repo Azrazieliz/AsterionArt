@@ -63,7 +63,7 @@ object NeuralMp4Encoder {
                     if(cancelled())throw java.util.concurrent.CancellationException()
                     val index=codec.dequeueOutputBuffer(info,12_000)
                     when(index) {
-                        MediaCodec.INFO_OUTPUT_TRY_AGAIN_LATER->{
+                        MediaCodec.INFO_TRY_AGAIN_LATER->{
                             if(!untilEos)return false
                             if(++idle>160)error("Neural AVC encoder did not finish")
                         }
