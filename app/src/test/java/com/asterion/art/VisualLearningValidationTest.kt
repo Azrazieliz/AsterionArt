@@ -24,6 +24,9 @@ class VisualLearningValidationTest {
         assertTrue(metric.heldOutImages>=4)
         assertNotNull(metric.baselineMae)
         assertNotNull(metric.modelMae)
+        assertTrue("Correlated training images should improve held-out MAE",
+            metric.validated)
+        assertTrue((metric.improvement?:0.0)>0.0)
     }
     @Test fun repeatedGradesForOneImageNeverValidatePrediction() {
         val metric=VisualLearningValidation.evaluate(grades(grouped=true)).single()

@@ -59,6 +59,9 @@ fun AdvancedGradingScreen(repo:ArtRepository,
     var edited by remember{mutableStateOf<DetailedGrade?>(null)}
     var saving by remember{mutableStateOf(false)}
     val records=remember(revision){store.list()}
+    val validation=remember(revision){
+        GradingLearningModel(context).validation()
+    }
     var visionReady by remember{mutableStateOf(
         VisionModelStore(context).installed()!=null)}
     var observationsVersion by remember{mutableIntStateOf(0)}
@@ -170,6 +173,27 @@ fun AdvancedGradingScreen(repo:ArtRepository,
             Text("Export is explicit and local; no data is uploaded or trained "+
                 "in the cloud automatically.",color=Mist,
                 style=MaterialTheme.typography.labelSmall)
+            HorizontalDivider()
+            Text("LOCAL SELF-LEARNING · MEASURED",color=Gold)
+            val passing=validation.count{it.validated}
+            Text("Pixel-feature adaptation: "+passing+" of "+
+                validation.size+" mode/dimension predictors beat the "+
+                "out-of-sample baseline. This is not diffusion-model "+
+                "fine-tuning or neural semantic learning.",color=Mist,
+                style=MaterialTheme.typography.bodySmall)
+            if(validation.isEmpty()) Text("No graded pixel evidence available yet.",
+                color=Mist,style=MaterialTheme.typography.bodySmall)
+            else if(passing==0) Text(
+                "Predictions remain disabled until at least 20 distinct images "+
+                "per category and an actual held-out error reduction.",
+                color=Mist,style=MaterialTheme.typography.bodySmall)
+            validation.filter{it.validated}.take(5).forEach{metric->
+                Text(metric.mode+" · "+metric.dimension+" · "+
+                    metric.heldOutImages+" held-out images · MAE "+
+                    "%.2f".format(metric.modelMae?:0.0)+
+                    " vs baseline "+"%.2f".format(metric.baselineMae?:0.0),
+                    style=MaterialTheme.typography.bodySmall,color=Gold)
+            }
             if(!visionReady) {
                 OutlinedButton(onClick={
                     VisionDownloadWorker.enqueue(context)
