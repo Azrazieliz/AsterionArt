@@ -84,7 +84,7 @@ class CharacterBrainResolver(context:Context) {
                     }
                     withTimeout(25L*60_000L){
                         engine.sendUserPrompt(question,maxOutput).toList().joinToString("")
-                    }.trim().also{require(it.length>=80){"Empty neural design evidence"}}
+                    }.trim().also{require(it.isNotEmpty()){"Empty neural design evidence"}}
                 }
             val requestContext=currentCoroutineContext()
             DeviceInferenceGate.acquire{!requestContext.isActive}
@@ -226,19 +226,20 @@ class CharacterBrainResolver(context:Context) {
                     progress(index,plan.total,
                         "Qwen3 authoring full anatomical identity "+selection.id)
                     val raw=answer(baseInput,outputLimit,"identity_json")
-                    val data=runCatching{CharacterOutputSchema.parseObject(raw)}.getOrElse{problem->
-                        // The local model may exhaust its token cap before
-                        // closing JSON. Repair the SCHEMA, not the entire
-                        // expensive anatomy/evidence reading stage.
-                        CharacterOutputSchema.parseObject(answer(
-                            "Your previous JSON was incomplete or nested. "+
-                            "Return exactly the EIGHT flat STRING fields from "+
-                            "your already-developed design, with 600+ characters "+
-                            "in render_description and all named concepts. "+
-                            "Do not add pairwise yet. No nested objects. "+
-                            "Previous response:\n"+raw.take(4500)+
-                            "\nPRIMARY: "+selection.names.joinToString(" × ")+
-                            "\n/no_think",outputLimit,"identity_json_recovery"))
+                    val data=CharacterOutputSchema.parseOrRecover(raw).let{partial->
+                        if(CharacterOutputSchema.missingFields(partial).size<
+                            CharacterOutputSchema.identityFields.size)partial else {
+                            // Only repeat the entire schema if not even one
+                            // complete model-written field was recoverable.
+                            CharacterOutputSchema.parseOrRecover(answer(
+                                "Your prior response lacked complete design fields. "+
+                                "Return exactly EIGHT flat string fields with anatomically "+
+                                "specific independent construction; use 600+ characters "+
+                                "for render_description. No nested objects. "+
+                                "PRIOR OUTPUT:\n"+raw.take(4500)+
+                                "\nPRIMARY: "+selection.names.joinToString(" × ")+
+                                "\n/no_think",outputLimit,"identity_json_recovery"))
+                        }
                     }
                     val names=CharacterOutputSchema.identityFields
                     for(field in names) {

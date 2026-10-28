@@ -39,6 +39,16 @@ class CharacterOutputSchemaTest {
         }
     }
 
+    @Test fun truncatedJsonRetainsOnlyFullyCompletedNeuralFields() {
+        val good="physical skeletal mesh with material-specific foundations "+
+            "that preserves independent structural anatomy and silhouette"
+        val raw="{\"anatomy\":\""+good+"\",\"face_eyes_hair\":\"partial unfinished"
+        val repaired=CharacterOutputSchema.parseOrRecover(raw)
+        assertEquals(good,repaired.getString("anatomy"))
+        assertEquals(7,CharacterOutputSchema.missingFields(repaired).size)
+        assertFalse(repaired.has("face_eyes_hair"))
+    }
+
     @Test fun markdownOrEarlierThinkingCannotReplaceFinalCompleteJson() {
         val final=full()
         val earlier=JSONObject().put("analysis","not the character")

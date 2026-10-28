@@ -54,6 +54,29 @@ internal object CharacterOutputSchema {
             "Qwen3 returned no complete structured character JSON")
     }
 
+    /**
+     * A token-budget limit may cut JSON mid-string. Recover ONLY full,
+     * correctly escaped prose string values actually emitted by Qwen3.
+     * Any absent or nested fields still require actual model inference.
+     */
+    fun parseOrRecover(raw:String):JSONObject {
+        val parsed=runCatching{parseObject(raw)}.getOrNull()
+        if(parsed!=null)return parsed
+        val recovered=JSONObject()
+        val pattern=Regex(
+            "\\\"("+identityFields.joinToString("|")+")\\\"\\\\s*:\\\\s*"+
+                "(\\\"(?:\\\\\\\\.|[^\\\"\\\\\\\\])*\\\")")
+        for(match in pattern.findAll(raw)) {
+            val name=match.groupValues[1]
+            if(recovered.has(name))continue
+            val fragment="{"+"\""+name+"\":"+match.groupValues[2]+"}"
+            val candidate=runCatching{JSONObject(fragment).getString(name)}.getOrNull()
+            if(candidate!=null&&candidate.trim().length>=minimumLength(name))
+                recovered.put(name,candidate)
+        }
+        return recovered
+    }
+
     fun missingFields(data:JSONObject):List<String> =
         identityFields.filter { name ->
             val value=data.opt(name)

@@ -156,8 +156,8 @@ class AsterionReasoner(context:Context) {
             // No reason to ask the model to re-summarize all authority when
             // the *unaltered* evidence fits the native Qwen context. This
             // used to add a full CPU inference pass even to simple tasks.
-            val directAuthority=engine.countTokens(authority) <=
-                (contextSize/6).coerceAtLeast(256)
+            val directAuthority=engine.countTokens(authority)+256<
+                contextSize/2
             val pages=if(directAuthority)emptyList() else
                 BrainEvidencePager.pages(authority,
                     (contextSize-2200).coerceAtLeast(256)){text->

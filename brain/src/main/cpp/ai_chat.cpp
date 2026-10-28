@@ -325,7 +325,11 @@ static std::string chat_add_and_format(const std::string &role, const std::strin
     const auto full = common_chat_templates_apply(g_chat_templates.get(), inputs).prompt.str();
     if (full.size() < prefix.size() || full.compare(0, prefix.size(), prefix) != 0) {
         LOGe("%s: Qwen3 non-thinking chat template changed an earlier message prefix", __func__);
-        return std::string();
+        // Preserve the previous known working formatter on unexpected
+        // template behavior rather than passing an empty prompt to Qwen3.
+        return common_chat_format_single(
+            g_chat_templates.get(), chat_msgs, new_msg,
+            role == ROLE_USER, /* use_jinja */ false);
     }
     formatted << full.substr(prefix.size());
     chat_msgs.push_back(new_msg);
