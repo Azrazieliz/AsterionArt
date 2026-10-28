@@ -1,5 +1,6 @@
 package com.asterion.art.vision
 
+import com.asterion.art.nativeengine.DeviceInferenceGate
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -68,9 +69,22 @@ class NativeVisionSession(pair:VisionInstalledPair):Closeable {
         handle:Long,rgb:ByteArray,width:Int,height:Int,
         question:String,outputTokens:Int):String
     private external fun nativeClose(handle:Long)
-    private var handle:Long=nativeOpen(pair.language.absolutePath,
-        pair.projector.absolutePath,4096).also{
-        require(it!=0L){"Could not initialize local Qwen3-VL multimodal session"}
+    private var gateHeld=false
+    private var handle:Long=0L
+    init {
+        DeviceInferenceGate.acquire()
+        gateHeld=true
+        try {
+            handle=nativeOpen(pair.language.absolutePath,
+                pair.projector.absolutePath,4096)
+            require(handle!=0L) {
+                "Could not initialize local Qwen3-VL multimodal session"
+            }
+        } catch(error:Throwable) {
+            gateHeld=false
+            DeviceInferenceGate.release()
+            throw error
+        }
     }
     @Synchronized fun analyze(frame:VisionFrame,question:String,
                               outputTokens:Int=550):String {
@@ -83,7 +97,14 @@ class NativeVisionSession(pair:VisionInstalledPair):Closeable {
     @Synchronized override fun close() {
         val current=handle
         handle=0
-        if(current!=0L)nativeClose(current)
+        try {
+            if(current!=0L)nativeClose(current)
+        } finally {
+            if(gateHeld) {
+                gateHeld=false
+                DeviceInferenceGate.release()
+            }
+        }
     }
 }
 data class VisionFrame(val width:Int,val height:Int,val rgb:ByteArray)

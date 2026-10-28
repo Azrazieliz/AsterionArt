@@ -12,6 +12,10 @@ import com.asterion.art.learning.DetailedGradeStore
 import com.asterion.art.learning.GradingGuidance
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
+import com.asterion.art.nativeengine.DeviceInferenceGate
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -120,6 +124,8 @@ class AsterionReasoner(context:Context) {
                 engine.sendUserPrompt(prompt,n).toList().joinToString("").trim()
             }.also { require(it.isNotBlank()) { "Neural planner generated no text" } }
         }
+        val requestContext=currentCoroutineContext()
+        DeviceInferenceGate.acquire { !requestContext.isActive }
         try {
             withTimeout(120_000L) {
                 engine.state.first {
@@ -265,7 +271,11 @@ class AsterionReasoner(context:Context) {
             GeneratedImagePublisher.atomicWrite(path,source.toString(2).toByteArray())
             result
         } finally {
-            withContext(Dispatchers.IO) { engine.cleanUp() }
+            try {
+                withContext(NonCancellable+Dispatchers.IO) { engine.cleanUp() }
+            } finally {
+                DeviceInferenceGate.release()
+            }
         }
     }
 }
