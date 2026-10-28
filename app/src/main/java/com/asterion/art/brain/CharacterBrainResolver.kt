@@ -8,8 +8,12 @@ import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.learning.DetailedGradeStore
 import com.asterion.art.learning.GradingGuidance
 import com.asterion.art.model.CreationMode
+import com.asterion.art.nativeengine.DeviceInferenceGate
 import com.asterion.art.methodology.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.sync.withLock
@@ -83,6 +87,8 @@ class CharacterBrainResolver(context:Context) {
                     engine.sendUserPrompt(question,maxOutput).toList().joinToString("")
                 }.trim().also{require(it.length>=80){"Empty neural design evidence"}}
             }
+            val requestContext=currentCoroutineContext()
+            DeviceInferenceGate.acquire{!requestContext.isActive}
             try {
                 withTimeout(120_000L){
                     engine.state.first{
@@ -327,7 +333,13 @@ class CharacterBrainResolver(context:Context) {
                 progress(plan.total,plan.total,"All characters resolved; freezing sheet contexts")
                 plans.certify(id,model.id,selections,completed)
             } finally {
-                withContext(Dispatchers.IO){runCatching{engine.cleanUp()}}
+                try {
+                    withContext(NonCancellable+Dispatchers.IO) {
+                        runCatching{engine.cleanUp()}
+                    }
+                } finally {
+                    DeviceInferenceGate.release()
+                }
             }
         }
 }
