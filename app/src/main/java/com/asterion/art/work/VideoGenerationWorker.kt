@@ -16,8 +16,8 @@ import androidx.work.WorkerParameters
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.video.Mp4SegmentJoiner
-import com.asterion.art.video.NightmareVideoBridge
-import com.asterion.art.video.VideoApiCredentials
+import com.asterion.art.video.NeuralVideoBridge
+import com.asterion.art.video.WanVideoModelPack
 import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.video.VideoContinuitySchedule
 import com.asterion.art.video.VideoFrameContinuation
@@ -90,10 +90,12 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             ) else null
             val inferredMotion=neuralPlan?.positive?.takeIf{it.isNotBlank()}
                 ?:plan.positivePrompt
-            val token=VideoApiCredentials(applicationContext).read()
-                ?: error("Nightmare API token not connected in Asterion Art")
-            val bridge=NightmareVideoBridge(applicationContext,token)
-            require(bridge.available()) { "Wan/Neodragon video model not installed or available" }
+            val bridge=NeuralVideoBridge(applicationContext)
+            require(bridge.available()) {
+                "Install the verified on-device Wan 2.2 TI2V image-to-video model, VAE "+
+                "and UMT5 encoder from the Video Model Setup. "+
+                "No separate video API or manual server is supported."
+            }
             val folder=File(applicationContext.filesDir,"video-cache/"+id).also { it.mkdirs() }
             val timeline=VideoContinuitySchedule.plan(plan.imageUris.size,
                 plan.secondsPerSegment,plan.seed,
@@ -116,8 +118,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     continue
                 }
                 repo.updateTaskProgress(task,index,0,
-                    "Rendering segment "+(index+1)+"/"+plan.imageUris.size+
-                    " · model progress unavailable")
+                    "Rendering neural video segment "+(index+1)+"/"+timeline.size)
                 val source=if(segment.usePreviousEndFrame) {
                     val preceding=File(folder,"segment_"+(index-1)+".mp4")
                     val anchor=File(folder,"continuation_"+index+".png")
@@ -127,8 +128,13 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 } else Uri.parse(frame)
                 val result=bridge.generate(
                     source,inferredMotion,
-                    segment.seed,segment.expectedSeconds,
-                    file,{isStopped})
+                    neuralPlan?.negative?.takeIf{it.isNotBlank()}?:plan.negativePrompt,
+                    segment.seed,segment.expectedSeconds,file,{isStopped},
+                    {done,total->
+                        repo.updateTaskProgress(task,index,timeline.size,
+                            "Wan local diffusion segment "+(index+1)+"/"+timeline.size+
+                                " · step "+done+"/"+total.coerceAtLeast(1))
+                    })
                 segments+=result.file
                 runs+=result.runId
                 repo.updateTaskProgress(task,index+1,timeline.size,"Segment " + (index+1) + " complete")
@@ -144,12 +150,12 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             }
             val combined=File(folder,"assembled.mp4")
             repo.updateTaskProgress(task,0,0,
-                "Assembling MP4 · backend progress unavailable")
+                "Encoding and assembling generated Wan video clips")
             Mp4SegmentJoiner.join(segments,combined)
             val uri=VideoPublisher.save(applicationContext,combined,id)
             VideoResultStore(applicationContext).record(VideoResult(
                 id,uri.toString(),plan.imageUris,segments.size,
-                "Nightmare-compatible Wan video API",System.currentTimeMillis()))
+                "Asterion Art · embedded Wan 2.2 TI2V · llmedge",System.currentTimeMillis()))
             CreativeMemoryStore(applicationContext).upsert(SavedDesign(
                 id=id+"-V001",jobId=id,mode=RenderMode.ANIMATION,
                 creationMode=null,ordinal=1,sheetNumber=1,
@@ -158,7 +164,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             val manifest=JSONObject().apply {
                 put("schema_version",1)
                 put("job_id",id)
-                put("backend","WAN_I2V_SEGMENTS")
+                put("backend","EMBEDDED_WAN_2_2_TI2V")
                 put("reference_count",plan.imageUris.size)
                 put("inference_mode","independent first-frame conditioned clips")
                 put("native_multi_keyframe_conditioning",false)
@@ -176,19 +182,19 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     }))
                 put("seam_metrics_are_semantic_fidelity",false)
                 put("assembled_mp4",uri.toString())
-                put("nightmare_run_ids",JSONArray(runs))
+                put("local_neural_segment_ids",JSONArray(runs))
                 put("clip_is_approved",false)
                 put("positive_prompt",inferredMotion)
                 put("reasoning_model",neuralPlan?.modelId ?: "deterministic")
                 put("negative_prompt_guide",neuralPlan?.negative ?: plan.negativePrompt)
-                put("negative_prompt_transmitted",false)
+                put("negative_prompt_transmitted",true)
             }
             com.asterion.art.data.GeneratedImagePublisher.atomicWrite(
                 File(folder,"provenance.json"),manifest.toString(2).toByteArray())
             repo.updateTask(task,TaskStatus.COMPLETED)
             Result.success()
         } catch(e:CancellationException) {
-            repo.updateTask(task,TaskStatus.FAILED,"Video generation cancelled")
+            repo.updateTask(task,TaskStatus.CANCELLED,"Video generation cancelled")
             Result.failure()
         } catch(e:Exception) {
             repo.updateTask(task,TaskStatus.FAILED,e.message?:"Video rendering failed")
