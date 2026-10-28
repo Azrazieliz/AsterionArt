@@ -20,7 +20,8 @@ data class CharacterPhaseOnePlan(
     val prompts:List<String> = emptyList(),
     val modelId:String?=null,
     val failure:String?=null,
-    val authorizedJobId:String?=null
+    val authorizedJobId:String?=null,
+    val progressStage:String=""
 ) {
     val total:Int get()=CharacterPhaseOne.count(sheets)
     val ready:Boolean get()=status=="READY"||status=="AUTHORIZED"
@@ -112,6 +113,7 @@ class CharacterPlanStore(context:Context) {
             put("sheet_prompts",JSONArray(p.prompts))
             put("model_id",p.modelId?:JSONObject.NULL)
             put("failure",p.failure?:JSONObject.NULL)
+            put("progress_stage",p.progressStage.take(200))
             put("authorized_job",p.authorizedJobId?:JSONObject.NULL)
             put("requires_visual_audit",true)
             put("no_template_based_designs",true)
@@ -139,7 +141,8 @@ class CharacterPlanStore(context:Context) {
                     (0 until a.length()).map{primaryFromJson(a.getJSONObject(it))})
             },(0 until roster.length()).map{frozenFromJson(roster.getJSONObject(it))},
             j.getJSONArray("sheet_prompts").strings(),
-            j.optional("model_id"),j.optional("failure"),j.optional("authorized_job")
+            j.optional("model_id"),j.optional("failure"),j.optional("authorized_job"),
+            j.optString("progress_stage","")
         )
     }
     @Synchronized fun begin(id:String):CharacterPhaseOnePlan {
@@ -148,13 +151,22 @@ class CharacterPlanStore(context:Context) {
             "Plan has already been finalized or failed"
         }
         return if(plan.status=="DESIGNING")plan
-        else plan.copy(status="DESIGNING").also(::persist)
+        else plan.copy(status="DESIGNING",
+            progressStage="Loading local Qwen3 design model").also(::persist)
+    }
+    @Synchronized fun stage(id:String,description:String) {
+        val p=load(id)
+        val summary=description.take(200)
+        if(p.status=="DESIGNING" && p.progressStage!=summary)
+            persist(p.copy(progressStage=summary))
     }
     @Synchronized fun progress(id:String,
              resolved:List<CharacterSelection>,frozen:List<FrozenCharacter>) {
         val state=load(id)
         require(state.status=="DESIGNING")
-        persist(state.copy(selections=resolved,frozen=frozen))
+        persist(state.copy(selections=resolved,frozen=frozen,
+            progressStage="Frozen "+frozen.size+"/"+state.total+
+                " anatomical character identities"))
     }
     @Synchronized fun certify(id:String,modelId:String,
         selections:List<CharacterSelection>,designs:List<FrozenCharacter>):CharacterPhaseOnePlan {
@@ -172,7 +184,8 @@ class CharacterPlanStore(context:Context) {
     @Synchronized fun fail(id:String,reason:String) {
         val p=load(id)
         if(p.status=="DESIGNING"||p.status=="PENDING")
-            persist(p.copy(status="FAILED",failure=reason.take(2000)))
+            persist(p.copy(status="FAILED",failure=reason.take(2000),
+                progressStage="Resolution failed"))
     }
     @Synchronized fun authorize(id:String,jobId:String) {
         val p=load(id)

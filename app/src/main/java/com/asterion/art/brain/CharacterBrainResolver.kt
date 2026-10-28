@@ -199,6 +199,8 @@ class CharacterBrainResolver(context:Context) {
                         "\nPRIMARY: "+selection.names.joinToString(" × ")+
                         "\n"+CharacterPhaseOne.DRAWING+
                         "\nDESIGN EVIDENCE:\n"+study+"\n/no_think"
+                    progress(index,plan.total,
+                        "Qwen3 authoring full anatomical identity "+selection.id)
                     val raw=answer(baseInput,outputLimit)
                     val data=runCatching{objectFrom(raw)}.getOrElse{problem->
                         // The local model may exhaust its token cap before

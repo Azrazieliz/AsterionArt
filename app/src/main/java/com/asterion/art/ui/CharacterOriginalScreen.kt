@@ -242,6 +242,9 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     Text("DESIGNING · "+
                         (plan?.frozen?.size?:0)+"/"+(plan?.total?:0)+
                         " complete frozen anatomical identities",color=Gold)
+                    if(!plan?.progressStage.isNullOrBlank())
+                        Text(plan?.progressStage.orEmpty(),color=Mist,
+                            style=MaterialTheme.typography.bodySmall)
                     LinearProgressIndicator(
                         progress={((plan?.frozen?.size?:0).toFloat()/
                             (plan?.total?:1).coerceAtLeast(1)).coerceIn(0f,1f)},

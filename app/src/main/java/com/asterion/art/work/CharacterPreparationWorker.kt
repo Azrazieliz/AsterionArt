@@ -51,6 +51,7 @@ class CharacterPreparationWorker(context:Context,params:WorkerParameters):
             store.begin(planId)
             val ready=CharacterBrainResolver(applicationContext).resolve(planId){
                     done,total,stage->
+                store.stage(planId,stage)
                 setProgressAsync(Data.Builder().putInt("completed",done)
                     .putInt("total",total).putString("stage",stage).build())
             }
