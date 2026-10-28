@@ -30,7 +30,7 @@ def keystore_matches_original(file: Path) -> bool:
 def digest_from_keytool(stdout: str) -> str:
     # keytool -list -v -alias ... prints "SHA256: AA:BB:..." under
     # Certificate fingerprints. Parse the certificate, not keystore hash.
-    results = re.findall(r"^\\s*SHA256:\\s*([a-fA-F0-9:]{64,95})\\s*$",
+    results = re.findall(r"^\s*SHA256:\s*([a-fA-F0-9:]{64,95})\s*$",
                          stdout,flags=re.MULTILINE)
     if len(results) != 1:
         raise ValueError("Owner signing certificate fingerprint missing or ambiguous")
@@ -39,7 +39,7 @@ def digest_from_keytool(stdout: str) -> str:
 
 def digest_from_apksigner(stdout: str) -> str:
     results = re.findall(
-        r"^Signer #1 certificate SHA-256 digest:\\s*([a-fA-F0-9]{64})\\s*$",
+        r"^Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9]{64})\s*$",
         stdout,flags=re.MULTILINE)
     if len(results)!=1 or "Verified using v2 scheme (APK Signature Scheme v2): true" not in stdout:
         raise ValueError("APK lacks a unique valid V2 owner signing certificate")
