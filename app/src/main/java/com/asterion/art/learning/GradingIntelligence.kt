@@ -72,6 +72,7 @@ class GradingLearningModel(context:Context) {
         "grading/learned-visual-heads.v1.json")
     @Synchronized fun rebuild(grades:List<DetailedGrade>):List<LearnedVisualHead> {
         val heads=GradingVisualTraining.train(grades)
+        val validation=VisualLearningValidation.evaluate(grades)
         val json=JSONObject().apply {
             put("schema","asterion.visual-grade-linear.v1")
             put("training_images",grades.count{it.visualFeatures.size==
@@ -79,6 +80,17 @@ class GradingLearningModel(context:Context) {
             put("architecture","per-mode per-dimension bounded pixel regression")
             put("not_visual_semantic_understanding",true)
             put("does_not_modify_qwen_or_diffusion",true)
+            put("validation_method","temporal 80/20 held-out distinct source images")
+            put("minimum_distinct_images_for_validation",20)
+            put("validation",JSONArray(validation.map{metric->
+                JSONObject().put("mode",metric.mode)
+                    .put("axis",metric.dimension)
+                    .put("train_images",metric.trainingImages)
+                    .put("held_out_images",metric.heldOutImages)
+                    .put("baseline_mae",metric.baselineMae?:JSONObject.NULL)
+                    .put("model_mae",metric.modelMae?:JSONObject.NULL)
+                    .put("validated",metric.validated)
+            }))
             put("heads",JSONArray(heads.map{head->
                 JSONObject().put("mode",head.mode)
                     .put("axis",head.dimension)
@@ -106,10 +118,34 @@ class GradingLearningModel(context:Context) {
             }
         }.getOrDefault(emptyList())
     }
-    /** Below five examples per axis: do not issue a model prediction. */
-    fun estimate(mode:String,axis:String,features:List<Double>):Double? =
-        heads().firstOrNull{it.mode==mode&&it.dimension==axis&&it.samples>=5}
-            ?.predict(features)
+    /** Read actual held-out prediction error, never report training fit as validation. */
+    fun validation():List<VisualLearningMetric> {
+        if(!file.isFile)return emptyList()
+        return runCatching {
+            val array=JSONObject(file.readText(Charsets.UTF_8))
+                .optJSONArray("validation")?:return@runCatching emptyList()
+            (0 until array.length()).map{index->
+                val row=array.getJSONObject(index)
+                VisualLearningMetric(row.getString("mode"),row.getString("axis"),
+                    row.getInt("train_images"),row.getInt("held_out_images"),
+                    if(row.isNull("baseline_mae"))null
+                        else row.getDouble("baseline_mae"),
+                    if(row.isNull("model_mae"))null
+                        else row.getDouble("model_mae"),
+                    row.optBoolean("validated",false))
+            }
+        }.getOrDefault(emptyList())
+    }
+    /** Only predict after held-out data beats a zero-knowledge mean baseline. */
+    fun estimate(mode:String,axis:String,features:List<Double>):Double? {
+        require(features.size==VisualGradeFeatures.SIZE&&
+            features.all{it.isFinite()&&it in 0.0..1.0})
+        if(validation().none{it.mode==mode&&it.dimension==axis&&it.validated})
+            return null
+        return heads().firstOrNull{
+            it.mode==mode&&it.dimension==axis&&it.samples>=20
+        }?.predict(features)
+    }
 }
 
 /**
