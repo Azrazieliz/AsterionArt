@@ -51,4 +51,23 @@ class GenerationPlannerTest {
         assertEquals("qnn_123456789012345678901234",
             GenerationPlanner.selectModelId(nativeModels,RenderMode.ANIME))
     }
+    @Test fun aSingleReferenceImageCanStartArtworkWithoutOtherSheetTypes() {
+        val selected=GeneratorSettings(denoise=0.62f)
+        val recipe=GenerationPlanner.compileFromSource(RenderMode.ANIME,selected)
+        assertEquals(5,recipe.passes.size)
+        assertEquals(0.62f,recipe.passes.first().denoise,0.0001f)
+        assertTrue(recipe.passes.first().positive.contains("SOURCE IMAGE PIXELS"))
+        assertTrue(recipe.passes.all{it.positive.contains("identity")})
+    }
+    @Test fun sourceImageIsAValidArtworkAuthorityWithoutMandatorySheetTrio() {
+        val alternative=GenerationPlanner.compileVisual(
+            emptyList(),RenderMode.ANIME,GeneratorSettings(),
+            sourceIllustration=true)
+        assertEquals(5,alternative.passes.size)
+        assertTrue(runCatching{
+            GenerationPlanner.compileVisual(
+                emptyList(),RenderMode.ANIME,GeneratorSettings(),
+                sourceIllustration=false)
+        }.isFailure)
+    }
 }
