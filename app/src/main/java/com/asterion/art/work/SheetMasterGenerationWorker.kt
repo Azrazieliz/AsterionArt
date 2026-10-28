@@ -12,6 +12,7 @@ import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.engine.GenerationPass
 import com.asterion.art.render.OneShotSheetConditioning
+import com.asterion.art.render.NeuralSheetPanelRenderer
 import com.asterion.art.engine.SourceReferenceEncoder
 import com.asterion.art.model.SheetRole
 import com.asterion.art.model.TaskKind
@@ -121,9 +122,21 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             // The authoritative Character Sheet V5 calls for one complete
             // reference-conditioned image, not multiple partially repainted
             // panels or token-sliced denoising passes.
-            val positive=OneShotSheetConditioning.select(
-                basePositive,neural?.positive,negative,engine::inspectText)
-            repo.updateTaskProgress(task,0,0,"One-shot master sheet · native QNN inference")
+            val oneShot=runCatching {
+                OneShotSheetConditioning.select(
+                    basePositive,neural?.positive,negative,engine::inspectText)
+            }
+            if(oneShot.isFailure) {
+                val cause=requireNotNull(oneShot.exceptionOrNull())
+                val message=cause.message.orEmpty()
+                if(!message.contains("context",ignoreCase=true) &&
+                    !message.contains("exceeds",ignoreCase=true))
+                    throw cause
+                repo.updateTaskProgress(task,0,9,
+                    "Model context is too short for one-shot sheet; "+
+                    "generating nine distinct source-conditioned views instead")
+            }
+            val positive=oneShot.getOrNull()
             // Preserve the user's checkpoint-specific sampler settings.
             // Raising every model to 25 steps overrides distilled QNN defaults
             // and can degrade quality as well as generation time.
@@ -144,21 +157,33 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
                 }finally{decoded.recycle()}
             }else null
             if(isStopped)throw CancellationException()
-            engine.verifyText(positive)
-            if(negative.isNotBlank())engine.verifyText(negative)
-            foreground("Reconstructing complete 9:16 sheet · one image",false)
-            val generated=engine.generate(
-                GenerationPass(1,positive,negative,
-                    if(previous==null)1.0f else 0.78f),
-                selected,resolution.first,resolution.second,
-                previous,selected.seed?:System.currentTimeMillis(),{isStopped},
-                {done,total->
-                    repo.updateTaskProgress(task,done.coerceAtLeast(0),
-                        total.coerceAtLeast(0),
-                        "One complete image · native diffusion "+
-                        done+"/"+total.coerceAtLeast(1))
-                },referencePngs=referencePixels)
-            val output=generated.png
+            val output=if(positive!=null) {
+                engine.verifyText(positive)
+                if(negative.isNotBlank())engine.verifyText(negative)
+                foreground("Reconstructing complete 9:16 sheet · one image",false)
+                engine.generate(
+                    GenerationPass(1,positive,negative,
+                        if(previous==null)1.0f else 0.78f),
+                    selected,resolution.first,resolution.second,
+                    previous,selected.seed?:System.currentTimeMillis(),{isStopped},
+                    {done,total->
+                        repo.updateTaskProgress(task,done.coerceAtLeast(0),
+                            total.coerceAtLeast(0),
+                            "One complete image · native diffusion "+
+                            done+"/"+total.coerceAtLeast(1))
+                    },referencePngs=referencePixels).png
+            } else {
+                // The user supplies ONE image. Every panel below is a NEW
+                // generated view; no source-image crop is substituted for a
+                // missing view or passed off as a completed master sheet.
+                foreground("Generating nine actual anatomical and detail views",false)
+                NeuralSheetPanelRenderer.build(app,sheet.id,sheet.role,
+                    sheet.originatingOriginal,engine,selected,
+                    resolution.first,resolution.second,encoded.first(),
+                    referencePixels,{isStopped},{completed,total,label->
+                        repo.updateTaskProgress(task,completed,total,label)
+                    })
+            }
             val info=BitmapFactory.Options().apply{inJustDecodeBounds=true}
             BitmapFactory.decodeByteArray(output,0,output.size,info)
             require(info.outWidth>0&&info.outHeight>0){"Native model returned invalid image"}
