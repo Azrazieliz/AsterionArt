@@ -20,7 +20,6 @@ jobs:
     env:
       ASTERION_RELEASE_KEYSTORE_B64: ${{ secrets.ASTERION_RELEASE_KEYSTORE_B64 }}
       ASTERION_RELEASE_PASSWORD: ${{ secrets.ASTERION_RELEASE_PASSWORD }}
-      ASTERION_RELEASE_KEYSTORE: ${{ runner.temp }}/asterion-art-release.p12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,8 +37,10 @@ jobs:
             exit 1
           }
           umask 077
-          printf '%s' "$ASTERION_RELEASE_KEYSTORE_B64" | base64 --decode > "$ASTERION_RELEASE_KEYSTORE"
-          python3 native/verify_release_signing.py keystore "$ASTERION_RELEASE_KEYSTORE"
+          KEYFILE="$RUNNER_TEMP/asterion-art-release.p12"
+          printf '%s' "$ASTERION_RELEASE_KEYSTORE_B64" | base64 --decode > "$KEYFILE"
+          python3 native/verify_release_signing.py keystore "$KEYFILE"
+          printf 'ASTERION_RELEASE_KEYSTORE=%s\\n' "$KEYFILE" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -97,4 +98,4 @@ jobs:
         if: always()
         shell: bash
         run: |
-          rm -f "$ASTERION_RELEASE_KEYSTORE"
+          rm -f "$RUNNER_TEMP/asterion-art-release.p12"
