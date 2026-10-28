@@ -59,17 +59,16 @@ jobs:
           test -s app/src/main/assets/inference/Qwen_Qwen3-0.6B-Q5_K_M.gguf
           test -s app/src/main/assets/inference/Qwen3VL-2B-Instruct-Q4_K_M.gguf
           test -s app/src/main/assets/inference/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf
-      - name: Build release APK for persistent local signing
-        if: github.event_name == 'workflow_dispatch'
+      - name: Build unsigned release APK for persistent owner-only signing
         run: |
-          # Only release artifacts contain embedded reasoning and vision weights.
-          # CI never creates signing keys. The persistent release key remains
-          # outside GitHub and signs the assembled APK on the owner's PC.
+          # Push builds install pinned Qwen3/Qwen3-VL using on-device WorkManager
+          # on first run, so CI need not download or embed 2+ GiB each commit.
+          # workflow_dispatch can optionally embed these weights. CI NEVER signs.
           gradle --no-daemon :app:assembleRelease --stacktrace
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           python3 native/verify_apk_native.py --apk app/build/outputs/apk/release/app-release-unsigned.apk
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'workflow_dispatch' && success()
+        if: success()
         with:
           name: Asterion-Art-UNSIGNED-RELEASE-requires-persistent-signature
           path: app/build/outputs/apk/release/app-release-unsigned.apk
