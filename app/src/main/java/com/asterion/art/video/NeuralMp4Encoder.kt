@@ -17,6 +17,25 @@ import kotlin.math.max
 object NeuralMp4Encoder {
     private const val MIME=MediaFormat.MIMETYPE_VIDEO_AVC
 
+    /** Check actual MP4 samples before reusing a segment after process death. */
+    fun playable(file:File):Boolean=runCatching {
+        if(!file.isFile||file.length()<=1024L)return@runCatching false
+        val extractor=android.media.MediaExtractor()
+        try {
+            extractor.setDataSource(file.absolutePath)
+            val video=(0 until extractor.trackCount).firstOrNull { index ->
+                extractor.getTrackFormat(index)
+                    .getString(MediaFormat.KEY_MIME)?.startsWith("video/")==true
+            }?:return@runCatching false
+            val format=extractor.getTrackFormat(video)
+            if(!format.containsKey(MediaFormat.KEY_WIDTH)||
+               !format.containsKey(MediaFormat.KEY_HEIGHT))return@runCatching false
+            extractor.selectTrack(video)
+            extractor.sampleTime>=0L &&
+                extractor.readSampleData(ByteBuffer.allocate(65536),0)>0
+        } finally {extractor.release()}
+    }.getOrDefault(false)
+
     fun encode(frames:List<Bitmap>,file:File,fps:Int,cancelled:()->Boolean) {
         require(frames.size>=5){"Neural model produced insufficient video frames"}
         require(fps in 6..30)

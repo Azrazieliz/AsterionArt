@@ -87,4 +87,13 @@ object WanVideoRules {
     fun outputFps(seconds:Int):Int =
         kotlin.math.round(frameCount(seconds).toDouble()/seconds)
             .toInt().coerceIn(6,24)
+
+    /** One immutable canvas for all clips, including differing reference ratios. */
+    fun canvas(sourceWidth:Int,sourceHeight:Int):Pair<Int,Int> {
+        require(sourceWidth>0 && sourceHeight>0)
+        val scale=512.0/maxOf(sourceWidth,sourceHeight)
+        val width=((sourceWidth*scale/64.0).toInt().coerceIn(4,15))*64
+        val height=((sourceHeight*scale/64.0).toInt().coerceIn(4,15))*64
+        return width to height
+    }
 }

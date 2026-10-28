@@ -18,6 +18,7 @@ import com.asterion.art.model.TaskStatus
 import com.asterion.art.video.Mp4SegmentJoiner
 import com.asterion.art.video.NeuralVideoBridge
 import com.asterion.art.video.WanVideoModelPack
+import com.asterion.art.video.WanVideoRules
 import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.video.VideoContinuitySchedule
 import com.asterion.art.video.VideoFrameContinuation
@@ -103,6 +104,8 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
             repo.updateTaskProgress(task,0,timeline.size,"Preparing video")
             val segments=mutableListOf<File>()
             val runs=mutableListOf<String>()
+            val canvas=NeuralVideoBridge.canvasFor(applicationContext,
+                Uri.parse(plan.imageUris.first()))
             for(segment in timeline) {
                 val index=segment.index
                 val frame=plan.imageUris[if(segment.usePreviousEndFrame)0 else index]
@@ -111,7 +114,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                     notification("Generating segment "+(index+1)+"/"+timeline.size),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
                 val file=File(folder,"segment_"+index+".mp4")
-                if(file.isFile && file.length()>1024) {
+                if(com.asterion.art.video.NeuralMp4Encoder.playable(file)) {
                     segments+=file
                     runs+="recovered"
                     repo.updateTaskProgress(task,index+1,timeline.size,"Recovered segment")
@@ -129,7 +132,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 val result=bridge.generate(
                     source,inferredMotion,
                     neuralPlan?.negative?.takeIf{it.isNotBlank()}?:plan.negativePrompt,
-                    segment.seed,segment.expectedSeconds,file,{isStopped},
+                    segment.seed,segment.expectedSeconds,file,canvas,{isStopped},
                     {done,total->
                         repo.updateTaskProgress(task,index,timeline.size,
                             "Wan local diffusion segment "+(index+1)+"/"+timeline.size+
@@ -168,6 +171,9 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 put("reference_count",plan.imageUris.size)
                 put("inference_mode","independent first-frame conditioned clips")
                 put("native_multi_keyframe_conditioning",false)
+                put("canvas_width",canvas.first)
+                put("canvas_height",canvas.second)
+                put("segment_fps",WanVideoRules.outputFps(plan.secondsPerSegment))
                 put("continuation_mode",if(timeline.any{it.usePreviousEndFrame})
                     "previous_clip_end_frame" else "independent_reference_frames")
                 put("motion_continuity_verified",false)

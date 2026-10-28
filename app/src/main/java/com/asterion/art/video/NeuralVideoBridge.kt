@@ -3,6 +3,10 @@ package com.asterion.art.video
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.net.Uri
 import com.asterion.art.nativeengine.DeviceInferenceGate
 import io.aatricks.llmedge.LLMEdge
@@ -30,14 +34,14 @@ class NeuralVideoBridge(private val context:Context) {
     fun available():Boolean=WanVideoModelPack.ready(context)!=null
 
     suspend fun generate(first:Uri,prompt:String,negative:String,seed:Long,
-        seconds:Int,target:File,cancelled:()->Boolean,
+        seconds:Int,target:File,canvas:Pair<Int,Int>,cancelled:()->Boolean,
         progress:(Int,Int)->Unit):NeuralVideoClip {
         require(prompt.isNotBlank()&&seconds in 1..5)
         val weights=WanVideoModelPack.ready(context)
             ?:error("Install the three verified Wan 2.2 components in Video Model Setup")
         val framesRequested=WanVideoRules.frameCount(seconds)
         val fps=WanVideoRules.outputFps(seconds)
-        val init=readSource(first)
+        val init=readSource(first,canvas)
         val scope=CoroutineScope(SupervisorJob()+Dispatchers.Default)
         var gateHeld=false
         val active=AtomicBoolean(true)
@@ -110,26 +114,50 @@ class NeuralVideoBridge(private val context:Context) {
         }
     }
 
-    private fun readSource(uri:Uri):Bitmap{
+    companion object {
+        fun canvasFor(context:Context,uri:Uri):Pair<Int,Int> {
+            val opts=BitmapFactory.Options().apply{inJustDecodeBounds=true}
+            requireNotNull(context.contentResolver.openInputStream(uri)).use{
+                BitmapFactory.decodeStream(it,null,opts)
+            }
+            require(opts.outWidth>0 && opts.outHeight>0){
+                "Cannot read first video keyframe dimensions"
+            }
+            return WanVideoRules.canvas(opts.outWidth,opts.outHeight)
+        }
+    }
+
+    private fun readSource(uri:Uri,canvas:Pair<Int,Int>):Bitmap {
         val app=context.applicationContext
+        val width=canvas.first
+        val height=canvas.second
+        require(width in 256..960 && height in 256..960 &&
+            width%64==0 && height%64==0)
         val bounds=BitmapFactory.Options().apply{inJustDecodeBounds=true}
         requireNotNull(app.contentResolver.openInputStream(uri)).use{
             BitmapFactory.decodeStream(it,null,bounds)
         }
         require(bounds.outWidth>0&&bounds.outHeight>0){"Video source is not an image"}
         var sample=1
-        while(maxOf(bounds.outWidth,bounds.outHeight)/sample>1024)sample*=2
-        val opts=BitmapFactory.Options().apply{inSampleSize=sample}
+        while(maxOf(bounds.outWidth,bounds.outHeight)/sample>1536)sample*=2
         val original=requireNotNull(app.contentResolver.openInputStream(uri)).use{
-            BitmapFactory.decodeStream(it,null,opts)
-        }?:error("Video source pixels cannot be decoded")
-        // Wan model requires dimensions divisible by 64. Keep the source's
-        // actual ratio instead of forcing every character into a square.
-        val scale=512.0/maxOf(original.width,original.height)
-        val width=((original.width*scale/64.0).toInt().coerceIn(4,15))*64
-        val height=((original.height*scale/64.0).toInt().coerceIn(4,15))*64
-        return if(original.width==width && original.height==height)original
-        else try{Bitmap.createScaledBitmap(original,width,height,true)}
-            finally{original.recycle()}
+            BitmapFactory.decodeStream(it,null,
+                BitmapFactory.Options().apply{inSampleSize=sample})
+        }?:error("Cannot decode video reference image")
+        // Letterbox, never stretch/crop the identity or scene. Each segment
+        // uses the same first-frame dimensions for an MP4-compatible timeline.
+        return try {
+            val output=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888)
+            val surface=Canvas(output)
+            surface.drawColor(Color.rgb(15,15,20))
+            val factor=minOf(width.toFloat()/original.width,
+                height.toFloat()/original.height)
+            val w=original.width*factor
+            val h=original.height*factor
+            surface.drawBitmap(original,null,
+                RectF((width-w)/2,(height-h)/2,(width+w)/2,(height+h)/2),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+            output
+        }finally{original.recycle()}
     }
 }
