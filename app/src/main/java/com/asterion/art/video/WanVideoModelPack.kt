@@ -165,3 +165,19 @@ internal object WanVideoChecksumVerifier {
         proofs[key]=Proof(length,modified,sha)
     }
 }
+
+/** Convert Wan's 4n+1 source frames into exactly the requested output time. */
+object WanFrameTiming {
+    fun selectFrameIndices(generated:Int,seconds:Int,fps:Int):List<Int> {
+        require(generated>=5&&seconds in 1..5&&fps in 6..30)
+        val encoded=seconds*fps
+        require(generated>=encoded){"Neural model did not generate enough frames"}
+        if(encoded==1)return listOf(generated-1)
+        // Include the neural first AND final frame as continuity anchors.
+        // Avoid exporting 25-frame, 24fps clips as falsely one-second videos.
+        return (0 until encoded).map{index->
+            (index.toLong()*(generated-1)*2+(encoded-1))/
+                (2L*(encoded-1))
+        }.map{it.toInt()}
+    }
+}

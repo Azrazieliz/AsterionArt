@@ -95,7 +95,9 @@ class NeuralVideoBridge(private val context:Context) {
                     require(frames.size>=5){
                         "Wan model returned "+frames.size+" frames; video needs at least five"
                     }
-                    NeuralMp4Encoder.encode(frames,target,fps,cancelled)
+                    val selected=WanFrameTiming.selectFrameIndices(
+                        frames.size,seconds,fps).map{frames[it]}
+                    NeuralMp4Encoder.encode(selected,target,fps,cancelled)
                 }finally{frames.forEach{if(!it.isRecycled)it.recycle()}}
                 return NeuralVideoClip(target,"wan-local-"+seed,
                     "Wan 2.2 TI2V 5B Q4 · llmedge 0.4.7.2")
