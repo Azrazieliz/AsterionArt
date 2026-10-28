@@ -61,7 +61,7 @@ internal object CharacterOutputSchema {
      */
     fun parseOrRecover(raw:String):JSONObject {
         val parsed=runCatching{parseObject(raw)}.getOrNull()
-        if(parsed!=null)return parsed
+        if(parsed!=null && identityFields.any(parsed::has))return parsed
         val recovered=JSONObject()
         val pattern=Regex(
             "\"("+identityFields.joinToString("|")+")\"\\s*:\\s*"+

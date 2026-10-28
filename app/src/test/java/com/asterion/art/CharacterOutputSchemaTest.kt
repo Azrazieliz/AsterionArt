@@ -49,6 +49,16 @@ class CharacterOutputSchemaTest {
         assertFalse(repaired.has("face_eyes_hair"))
     }
 
+    @Test fun thinkingOnlyJsonDoesNotHideCompleteFieldsInTruncatedIdentity() {
+        val good="A structurally integrated physical design with fully described "+
+            "joint paths and sufficiently distinctive original body materials."
+        val raw="<think>{\"analysis\":\"draft\"}</think>\n"+
+            "{\"anatomy\":\""+good+"\",\"face_eyes_hair\":\"unterminated"
+        val evidence=CharacterOutputSchema.parseOrRecover(raw)
+        assertEquals(good,evidence.getString("anatomy"))
+        assertFalse(evidence.has("face_eyes_hair"))
+    }
+
     @Test fun markdownOrEarlierThinkingCannotReplaceFinalCompleteJson() {
         val final=full()
         val earlier=JSONObject().put("analysis","not the character")
