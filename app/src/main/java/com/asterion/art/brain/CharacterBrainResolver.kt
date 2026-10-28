@@ -7,6 +7,7 @@ import com.arm.aichat.InferenceEngine
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.learning.DetailedGradeStore
 import com.asterion.art.learning.GradingGuidance
+import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.model.CreationMode
 import com.asterion.art.nativeengine.DeviceInferenceGate
 import com.asterion.art.methodology.*
@@ -21,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import java.util.Random
+import java.io.File
 
 /**
  * Specialist Phase-1 author, not an image renderer. Never falls back
@@ -71,32 +73,39 @@ class CharacterBrainResolver(context:Context) {
             val engine=AiChat.getInferenceEngine(app)
             val context=memoryContext()
             val completed=plan.frozen.toMutableList()
-            suspend fun answer(question:String,maxOutput:Int):String {
-                engine.restartConversation(SYSTEM)
-                val tokens=engine.countTokens(question)+engine.countTokens(SYSTEM)
-                require(tokens+maxOutput+160<context){
-                    "Full concept evidence exceeds available local Qwen3 context"
+            val timings=QwenStageTelemetry()
+            var outcome="FAILED_OR_CANCELLED"
+            suspend fun answer(question:String,maxOutput:Int,stage:String):String =
+                timings.measure(stage) {
+                    engine.restartConversation(SYSTEM)
+                    val tokens=engine.countTokens(question)+engine.countTokens(SYSTEM)
+                    require(tokens+maxOutput+160<context){
+                        "Full concept evidence exceeds available local Qwen3 context"
+                    }
+                    withTimeout(25L*60_000L){
+                        engine.sendUserPrompt(question,maxOutput).toList().joinToString("")
+                    }.trim().also{require(it.length>=80){"Empty neural design evidence"}}
                 }
-                return withTimeout(25L*60_000L){
-                    engine.sendUserPrompt(question,maxOutput).toList().joinToString("")
-                }.trim().also{require(it.length>=80){"Empty neural design evidence"}}
-            }
             val requestContext=currentCoroutineContext()
             DeviceInferenceGate.acquire{!requestContext.isActive}
             try {
-                withTimeout(120_000L){
-                    engine.state.first{
-                        it is InferenceEngine.State.Initialized||
-                        it is InferenceEngine.State.ModelReady||
-                        it is InferenceEngine.State.Error
+                timings.measure("model_ready_wait") {
+                    withTimeout(120_000L){
+                        engine.state.first{
+                            it is InferenceEngine.State.Initialized||
+                            it is InferenceEngine.State.ModelReady||
+                            it is InferenceEngine.State.Error
+                        }
                     }
                 }
-                progress(0,plan.total,"Loading Qwen3 for anatomical design")
-                engine.loadModel(file.absolutePath,context)
-                BrainAdapterLibrary(app).activeFor(model.id)?.let{
-                    engine.loadAdapter(it.absolutePath)
+                progress(completed.size,plan.total,"Loading Qwen3 for anatomical design")
+                timings.measure("model_load") {
+                    engine.loadModel(file.absolutePath,context)
+                    BrainAdapterLibrary(app).activeFor(model.id)?.let{
+                        engine.loadAdapter(it.absolutePath)
+                    }
+                    engine.setSystemPrompt(SYSTEM)
                 }
-                engine.setSystemPrompt(SYSTEM)
                 val readAuthorities=mutableMapOf<String,String>()
                 val explicitGrades=DetailedGradeStore(app).list()
                 suspend fun conceptEvidence(c:PrimaryConcept):String {
@@ -114,7 +123,7 @@ class CharacterBrainResolver(context:Context) {
                                 "fusion, symbiosis and interpretation-boundary knowledge from " +
                                 "this canonical concept. No character yet. PAGE "+
                                 page.index+"/"+page.total+"\n"+page.text,
-                            minOf(650,context/6))
+                            minOf(650,context/6),"canonical_evidence")
                     }
                     val evidence="CANONICAL "+record.id+" "+record.name+"\n"+
                         notes.joinToString("\n")
@@ -191,7 +200,7 @@ class CharacterBrainResolver(context:Context) {
                                 "Preserve all binding anatomical, material and " +
                                 "pairwise concept-fusion requirements; no character " +
                                 "output yet. PAGE "+page.index+"/"+page.total+
-                                "\n"+page.text,minOf(620,context/6))
+                                "\n"+page.text,minOf(620,context/6),"design_authority_pages")
                         }
                         notes.joinToString("\n")
                     }
@@ -201,7 +210,7 @@ class CharacterBrainResolver(context:Context) {
                         "\nDESIGN EVIDENCE:\n"+study+"\n/no_think"
                     progress(index,plan.total,
                         "Qwen3 authoring full anatomical identity "+selection.id)
-                    val raw=answer(baseInput,outputLimit)
+                    val raw=answer(baseInput,outputLimit,"identity_json")
                     val data=runCatching{CharacterOutputSchema.parseObject(raw)}.getOrElse{problem->
                         // The local model may exhaust its token cap before
                         // closing JSON. Repair the SCHEMA, not the entire
@@ -214,7 +223,7 @@ class CharacterBrainResolver(context:Context) {
                             "Do not add pairwise yet. No nested objects. "+
                             "Previous response:\n"+raw.take(4500)+
                             "\nPRIMARY: "+selection.names.joinToString(" × ")+
-                            "\n/no_think",outputLimit))
+                            "\n/no_think",outputLimit,"identity_json_recovery"))
                     }
                     val names=CharacterOutputSchema.identityFields
                     for(field in names) {
@@ -239,7 +248,7 @@ class CharacterBrainResolver(context:Context) {
                             "\nRETAINED DESIGN:\n"+others+
                             "\nBINDING STUDY:\n"+study.take(2400)+
                             "\n/no_think",
-                            minOf(if(minimum>=600)1000 else 550,context/4))
+                            minOf(if(minimum>=600)1000 else 550,context/4),"field_repair")
                         require(text.length>=minimum) {
                             selection.id+": neural "+field+" remains incomplete"
                         }
@@ -268,7 +277,7 @@ class CharacterBrainResolver(context:Context) {
                                 "or decorative attachment substitutes. The "+
                                 "primary names must match exactly. REQUIRED PAIRS:\n"+
                                 specification+"\nFROZEN DESIGN:\n"+narrative+
-                                "\n/no_think",minOf(1000,context/4)))
+                                "\n/no_think",minOf(1000,context/4),"pairwise_batch"))
                         }.onFailure{if(it is kotlinx.coroutines.CancellationException)throw it}
                             .getOrNull()
                         for((first,second) in group) {
@@ -280,7 +289,7 @@ class CharacterBrainResolver(context:Context) {
                                     " AND "+second+" within THIS frozen female "+
                                     "character. No metaphor or decorative "+
                                     "substitution.\nIDENTITY:\n"+narrative+
-                                    "\n/no_think",minOf(400,context/6))
+                                    "\n/no_think",minOf(400,context/6),"pairwise_repair")
                             require(mechanism.trim().length>=65){
                                 selection.id+": unresolved physical fusion "+
                                     first+" + "+second
@@ -295,7 +304,7 @@ class CharacterBrainResolver(context:Context) {
                         "pairwise associations. Same frozen identity. "+
                         "PRIMARY: "+selection.names.joinToString(" × ")+
                         "\nDESIGN:\n"+narrative+"\n/no_think",
-                        minOf(500,context/6))
+                        minOf(500,context/6),"higher_order")
                     val character=FrozenCharacter(
                         selection.number,selection.concepts,
                         data.getString("anatomy"),data.getString("face_eyes_hair"),
@@ -308,19 +317,32 @@ class CharacterBrainResolver(context:Context) {
                         "Duplicate body/fusion architecture; population cannot render"
                     }
                     completed+=character
-                    plans.progress(id,selections,completed)
+                    timings.measure("checkpoint_persist") {
+                        plans.progress(id,selections,completed)
+                    }
                 }
                 val failures=CharacterSheetCompiler.audit(completed,plan.sheets)
                 require(failures.isEmpty()) {failures.joinToString("; ")}
                 progress(plan.total,plan.total,"All characters resolved; freezing sheet contexts")
-                plans.certify(id,model.id,selections,completed)
+                timings.measure("final_certification") {
+                    plans.certify(id,model.id,selections,completed)
+                }.also{outcome="COMPLETE"}
             } finally {
                 try {
                     withContext(NonCancellable+Dispatchers.IO) {
                         runCatching{engine.cleanUp()}
                     }
                 } finally {
-                    DeviceInferenceGate.release()
+                    try {
+                        val telemetry=File(app.filesDir,
+                            "character-phase1/telemetry/"+id+".json")
+                        telemetry.parentFile?.mkdirs()
+                        GeneratedImagePublisher.atomicWrite(telemetry,
+                            timings.snapshot(id,outcome).toString(2)
+                                .toByteArray(Charsets.UTF_8))
+                    } finally {
+                        DeviceInferenceGate.release()
+                    }
                 }
             }
         }
