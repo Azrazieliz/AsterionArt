@@ -35,6 +35,9 @@ import com.asterion.art.vision.VisionModelStore
 import com.asterion.art.vision.VisionDownloadWorker
 import com.asterion.art.vision.CharacterVisualAuditWorker
 import com.asterion.art.vision.CharacterVisualReportStore
+import com.asterion.art.vision.SemanticGradingWorker
+import androidx.work.WorkManager
+import androidx.work.WorkInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -59,11 +62,24 @@ fun AdvancedGradingScreen(repo:ArtRepository,
     var visionReady by remember{mutableStateOf(
         VisionModelStore(context).installed()!=null)}
     var observationsVersion by remember{mutableIntStateOf(0)}
+    var semanticWork by remember {
+        mutableStateOf<Map<String,WorkInfo>>(emptyMap())
+    }
     LaunchedEffect(Unit) {
         while(true) {
             delay(5000)
             visionReady=withContext(Dispatchers.IO){
                 VisionModelStore(context).installed()!=null
+            }
+            semanticWork=withContext(Dispatchers.IO) {
+                val manager=WorkManager.getInstance(context)
+                repo.assets.mapNotNull{asset->
+                    runCatching {
+                        manager.getWorkInfosForUniqueWork(
+                            SemanticGradingWorker.workName(asset.uri)).get()
+                            .maxByOrNull{it.id.toString()}
+                    }.getOrNull()?.let{asset.uri to it}
+                }.toMap()
             }
             observationsVersion++
         }
@@ -190,6 +206,54 @@ fun AdvancedGradingScreen(repo:ArtRepository,
                         modifier=Modifier.fillMaxWidth().height(230.dp),
                         contentScale=ContentScale.Fit)
                     Text(grades.size.toString()+" detailed grade(s)",color=Gold)
+                    val semantic=remember(asset.uri,observationsVersion) {
+                        SemanticGradingStore(context).load(asset.uri)
+                    }
+                    val semanticJob=semanticWork[asset.uri]
+                    if(visionReady) {
+                        val pending=semanticJob!=null&&!semanticJob.state.isFinished
+                        OutlinedButton(onClick={
+                            if(pending)WorkManager.getInstance(context)
+                                .cancelUniqueWork(SemanticGradingWorker.workName(asset.uri))
+                            else SemanticGradingWorker.enqueue(
+                                context,asset.uri,asset.sourceJobId)
+                            message=if(pending)"Cancelling local visual assessment"
+                                else "Offline Qwen3-VL assessment queued; "+
+                                    "original source images will be examined."
+                        },modifier=Modifier.fillMaxWidth()){
+                            Text(if(pending)"Cancel semantic inspection"
+                                else if(semantic!=null)"Re-analyze with Qwen3-VL"
+                                else "Analyze image with Qwen3-VL")
+                        }
+                        if(pending)Text(
+                            semanticJob?.progress?.getString("stage")
+                                ?: "Offline visual analysis in progress",
+                            color=Mist,style=MaterialTheme.typography.bodySmall)
+                        if(semanticJob?.state==WorkInfo.State.FAILED)
+                            Text("Analysis failed: "+
+                                semanticJob.outputData.getString("error").orEmpty(),
+                                color=Gold)
+                    }
+                    if(semantic!=null) {
+                        HorizontalDivider()
+                        Text("MACHINE SEMANTIC INSPECTION · "+
+                            semantic.axes.count{it.score!=null}+
+                            "/9 dimensions assessed",color=Gold)
+                        Text("Qwen3-VL pixel observations; not user grades, "+
+                            "not approval and not neural training. "+
+                            "Source images compared: "+semantic.referenceCount,
+                            color=Mist,style=MaterialTheme.typography.bodySmall)
+                        semantic.axes.forEach { axis->
+                            Text(axis.key.replace('_',' ')+" · "+
+                                (axis.score?.let{it.toString()+"/5"}?:"Not assessable"),
+                                color=White,style=MaterialTheme.typography.bodyMedium)
+                            Text(axis.observation,
+                                style=MaterialTheme.typography.bodySmall)
+                            if(axis.correction.isNotBlank())
+                                Text("Correction: "+axis.correction,color=Mist,
+                                    style=MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     if(canAudit&&visionReady){
                         OutlinedButton(onClick={
                             val job=requireNotNull(asset.sourceJobId)
