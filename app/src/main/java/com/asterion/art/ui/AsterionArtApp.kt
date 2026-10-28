@@ -644,9 +644,11 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         sheetCounts.getOrDefault(role,0)+directReferences[role].orEmpty().size
     }
     val roleFailures=if(creationMode==null) {
-        if(ArtPolicies.eligibleForAutomation(counts))emptyList()
-        else listOf("Character, Art Style and Theme sheets are required")
-    } else MethodologyRegistry.validate(requireNotNull(creationMode),counts)
+        if(sourceArtwork!=null||selected.isNotEmpty()||
+            directReferences.values.any{it.isNotEmpty()})emptyList()
+        else listOf("Select at least one source image or reference sheet")
+    } else MethodologyRegistry.validate(requireNotNull(creationMode),counts,
+        sourceIllustration=sourceArtwork!=null)
     val ready = roleFailures.isEmpty() &&
         (creationMode!=CreationMode.STYLE_CORRECTION || sourceArtwork!=null)
     LazyColumn(
@@ -655,7 +657,23 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     ) {
         item {
             Header("Image generator", "Artwork creation",
-                "Choose character, art style and theme sheets for your illustration. Elements are optional.")
+                "Start from one real image, or combine character, style, theme and element references. "+
+                    "Source pixels are preserved for actual native conditioning.")
+        }
+        item {
+            OutlinedButton(onClick={
+                sourcePicker.launch(arrayOf("image/*"))
+            },modifier=Modifier.fillMaxWidth()) {
+                Text(if(sourceArtwork==null)"Use one original image as reference"
+                    else "Change source image")
+            }
+            sourceArtwork?.let{source->
+                AsyncImage(model=Uri.parse(source),
+                    contentDescription="Selected original artwork reference",
+                    modifier=Modifier.fillMaxWidth().height(210.dp),
+                    contentScale=ContentScale.Fit)
+                TextButton(onClick={sourceArtwork=null}){Text("Remove source image")}
+            }
         }
         item {
             OutlinedButton(onClick = { navigate(Page.CORE) }) { Text("Find character sheets in Asterion Core") }
@@ -752,7 +770,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (ready) "References selected" else "Missing required sheets", fontWeight = FontWeight.Bold)
+                    Text(if (ready) "Source references selected" else "No source selected", fontWeight = FontWeight.Bold)
                     Text(if (ready)
                         "Uses Asterion Art's integrated local QNN engine. A compatible installed "+
                         "image model is required; actual output is verified by rendering."

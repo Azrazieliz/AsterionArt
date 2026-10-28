@@ -140,6 +140,9 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                 else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,job.designPrompt,
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
+                else if(job.creationMode==null && sheets.isEmpty() &&
+                    (job.sourceImageUri!=null||job.designReferenceUris.isNotEmpty()))
+                    GenerationPlanner.compileFromSource(job.mode,job.settings)
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
                         job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
@@ -313,13 +316,13 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             // never a full multi-character catalogue or only its saved prompt.
             val originalSource=job.designReferenceUris.singleOrNull()
                 ?:extraOriginal?.sourceUris?.firstOrNull()
+                ?:job.directReferenceUris.values.flatten().distinct().singleOrNull()
                 // Anima/SDXL cannot consume multi-reference images as a
                 // separate conditioning tensor. Keep the actual primary
                 // character pixels as an img2img source rather than silently
                 // replacing the selected character with prose alone.
                 ?:if(job.creationMode==null)
-                    sheets.firstOrNull{it.role==SheetRole.CHARACTER}
-                        ?.sourceUris?.firstOrNull()
+                    sheets.flatMap{it.sourceUris}.distinct().singleOrNull()
                   else null
             val originalImage=originalSource?.let {
                 SourceReferenceEncoder.encodeUris(applicationContext,listOf(it)).single()
@@ -470,7 +473,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                         current!=null && model.ditKind !in listOf("qwen21","klein")) {
                         // One real source image provides visual identity on
                         // Anima/SDXL. Denoise=1.0 would erase that authority.
-                        stage.copy(denoise=0.72f)
+                        stage.copy(denoise=candidateSettings.denoise)
                     }
                     else if(characterPlan!=null)
                         stage.copy(positive=characterPlan.prompts[candidate-1],
