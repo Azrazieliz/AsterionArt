@@ -90,7 +90,9 @@ class NativeImageSmokeWorker(ctx:Context,params:WorkerParameters):
             engine.verifyText(prompt)
             engine.verifyText(negative)
             repo.updateTaskProgress(task,0,1,"Running genuine QNN diffusion")
-            val config=repo.settings.copy(steps=12,batch=1,
+            val turbo=model.isAnima&&model.name.contains("turbo",true)
+            val config=repo.settings.copy(steps=if(turbo)8 else 12,
+                cfg=if(turbo)1f else 4f,batch=1,
                 ratio=if(width==height)"1:1" else if(width>height)"4:3" else "3:4",
                 seed=73461L,automatic=false)
             val generated=engine.generate(

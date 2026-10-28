@@ -361,9 +361,16 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             var technicalLeaderScore = Double.NEGATIVE_INFINITY
             var technicalLeader: ByteArray? = null
             var technicalLeaderUri: android.net.Uri? = null
+            val tunedSettings=com.asterion.art.nativeengine.NativeTurboDefaults
+                .apply(job.settings,model,freeArtwork=job.creationMode==null &&
+                    job.designPrompt.isNullOrBlank())
+            val turboAuto=com.asterion.art.nativeengine.NativeTurboDefaults
+                .applies(job.settings,model)
+            if(turboAuto)repo.updateTaskProgress(taskId,0,0,
+                "Anima Turbo · optimized for on-device NPU: 8 steps, CFG 1")
             val count = com.asterion.art.engine.OriginalOutputPolicy.imageCount(
                 job.creationMode,!job.designPrompt.isNullOrBlank(),
-                characterPlan?.sheets,job.settings.batch)
+                characterPlan?.sheets,tunedSettings.batch)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
             val oneShotCharacterSheet = !job.designPrompt.isNullOrBlank() ||
@@ -375,7 +382,11 @@ class GenerationWorker(context: Context, params: WorkerParameters):
             for (candidate in 1..count) {
                 if (isStopped) throw CancellationException("Job stopped")
                 val seed = job.settings.seed ?: ((job.createdAt + candidate * 1049L) and 0x7FFFFFFFL)
-                val candidateSettings = PreferenceLearning.candidate(job.settings,candidate - 1)
+                // Turbo distillation is calibrated to CFG=1; automatic
+                // preference perturbations must not silently re-enable the
+                // prohibitively expensive unconditional guidance path.
+                val candidateSettings = if(turboAuto)tunedSettings else
+                    PreferenceLearning.candidate(tunedSettings,candidate - 1)
                 val image:ByteArray=if(characterPlan!=null) {
                     // Five independent Character Creation triptychs use a
                     // 16:45 output crop. Anima/SDXL still load their fixed
