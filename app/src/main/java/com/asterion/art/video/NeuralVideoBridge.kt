@@ -131,8 +131,9 @@ class NeuralVideoBridge(private val context:Context) {
         val app=context.applicationContext
         val width=canvas.first
         val height=canvas.second
-        require(width in 256..960 && height in 256..960 &&
-            width%64==0 && height%64==0)
+        require((width==1280&&height==704)||(width==704&&height==1280)) {
+            "Wan TI2V 5B requires its native 1280x704 or 704x1280 canvas"
+        }
         val bounds=BitmapFactory.Options().apply{inJustDecodeBounds=true}
         requireNotNull(app.contentResolver.openInputStream(uri)).use{
             BitmapFactory.decodeStream(it,null,bounds)

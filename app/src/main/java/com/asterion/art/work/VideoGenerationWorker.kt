@@ -20,7 +20,7 @@ import com.asterion.art.video.NeuralVideoBridge
 import com.asterion.art.video.WanVideoModelPack
 import com.asterion.art.video.WanVideoRules
 import com.asterion.art.video.VideoPlanStore
-import com.asterion.art.video.VideoContinuitySchedule
+import com.asterion.art.video.WanNeuralTimeline
 import com.asterion.art.video.VideoFrameContinuation
 import com.asterion.art.video.VideoSeamMetrics
 import com.asterion.art.brain.AsterionReasoner
@@ -98,9 +98,8 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 "No separate video API or manual server is supported."
             }
             val folder=File(applicationContext.filesDir,"video-cache/"+id).also { it.mkdirs() }
-            val timeline=VideoContinuitySchedule.plan(plan.imageUris.size,
-                plan.secondsPerSegment,plan.seed,
-                plan.imageUris.size==1 && plan.totalSegments>1,plan.totalSegments)
+            val timeline=WanNeuralTimeline.plan(plan.imageUris.size,
+                plan.secondsPerSegment,plan.totalSegments,plan.seed)
             repo.updateTaskProgress(task,0,timeline.size,"Preparing video")
             val segments=mutableListOf<File>()
             val runs=mutableListOf<String>()
@@ -108,7 +107,7 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 Uri.parse(plan.imageUris.first()))
             for(segment in timeline) {
                 val index=segment.index
-                val frame=plan.imageUris[if(segment.usePreviousEndFrame)0 else index]
+                val frame=plan.imageUris[segment.sourceIndex]
                 if(isStopped)throw CancellationException()
                 setForeground(ForegroundInfo(7225,
                     notification("Generating segment "+(index+1)+"/"+timeline.size),
@@ -173,7 +172,9 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 put("native_multi_keyframe_conditioning",false)
                 put("canvas_width",canvas.first)
                 put("canvas_height",canvas.second)
-                put("segment_fps",WanVideoRules.outputFps(plan.secondsPerSegment))
+                put("segment_fps",WanVideoRules.outputFps(1))
+                put("frames_per_neural_segment",WanVideoRules.frameCount(1))
+                put("native_one_second_continuation",true)
                 put("continuation_mode",if(timeline.any{it.usePreviousEndFrame})
                     "previous_clip_end_frame" else "independent_reference_frames")
                 put("motion_continuity_verified",false)

@@ -77,22 +77,22 @@ object WanVideoModelPack {
 }
 
 object WanVideoRules {
-    /** Wan temporal count must be 4n+1; 5B is limited to 29 frames. */
+    /** Wan 2.2 VAE temporal compression requires exactly 4n+1 frames. */
     fun frameCount(seconds:Int):Int {
         require(seconds in 1..5)
-        return (seconds*12+1).coerceAtMost(29)
-            .let{((it-1)/4)*4+1}
+        return seconds*24+1
     }
-    fun outputFps(seconds:Int):Int =
-        kotlin.math.round(frameCount(seconds).toDouble()/seconds)
-            .toInt().coerceIn(6,24)
+    fun outputFps(seconds:Int):Int {
+        require(seconds in 1..5)
+        return 24
+    }
 
-    /** One immutable canvas for all clips, including differing reference ratios. */
+    /**
+     * Official Wan2.2 TI2V 5B native training geometry is 1280x704, not
+     * 512-square. Padding, not subject cropping, preserves other source ratios.
+     */
     fun canvas(sourceWidth:Int,sourceHeight:Int):Pair<Int,Int> {
         require(sourceWidth>0 && sourceHeight>0)
-        val scale=512.0/maxOf(sourceWidth,sourceHeight)
-        val width=((sourceWidth*scale/64.0).toInt().coerceIn(4,15))*64
-        val height=((sourceHeight*scale/64.0).toInt().coerceIn(4,15))*64
-        return width to height
+        return if(sourceHeight>sourceWidth)704 to 1280 else 1280 to 704
     }
 }

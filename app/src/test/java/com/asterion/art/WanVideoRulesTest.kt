@@ -9,18 +9,16 @@ class WanVideoRulesTest {
     @Test fun framesAlwaysUseGenuineWanTemporalCounts() {
         (1..5).forEach{seconds->
             val frames=WanVideoRules.frameCount(seconds)
-            assertTrue(frames in 5..29)
+            assertEquals(seconds*24+1,frames)
             assertEquals(1,frames%4)
-            assertTrue(WanVideoRules.outputFps(seconds) in 6..24)
+            assertEquals(24,WanVideoRules.outputFps(seconds))
         }
     }
     @Test fun distinctSourceImagesShareTheFirstImageCanvas() {
         val portrait=WanVideoRules.canvas(768,1365)
-        assertEquals(0,portrait.first%64)
-        assertEquals(0,portrait.second%64)
-        assertTrue(portrait.first in 256..960)
-        assertTrue(portrait.second in 256..960)
-        assertTrue(WanVideoRules.canvas(1500,1500).first==512)
+        assertEquals(704 to 1280,portrait)
+        assertEquals(1280 to 704,WanVideoRules.canvas(1500,1500))
+        assertEquals(1280 to 704,WanVideoRules.canvas(1500,720))
     }
     @Test fun runtimeNeedsEveryMatchingVideoComponent() {
         assertEquals(3,WanVideoModelPack.components.size)
