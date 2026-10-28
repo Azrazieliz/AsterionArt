@@ -35,6 +35,7 @@ fun MethodologyStudioV3(
     method: CreationMode,
     browseSheets: () -> Unit,
     browseCore: () -> Unit,
+    openDesignLibrary: () -> Unit,
     openParameters: () -> Unit,
     onQueued: () -> Unit
 ) {
@@ -52,7 +53,9 @@ fun MethodologyStudioV3(
     var selectedConcepts by remember(method) { mutableStateOf<Set<String>>(emptySet()) }
     var selectedSheets by remember(method) { mutableStateOf<Set<String>>(emptySet()) }
     var illustration by remember(method) { mutableStateOf<String?>(null) }
-    var action by remember(method) { mutableStateOf(StageAction.CATALOGUE) }
+    // Catalogue production happens here; per-design render is authorized
+    // only after choosing a real saved candidate in Design Library.
+    val action=StageAction.CATALOGUE
     var media by remember(method) { mutableStateOf(RenderMode.ANIME) }
     var alphabet by remember(method) { mutableStateOf("All") }
     val direction: String? = null
@@ -172,13 +175,15 @@ fun MethodologyStudioV3(
                 }
             }
             if(StageAction.SINGLE_PREVIEW in spec.commands) item {
-                Text("PRESENTATION",color=Gold)
-                LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    items(listOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW)) { item ->
-                        FilterChip(selected=action==item,onClick={action=item},
-                            label={Text(if(item==StageAction.CATALOGUE)"Candidate catalogue"
-                                else "One selected design")})
-                    }
+                Text("DESIGN SELECTION",color=Gold)
+                Text("This studio generates the approved candidate catalogue. "+
+                    "After it renders, choose the actual saved individual design "+
+                    "in the library for its 9:16 original, refinement or fusion. "+
+                    "No design is selected automatically.",
+                    style=MaterialTheme.typography.bodySmall,color=Mist)
+                OutlinedButton(onClick=openDesignLibrary,
+                    modifier=Modifier.fillMaxWidth()) {
+                    Text("Choose a generated design in Library")
                 }
             }
         }

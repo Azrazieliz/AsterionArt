@@ -187,6 +187,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.DEFAULT_STUDIO -> MethodologyStudioV3(repo,selectedDefault,
                         browseSheets={ current=Page.SHEET },
                         browseCore={ current=Page.CORE },
+                        openDesignLibrary={ current=Page.LIBRARY },
                         openParameters={ current=Page.SETTINGS },
                         onQueued={ current=Page.HOME })
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
