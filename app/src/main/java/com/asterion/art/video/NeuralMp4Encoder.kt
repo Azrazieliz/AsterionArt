@@ -31,8 +31,22 @@ object NeuralMp4Encoder {
             if(!format.containsKey(MediaFormat.KEY_WIDTH)||
                !format.containsKey(MediaFormat.KEY_HEIGHT))return@runCatching false
             extractor.selectTrack(video)
-            extractor.sampleTime>=0L &&
-                extractor.readSampleData(ByteBuffer.allocate(65536),0)>0
+            var samples=0
+            var first=-1L
+            var last=-1L
+            while(extractor.sampleTrackIndex>=0 && samples<300){
+                if(extractor.sampleSize<=0L)return@runCatching false
+                val pts=extractor.sampleTime
+                if(pts<0L)return@runCatching false
+                if(first<0L)first=pts
+                last=maxOf(last,pts)
+                samples++
+                if(!extractor.advance())break
+            }
+            // Reading one packet previously treated partially encoded or
+            // interrupted segments as completed. Require actual one-second
+            // 24fps neural video before allowing resume or MP4 concatenation.
+            WanSegmentIntegrity.valid(samples,first,last)
         } finally {extractor.release()}
     }.getOrDefault(false)
 
@@ -186,4 +200,11 @@ object NeuralMp4Encoder {
             vPlane.put(uvPosV,chromaV(r/4,g/4,b/4).toByte())
         }
     }
+}
+
+/** Strict one-second native Wan segment recovery contract. */
+object WanSegmentIntegrity {
+    fun valid(samples:Int,firstUs:Long,lastUs:Long):Boolean =
+        samples in 24..60 && firstUs>=0L && lastUs>=firstUs &&
+            lastUs-firstUs>=900_000L && lastUs-firstUs<=1_800_000L
 }
