@@ -46,8 +46,9 @@ import coil.compose.AsyncImage
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.TaskKind
 import com.asterion.art.video.MotionPreset
-import com.asterion.art.video.NightmareVideoBridge
-import com.asterion.art.video.VideoApiCredentials
+import com.asterion.art.video.WanVideoModelPack
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
 import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.video.VideoResultStore
 import com.asterion.art.work.VideoGenerationWorker
@@ -60,9 +61,19 @@ import kotlin.math.roundToInt
 @Composable
 fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
     val context=LocalContext.current
-    val credential=remember { VideoApiCredentials(context) }
     val taxonomy=remember { com.asterion.art.engine.ConceptTaxonomy(context) }
-    var connected by remember { mutableStateOf(credential.read()!=null) }
+    var modelReady by remember { mutableStateOf(WanVideoModelPack.ready(context)!=null) }
+    var modelParts by remember { mutableStateOf(
+        WanVideoModelPack.resolved(context).size) }
+    LaunchedEffect(Unit) {
+        while(true) {
+            delay(3000)
+            modelParts=withContext(Dispatchers.IO) {
+                WanVideoModelPack.resolved(context).size
+            }
+            modelReady=modelParts==WanVideoModelPack.components.size
+        }
+    }
     var diagnostic by remember { mutableStateOf<String?>(null) }
     var images by remember { mutableStateOf<List<String>>(emptyList()) }
     var preset by remember { mutableStateOf(MotionPreset.CINEMATIC) }
@@ -114,7 +125,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("POSITIVE");Text(prompts.first)
             Text("NEGATIVE GUIDANCE");Text(prompts.second)
-            Text("Negative guidance is not transmitted: the current video API exposes only a positive prompt.")
+            Text("Positive and negative motion constraints are sent to the local Wan diffusion model.")
         }},
         confirmButton={TextButton(onClick={
             showPromptReview=false
@@ -135,7 +146,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                 Text("ASTERION ART · VIDEO",color=Gold)
                 Text("Animation Studio",
                     style=androidx.compose.material3.MaterialTheme.typography.headlineLarge)
-                Text("True Wan 2.2 or Neodragon generation using your images as first-frame anchors. Multi-image projects render separate segments and join them; this backend does not yet jointly condition on all frames.",
+                Text("Real, fully offline Wan 2.2 TI2V inference integrated in Asterion Art. Each source image conditions generated neural frames; multiple anchors form separate clips joined as an MP4. No cloud or manual phone-side server.",
                     color=Mist)
             }
         }
@@ -143,31 +154,37 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
             Card(modifier=Modifier.fillMaxWidth().padding(horizontal=18.dp),
                 colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Text("VIDEO ENGINE",color=Gold)
-                    Text(if(connected)"Token stored securely on this phone"
-                        else "Nightmare native video API not connected",color=Mist)
-                    OutlinedButton(onClick = {
-                        val manager=context.getSystemService(Context.CLIPBOARD_SERVICE)
-                            as ClipboardManager
-                        val token=manager.primaryClip?.getItemAt(0)
-                            ?.coerceToText(context)?.toString().orEmpty()
-                        runCatching { credential.save(token) }
-                            .onSuccess { connected=true; diagnostic="Encrypted video API token saved." }
-                            .onFailure { diagnostic="Copy the Nightmare API token, then tap Paste token." }
-                    }) { Text("Paste video engine token") }
-                    OutlinedButton(enabled=connected,onClick = {
+                    Text("OFFLINE WAN 2.2 VIDEO MODEL",color=Gold)
+                    Text(if(modelReady)
+                        "Three verified neural components installed · ready for local inference"
+                        else "Verified model components: $modelParts / 3",
+                        color=if(modelReady)Green else Mist)
+                    Text("On-device native video diffusion requires the "+
+                        "Wan 2.2 TI2V 5B image/video model, its matching VAE and "+
+                        "UMT5 encoder. These are substantial one-time downloads; "+
+                        "existing verified Asterion Hugging Face files are reused. "+
+                        "No server, API token, paid service or cloud inference.",
+                        color=Mist,style=androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                    if(!modelReady) OutlinedButton(onClick={
                         scope.launch {
-                            diagnostic="Testing native video model…"
-                            diagnostic=withContext(Dispatchers.IO) {
-                                runCatching {
-                                    val token=requireNotNull(credential.read())
-                                    val available=NightmareVideoBridge(context,token).available()
-                                    if(available)"Video model available." else
-                                        "API connected; Wan/Neodragon model not found."
-                                }.getOrElse { it.message?:"Video API is not running" }
+                            diagnostic="Resolving pinned Hugging Face revisions and LFS checksums"
+                            val result=withContext(Dispatchers.IO) {
+                                runCatching{WanVideoModelPack.enqueueMissing(context)}
                             }
+                            diagnostic=result.fold(
+                                onSuccess={"Verified downloads queued: "+it.size+
+                                    ". Model installation progress is available in Models and notifications."},
+                                onFailure={it.message?:"Video model installation failed"})
                         }
-                    }) { Text("Test video engine") }
+                    },modifier=Modifier.fillMaxWidth()){
+                        Text("Install missing offline neural video models")
+                    }
+                    OutlinedButton(onClick={
+                        modelParts=WanVideoModelPack.resolved(context).size
+                        modelReady=modelParts==3
+                        diagnostic=if(modelReady)"All video components registered and verified"
+                            else "Missing "+(3-modelParts)+" video model component(s)"
+                    }){Text("Check model installation")} 
                 }
             }
         }
@@ -249,7 +266,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         item {
             Column(Modifier.padding(horizontal=18.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
                 Button(
-                    enabled=connected&&images.isNotEmpty(),
+                    enabled=modelReady&&images.isNotEmpty(),
                     modifier=Modifier.fillMaxWidth(),
                     onClick={showPromptReview=true}
                 ) {
@@ -257,8 +274,10 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     Text("Review video prompt")
                 }
-                Text("Nightmare API host must be enabled on this phone until native embedding is finished. " +
-                    "Background rendering may be restricted by Android battery/foreground-service policy.",
+                Text("Generation uses the embedded llmedge Wan video runtime. "+
+                    "A high-memory device is required; native model load or RAM errors "+
+                    "are reported without claiming success. Background operation "+
+                    "remains subject to Android system restrictions.",
                     color=Mist,style=androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
         }
