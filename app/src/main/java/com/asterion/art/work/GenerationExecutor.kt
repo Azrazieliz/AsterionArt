@@ -158,8 +158,10 @@ internal class GenerationExecutor(
             val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
                 ?: models.firstOrNull { it.ditKind == "klein" }
             var model = models.firstOrNull { it.id == preferredId }
-            val imageSourceCount=(sheets.flatMap{it.sourceUris}+
-                job.designReferenceUris+listOfNotNull(job.sourceImageUri)).distinct().size
+            val imageSourceCount=(
+                com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
+                job.designReferenceUris+listOfNotNull(job.sourceImageUri)
+            ).distinct().size
             require(imageSourceCount<=10){
                 "More than 10 source images; select a bounded visual reference set"
             }
@@ -343,11 +345,11 @@ internal class GenerationExecutor(
             // The GENERATED authoritative master sheet must reach the
             // neural reference-conditioning path. Keep original source pixels
             // available as secondary evidence, without replacing the master.
-            val combinedSourceUris=sheets.flatMap { sheet ->
-                listOfNotNull(sheet.outputUri)+sheet.sourceUris
-            }.distinct()+
+            val combinedSourceUris=(
+                com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
                 listOfNotNull(extraOriginal?.sourceUris?.firstOrNull())+
                 job.designReferenceUris
+            ).distinct()
             val referenceInputs = if (model.ditKind == "qwen21" ||
                 model.ditKind == "klein") {
                 if(combinedSourceUris.isEmpty())emptyList()
@@ -364,7 +366,8 @@ internal class GenerationExecutor(
                 // character pixels as an img2img source rather than silently
                 // replacing the selected character with prose alone.
                 ?:if(job.creationMode==null)
-                    sheets.flatMap{it.sourceUris}.distinct().singleOrNull()
+                    com.asterion.art.model.SheetReferenceAuthority
+                        .primaryUris(sheets).singleOrNull()
                   else null
             val originalImage=originalSource?.let {
                 SourceReferenceEncoder.encodeUris(applicationContext,listOf(it)).single()
