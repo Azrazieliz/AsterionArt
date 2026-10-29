@@ -22,7 +22,7 @@ import com.asterion.art.methodology.CharacterPhaseOnePlan
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.TaskKind
-import com.asterion.art.work.CharacterPreparationWorker
+import com.asterion.art.work.CharacterPreparationService
 import com.asterion.art.work.GenerationWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -89,7 +89,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
             activePlanId=created.id
             plan=created
             error=null
-            CharacterPreparationWorker.enqueue(context,created.id)
+            CharacterPreparationService.enqueue(context,created.id)
         }.onFailure{error=it.message}
     }
     fun authorizeGeneration() {
@@ -287,7 +287,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                             plan=resume
                             error=null
                             attempt++
-                            CharacterPreparationWorker.enqueue(context,id)
+                            CharacterPreparationService.enqueue(context,id)
                         }.onFailure{error=it.message}
                     }){
                         Text("Retry unresolved design · preserve "+
