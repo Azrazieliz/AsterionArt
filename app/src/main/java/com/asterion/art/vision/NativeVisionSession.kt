@@ -13,8 +13,8 @@ import kotlin.math.max
 /**
  * JNI to the pinned llama.cpp libmtmd multimodal pathway.
  *
- * A Qwen3-VL 2B GGUF + its matching vision projector are both REQUIRED.
- * The text-only Qwen3 planning engine is never claimed to see pixels.
+ * A Gemma 3 2B GGUF + its matching vision projector are both REQUIRED.
+ * The text-only Gemma3 planning engine is never claimed to see pixels.
  * Keep a single instance per assessment batch, close before QNN rendering.
  */
 class NativeVisionSession(pair:VisionInstalledPair):Closeable {
@@ -78,7 +78,7 @@ class NativeVisionSession(pair:VisionInstalledPair):Closeable {
             handle=nativeOpen(pair.language.absolutePath,
                 pair.projector.absolutePath,4096)
             require(handle!=0L) {
-                "Could not initialize local Qwen3-VL multimodal session"
+                "Could not initialize local Gemma 3 multimodal session"
             }
         } catch(error:Throwable) {
             gateHeld=false
