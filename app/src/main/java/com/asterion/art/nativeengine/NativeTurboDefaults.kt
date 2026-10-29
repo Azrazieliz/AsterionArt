@@ -21,9 +21,10 @@ object NativeTurboDefaults {
             steps=8,
             cfg=1f,
             scheduler="Euler",
-            // Only free Artwork's default 3-image batch is a preview setting.
-            // Never decrease an Original's prescribed multi-sheet design count.
-            batch=if(freeArtwork && settings.batch==3)1 else settings.batch
+            // The user's validated image count is binding. Model-specific
+            // speed tuning must not silently delete two of three requested
+            // images; the pipeline generates them sequentially.
+            batch=settings.batch
         )
     }
 }
