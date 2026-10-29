@@ -670,8 +670,8 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             OutlinedButton(onClick={
                 sourcePicker.launch(arrayOf("image/*"))
             },modifier=Modifier.fillMaxWidth()) {
-                Text(if(sourceArtwork==null)"Use one original image as reference"
-                    else "Change source image")
+                Text(if(sourceArtwork==null)"Optional additional source illustration"
+                    else "Change additional source illustration")
             }
             sourceArtwork?.let{source->
                 AsyncImage(model=Uri.parse(source),
@@ -703,7 +703,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                     directReferenceRole=role
                     directReferencePicker.launch(arrayOf("image/*"))
                 },modifier=Modifier.fillMaxWidth()) {
-                    Text("Add "+role.display+" reference image directly")
+                    Text("Import an existing "+role.display+" sheet image")
                 }
                 directReferences[role].orEmpty().forEachIndexed{index,source->
                     Row(verticalAlignment=Alignment.CenterVertically,
@@ -717,8 +717,9 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                         }){Text("Remove")}
                     }
                 }
-                Text("You may use an existing master sheet or select actual image references. "+
-                    "All chosen source pixels remain linked to the job.",color=Mist,
+                Text("Select a finished "+role.display+" sheet, or import an already "+
+                    "completed sheet image. Build new sheets from ordinary source "+
+                    "images in Sheet Creation.",color=Mist,
                     style=MaterialTheme.typography.bodySmall)
             }
             if (these.isEmpty()) {
