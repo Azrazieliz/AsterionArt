@@ -428,7 +428,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processSystemPrompt(
 
     // Obtain system prompt from JEnv
     const auto *system_prompt = env->GetStringUTFChars(jsystem_prompt, nullptr);
-    LOGd("%s: System prompt received: \n%s", __func__, system_prompt);
+    LOGd("%s: System prompt received", __func__);
     std::string formatted_system_prompt(system_prompt);
 
     // Format system prompt if applicable
@@ -477,7 +477,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processUserPrompt(
 
     // Obtain and tokenize user prompt
     const auto *const user_prompt = env->GetStringUTFChars(juser_prompt, nullptr);
-    LOGd("%s: User prompt received: \n%s", __func__, user_prompt);
+    LOGd("%s: User prompt received", __func__);
     std::string formatted_user_prompt(user_prompt);
 
     // Format user prompt if applicable
