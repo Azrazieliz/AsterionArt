@@ -50,14 +50,11 @@ jobs:
           gradle-version: 8.10.2
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
-      - name: Build debug APK
-        if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
+      - name: Build internal P0 diagnostic APK (NEVER install)
         run: gradle --no-daemon :app:assembleDebug --stacktrace
-      - name: Verify embedded native long-context LLM
-        if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
+      - name: Verify packaged reasoning engine
         run: unzip -l app/build/outputs/apk/debug/*.apk | grep "libai-chat.so"
-      - name: Verify packaged engine and Qualcomm runtime checksums
-        if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
+      - name: Verify packaged QNN image runtime
         run: python3 native/verify_apk_native.py
       - name: Build and verify release; sign ONLY with existing owner identity
         if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
