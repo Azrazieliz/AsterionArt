@@ -561,10 +561,10 @@ internal class GenerationExecutor(
                         "_pass_" + stage.number + ".png")
                     if (path.isFile && path.length() > 100) {
                         val saved=path.readBytes()
-                        // Never reuse a stale checkpoint containing blank results.
-                        if (stage.number == stageSequence.last().number)
-                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
-                                saved,"Restored rendered candidate "+candidate)
+                        // Validate EACH restored stage, including Foundation.
+                        // Never progress to stage 2+ from a blank checkpoint.
+                        com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                            saved,"Restored candidate "+candidate+" stage "+stage.number)
                         current=saved
                         continue
                     }
@@ -599,6 +599,7 @@ internal class GenerationExecutor(
                     engine.verifyText(methodStage.positive)
                     if(methodStage.negative.isNotBlank())
                         engine.verifyText(methodStage.negative)
+                    val nativeStageStart=android.os.SystemClock.elapsedRealtime()
                     val result=engine.generate(
                         methodStage,candidateSettings,resolution.first,resolution.second,
                         current,seed,{stopped()},{step,totalSteps->
@@ -608,6 +609,18 @@ internal class GenerationExecutor(
                                         (stage.number-1)*100+(step*100/totalSteps),
                                     (count*passesPerCandidate+2)*100,stageLabel)
                         },referencePngs=referenceInputs)
+                    // A degenerate Foundation must never receive a second
+                    // repaint, and failed refinements must not become final.
+                    com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                        result.png,"Candidate "+candidate+" phase "+stage.number)
+                    val stageElapsed=android.os.SystemClock.elapsedRealtime()-nativeStageStart
+                    val stageScore=TechnicalImageScorer.score(result.png)
+                    val metrics=File(intermediate,"native-stage-measurements.tsv")
+                    GeneratedImagePublisher.atomicWrite(metrics,
+                        (metrics.takeIf{it.exists()}?.readText().orEmpty()+
+                            candidate+"\t"+stage.number+"\t"+stageElapsed+
+                            "\t"+stageScore.score+"\t"+stageScore.contrast+
+                            "\t"+stageScore.detail+"\n").toByteArray(Charsets.UTF_8))
                     current=result.png
                     GeneratedImagePublisher.atomicWrite(path,result.png)
                     taskProgress(candidate,stage.number)
