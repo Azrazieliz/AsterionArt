@@ -66,7 +66,7 @@ Java_com_asterion_art_vision_NativeVisionSession_nativeOpen(
     p.n_gpu_layers=0; // Portable CPU path; do not falsely claim NPU acceleration.
     session->model=llama_model_load_from_file(llmPath.c_str(),p);
     if(!session->model) {
-        fail(env,"Qwen3-VL GGUF text model could not be loaded");
+        fail(env,"Gemma 3 GGUF text model could not be loaded");
         return 0;
     }
     llama_context_params cp=llama_context_default_params();
@@ -77,7 +77,7 @@ Java_com_asterion_art_vision_NativeVisionSession_nativeOpen(
     cp.n_threads_batch=3;
     session->ctx=llama_init_from_model(session->model,cp);
     if(!session->ctx) {
-        fail(env,"Insufficient memory or unsupported Qwen3-VL context");
+        fail(env,"Insufficient memory or unsupported Gemma 3 context");
         return 0;
     }
     session->contextSize=ctxSize;
