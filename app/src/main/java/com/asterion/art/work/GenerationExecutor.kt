@@ -100,6 +100,16 @@ internal class GenerationExecutor(
                 }
             }
             val sheets=storedSheets+directSheets
+            if(job.creationMode==null && job.designPrompt.isNullOrBlank()) {
+                val selectedRoles=sheets.map{it.role}.toSet()
+                val absent=listOf(SheetRole.CHARACTER,SheetRole.THEME,
+                    SheetRole.ART_STYLE).filter{it !in selectedRoles}
+                require(absent.isEmpty()) {
+                    "Artwork requires completed Character, Theme and Art Style "+
+                        "sheet references. Missing: "+
+                        absent.joinToString(", "){it.display}
+                }
+            }
             require(storedSheets.all { it.outputUri != null }) {
                 "Reference sheet creation is not complete"
             }
