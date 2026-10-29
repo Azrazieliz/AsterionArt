@@ -1,12 +1,11 @@
-package com.asterion.art.work
+﻿package com.asterion.art.work
 
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
-import android.os.Build
-import android.os.PowerManager
+import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
 import androidx.work.Data
@@ -15,58 +14,9 @@ import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.model.CreationMode
-import android.util.Log
-import com.asterion.art.data.GeneratedImagePublisher
-import com.asterion.art.core.CoreResultUploader
-import com.asterion.art.data.GenerationJobStore
-import com.asterion.art.engine.GenerationPlanner
-import com.asterion.art.methodology.CharacterPlanStore
-import com.asterion.art.methodology.CharacterPhaseOne
-import com.asterion.art.methodology.CharacterSheetCompiler
-import com.asterion.art.methodology.CharacterSheetComposer
-import com.asterion.art.vision.CharacterVisualAuditWorker
-import com.asterion.art.vision.VisionModelStore
-import com.asterion.art.vision.ReferenceVisualInterpreter
-import kotlin.math.abs
-import com.asterion.art.engine.LocalDreamBridge
-import com.asterion.art.engine.StillImageEngine
-import com.asterion.art.nativeengine.EmbeddedEngineFactory
-import com.asterion.art.nativeengine.ModelOutputRouting
-import com.asterion.art.engine.availableUpscalers
-import com.asterion.art.engine.upscaleImage
-import com.asterion.art.learning.PreferenceLearning
-import com.asterion.art.learning.CreativeMemoryStore
-import com.asterion.art.learning.SavedDesign
-import com.asterion.art.engine.UniversalCreativePlanner
-import com.asterion.art.brain.AsterionReasoner
-import com.asterion.art.engine.DesignPreviewCrops
-import com.asterion.art.engine.ConceptTaxonomy
-import com.asterion.art.methodology.DetailedMethodologies
-import com.asterion.art.engine.ConditioningSchedule
-import com.asterion.art.engine.GenerationRecipe
-import com.asterion.art.engine.GenerationPass
-import com.asterion.art.engine.SheetTextReader
-import com.asterion.art.engine.TechnicalImageScorer
-import com.asterion.art.enhancement.EmbeddedRealSr
-import com.asterion.art.engine.SourceReferenceEncoder
-import com.asterion.art.model.RenderMode
-import com.asterion.art.model.CreationMode
-import com.asterion.art.model.SheetRecord
-import com.asterion.art.model.SheetRole
-import com.asterion.art.model.TaskKind
-import com.asterion.art.model.TaskStatus
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.File
-import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
-
 /** Foreground-compatible WorkManager pipeline using genuine sequential native passes. */
 class GenerationWorker(context: Context, params: WorkerParameters):
     CoroutineWorker(context, params) {
@@ -135,3 +85,4 @@ class GenerationWorker(context: Context, params: WorkerParameters):
     }
 
 }
+

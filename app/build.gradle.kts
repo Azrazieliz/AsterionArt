@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -11,8 +11,8 @@ android {
         applicationId = "com.asterion.art"
         minSdk = 30
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.2.2"
+        versionCode = 5
+        versionName = "0.2.3"
     }
     signingConfigs {
         create("persistentRelease") {
@@ -77,3 +77,4 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.17.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
