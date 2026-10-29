@@ -299,6 +299,36 @@ internal class GenerationExecutor(
                 })
             }
             val preRenderElapsed=android.os.SystemClock.elapsedRealtime()-preRenderStart
+            // Retain the exact authoritative text before native model loading.
+            // Previously failure/crashes could leave no record of the actual
+            // prompt fed to the image engine; output-only provenance is late.
+            val promptTrace=JSONObject().apply {
+                put("schema","asterion.prompt-trace.v1")
+                put("job_id",job.id)
+                put("methodology",job.creationMode?.name?:JSONObject.NULL)
+                put("mode",job.mode.name)
+                put("model_id",model.id)
+                put("pre_render_elapsed_ms",preRenderElapsed)
+                put("compiled_model",brainPlan?.modelId?:JSONObject.NULL)
+                put("compiler_used",restoredCompilation!=null)
+                put("selected_sheet_ids",JSONArray(job.sheetIds))
+                put("native_stage_prompts",JSONArray().apply{
+                    recipe.passes.forEach{stage ->
+                        put(JSONObject().apply{
+                            put("number",stage.number)
+                            put("positive",stage.positive)
+                            put("negative",stage.negative)
+                            put("denoise",stage.denoise.toDouble())
+                        })
+                    }
+                })
+                put("source_data_preserved",true)
+                put("pre_native_checkpoint",true)
+            }
+            val promptTracePath=File(applicationContext.filesDir,
+                "generation-checkpoints/"+job.id+"/native-prompt-trace.json")
+            GeneratedImagePublisher.atomicWrite(promptTracePath,
+                promptTrace.toString(2).toByteArray(Charsets.UTF_8))
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
