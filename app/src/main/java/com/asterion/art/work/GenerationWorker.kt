@@ -430,6 +430,23 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                                 ledger.toString(2).toByteArray(Charsets.UTF_8))
                             var previous:ByteArray?=null
                             for(part in conditioning.chunks) {
+                                // A native pass may take minutes on the NPU.
+                                // WorkManager/JobScheduler and Samsung power
+                                // management may stop this work mid-triptych.
+                                // Preserve each completed pass atomically, not
+                                // only the seventh/final output.
+                                val passCheckpoint=File(intermediate,
+                                    "sheet_"+candidate+"_"+d.id+
+                                    "_conditioning_"+part.index+".png")
+                                if(passCheckpoint.isFile&&passCheckpoint.length()>1024L) {
+                                    val saved=passCheckpoint.readBytes()
+                                    check(TechnicalImageScorer.score(saved).score.isFinite()) {
+                                        "Corrupt saved conditioning pass "+part.index+
+                                            " for "+d.id
+                                    }
+                                    previous=saved
+                                    continue
+                                }
                                 val pass=GenerationPass(part.index,part.positive,
                                     part.negative,part.denoise)
                                 if(isStopped)throw CancellationException()
@@ -450,6 +467,10 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                                                     step*20/(5*totalSteps),
                                                 count*100,progressStage)
                                     },referencePngs=referenceInputs)
+                                // Complete the atomic checkpoint before
+                                // advancing the next diffusion pass. A restart
+                                // now resumes from this exact verified image.
+                                GeneratedImagePublisher.atomicWrite(passCheckpoint,result.png)
                                 previous=result.png
                             }
                             val completed=previous?:
