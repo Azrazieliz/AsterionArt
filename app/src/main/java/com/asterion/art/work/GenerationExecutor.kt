@@ -42,7 +42,6 @@ import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.DesignPreviewCrops
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.methodology.DetailedMethodologies
-import com.asterion.art.engine.ConditioningSchedule
 import com.asterion.art.engine.GenerationRecipe
 import com.asterion.art.engine.GenerationPass
 import com.asterion.art.engine.SheetTextReader
@@ -394,8 +393,11 @@ internal class GenerationExecutor(
                     val tiles=(0 until CharacterPhaseOne.PER_SHEET).map{cell ->
                         if(stopped())throw CancellationException("Generation cancelled")
                         val d=characterPlan.frozen[(candidate-1)*5+cell]
+                        // A frozen identity is one COMPLETE native image instruction.
+                        // Do not replay slices of its anatomy as separate img2img jobs.
+                        // v2 checkpoint paths avoid reusing old sliced-prompt results.
                         val checkpoint=File(intermediate,
-                            "sheet_"+candidate+"_"+d.id+"_triptych.png")
+                            "unified_v2_sheet_"+candidate+"_"+d.id+"_triptych.png")
                         val triptych=if(checkpoint.isFile && checkpoint.length()>1024L) {
                             val existing=checkpoint.readBytes()
                             check(TechnicalImageScorer.score(existing).score.isFinite())
@@ -403,89 +405,34 @@ internal class GenerationExecutor(
                         } else {
                             thermalGate()
                             val directive=CharacterSheetCompiler.individual(d)
-                            val identityAnchor=
-                                "Continue SAME frozen character "+d.id+
-                                " with exact concept anatomy "+
-                                d.primary.joinToString(" x "){it.name}+
-                                ". Never change body, facial identity, appendage roots, "+
-                                "clinical white field, or 2D illustration style.\n"
-                            val conditioning=ConditioningSchedule.compile(
-                                directive,CharacterPhaseOne.NEGATIVE,
-                                engine::inspectText,continuationHeader=identityAnchor)
-                            val ledger=JSONObject().apply{
-                                put("schema","asterion.character-triptych-conditioning.v1")
-                                put("job_id",job.id)
-                                put("character",d.id)
-                                put("native_image_encoder_expanded",false)
-                                put("chunks",JSONArray(conditioning.chunks.map{part->
-                                    JSONObject().put("index",part.index)
-                                        .put("tokens",part.verifiedTokens)
-                                        .put("limit",part.verifiedLimit)
-                                        .put("positive",part.positive)
-                                }))
-                            }
-                            GeneratedImagePublisher.atomicWrite(
-                                File(intermediate,"sheet_"+candidate+"_"+d.id+"_tokens.json"),
-                                ledger.toString(2).toByteArray(Charsets.UTF_8))
-                            var previous:ByteArray?=null
-                            for(part in conditioning.chunks) {
-                                // A native pass may take minutes on the NPU.
-                                // WorkManager/JobScheduler and Samsung power
-                                // management may stop this work mid-triptych.
-                                // Preserve each completed pass atomically, not
-                                // only the seventh/final output.
-                                val passCheckpoint=File(intermediate,
-                                    "sheet_"+candidate+"_"+d.id+
-                                    "_conditioning_"+part.index+".png")
-                                if(passCheckpoint.isFile&&passCheckpoint.length()>1024L) {
-                                    val saved=passCheckpoint.readBytes()
-                                    check(TechnicalImageScorer.score(saved).score.isFinite()) {
-                                        "Corrupt saved conditioning pass "+part.index+
-                                            " for "+d.id
-                                    }
-                                    previous=saved
-                                    continue
-                                }
-                                val pass=GenerationPass(part.index,part.positive,
-                                    part.negative,part.denoise)
-                                if(stopped())throw CancellationException()
-                                engine.verifyText(pass.positive)
-                                if(pass.negative.isNotBlank())
-                                    engine.verifyText(pass.negative)
-                                val progressStage="Sheet "+candidate+"/"+count+
-                                    " · identity "+d.id+
-                                    " · conditioning "+part.index+"/"+conditioning.chunks.size
-                                foreground(progressStage)
-                                val passStarted=android.os.SystemClock.elapsedRealtime()
-                                val result=engine.generate(pass,nativeSettings,
-                                    resolution.first,resolution.second,previous,
-                                    seed+cell*104729L+part.index,
-                                    {stopped()},{step,totalSteps->
-                                        if(totalSteps>0&&step>=0&&step%4==0)
-                                            repo.updateTaskProgress(taskId,
-                                                (candidate-1)*100+cell*20+
-                                                    step*20/(5*totalSteps),
-                                                count*100,progressStage)
-                                    },referencePngs=referenceInputs)
-                                // Complete the atomic checkpoint before
-                                // advancing the next diffusion pass. A restart
-                                // now resumes from this exact verified image.
-                                GeneratedImagePublisher.atomicWrite(passCheckpoint,result.png)
-                                val duration=android.os.SystemClock.elapsedRealtime()-passStarted
-                                val metrics=File(intermediate,"native-pass-timings.tsv")
-                                GeneratedImagePublisher.atomicWrite(metrics,
-                                    (metrics.takeIf{it.exists()}?.readText().orEmpty()+
-                                        d.id+"\t"+part.index+"\t"+duration+"\n")
-                                        .toByteArray(Charsets.UTF_8))
-                                previous=result.png
-                            }
-                            val completed=previous?:
-                                error("Native model did not produce "+d.id)
-                            GeneratedImagePublisher.atomicWrite(checkpoint,completed)
-                            completed
+                            engine.verifyText(directive)
+                            engine.verifyText(CharacterPhaseOne.NEGATIVE)
+                            if(stopped())throw CancellationException()
+                            val stageLabel="Sheet "+candidate+"/"+count+
+                                " · identity "+d.id+" · complete native prompt"
+                            foreground(stageLabel)
+                            val started=android.os.SystemClock.elapsedRealtime()
+                            val result=engine.generate(
+                                GenerationPass(1,directive,CharacterPhaseOne.NEGATIVE,1f),
+                                nativeSettings,resolution.first,resolution.second,
+                                null,seed+cell*104729L+1,
+                                {stopped()},{step,totalSteps->
+                                    if(totalSteps>0&&step>=0&&step%4==0)
+                                        repo.updateTaskProgress(taskId,
+                                            (candidate-1)*100+cell*20+
+                                                step*20/(5*totalSteps),
+                                            count*100,stageLabel)
+                                },referencePngs=referenceInputs)
+                            GeneratedImagePublisher.atomicWrite(checkpoint,result.png)
+                            val duration=android.os.SystemClock.elapsedRealtime()-started
+                            val metrics=File(intermediate,"native-unified-pass-timings.tsv")
+                            GeneratedImagePublisher.atomicWrite(metrics,
+                                (metrics.takeIf{it.exists()}?.readText().orEmpty()+
+                                    d.id+"\t1\t"+duration+"\n").toByteArray(Charsets.UTF_8))
+                            result.png
                         }
                         val published=File(intermediate,
-                            "sheet_"+candidate+"_"+d.id+"_preview.uri")
+                            "unified_v2_sheet_"+candidate+"_"+d.id+"_preview.uri")
                         if(!published.isFile) {
                             // Progressive gallery output: expose each completed,
                             // newly generated triptych before the full five-
@@ -507,7 +454,7 @@ internal class GenerationExecutor(
                 var current: ByteArray? = originalImage
                 for (stage in stageSequence) {
                     if (stopped()) throw CancellationException()
-                    val path = File(intermediate, "candidate_" + candidate +
+                    val path = File(intermediate, "unified_v2_candidate_" + candidate +
                         "_pass_" + stage.number + ".png")
                     if (path.isFile && path.length() > 100) {
                         current = path.readBytes()
@@ -534,60 +481,24 @@ internal class GenerationExecutor(
                         stage.copy(positive=characterPlan.prompts[candidate-1],
                             negative=CharacterPhaseOne.NEGATIVE)
                     else stage
-                    // Measure native conditioning after the exact final
-                    // methodology and sheet prompt has been compiled.
-                    val schedule=ConditioningSchedule.compile(
-                        methodStage.positive,methodStage.negative,engine::inspectText)
-                    if(schedule.chunks.size>1) {
-                        val ledger=JSONObject().apply {
-                            put("schema","asterion.conditioning-schedule.v1")
-                            put("model",model.name)
-                            put("job_id",job.id)
-                            put("candidate",candidate)
-                            put("stage",stage.number)
-                            put("not_extended_cross_attention",true)
-                            put("chunks",JSONArray(schedule.chunks.map { chunk ->
-                                JSONObject().put("index",chunk.index)
-                                    .put("count",chunk.verifiedTokens)
-                                    .put("limit",chunk.verifiedLimit)
-                                    .put("positive",chunk.positive)
-                            }))
-                        }
-                        GeneratedImagePublisher.atomicWrite(
-                            File(intermediate,"candidate_"+candidate+"_pass_"+
-                                stage.number+"_conditioning.json"),
-                            ledger.toString(2).toByteArray(Charsets.UTF_8))
-                    }
-                    schedule.chunks.forEach { chunk ->
-                        if(stopped())throw CancellationException()
-                        val actual=methodStage.copy(
-                            positive=chunk.positive,negative=chunk.negative,
-                            denoise=if(chunk.index==1)methodStage.denoise
-                                else minOf(methodStage.denoise,chunk.denoise))
-                        engine.verifyText(actual.positive)
-                        if(actual.negative.isNotBlank())
-                            engine.verifyText(actual.negative)
-                        val result=engine.generate(
-                            actual,candidateSettings,resolution.first,resolution.second,
-                            current,seed+chunk.index-1,{stopped()},{step,totalSteps->
-                                if(totalSteps>0 && step>=0 && step%3==0) {
-                                    repo.updateTaskProgress(taskId,
-                                        (candidate-1)*passesPerCandidate*100+
+                    // Every native call sees the complete methodology/Artwork
+                    // stage prompt. Native tokenizer capacity is a real limit,
+                    // NOT increased by feeding consecutive prompt fragments.
+                    if(stopped())throw CancellationException()
+                    engine.verifyText(methodStage.positive)
+                    if(methodStage.negative.isNotBlank())
+                        engine.verifyText(methodStage.negative)
+                    val result=engine.generate(
+                        methodStage,candidateSettings,resolution.first,resolution.second,
+                        current,seed,{stopped()},{step,totalSteps->
+                            if(totalSteps>0&&step>=0&&step%3==0)
+                                repo.updateTaskProgress(taskId,
+                                    (candidate-1)*passesPerCandidate*100+
                                         (stage.number-1)*100+(step*100/totalSteps),
-                                        (count*passesPerCandidate+2)*100,
-                                        stageLabel+" · conditioning "+
-                                            chunk.index+"/"+schedule.chunks.size)
-                                }
-                            },referencePngs=referenceInputs)
-                        current=result.png
-                        if(schedule.chunks.size>1) {
-                            GeneratedImagePublisher.atomicWrite(
-                                File(intermediate,"candidate_"+candidate+"_pass_"+
-                                    stage.number+"_chunk_"+chunk.index+".png"),result.png)
-                        }
-                    }
-                    GeneratedImagePublisher.atomicWrite(path,
-                        current ?: error("No rendered image from native pass"))
+                                    (count*passesPerCandidate+2)*100,stageLabel)
+                        },referencePngs=referenceInputs)
+                    current=result.png
+                    GeneratedImagePublisher.atomicWrite(path,result.png)
                     taskProgress(candidate,stage.number)
                 }
                     current ?: error("No image produced")
@@ -632,7 +543,7 @@ internal class GenerationExecutor(
                             "Missing frozen Character Creation identity D"+ordinal
                         }
                         val full=File(intermediate,
-                            "sheet_"+candidate+"_"+design.id+"_triptych.png")
+                            "unified_v2_sheet_"+candidate+"_"+design.id+"_triptych.png")
                         require(full.isFile&&full.length()>1024L) {
                             "Full-resolution character image missing: "+design.id
                         }
