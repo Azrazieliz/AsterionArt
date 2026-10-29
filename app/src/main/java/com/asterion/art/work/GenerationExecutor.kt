@@ -224,8 +224,11 @@ internal class GenerationExecutor(
                 null else if(neural.available()) {
                 foreground("Asterion Brain · interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
-                val spec=job.creationMode?.let {
-                    DetailedMethodologies.all[it]?.rendererDirective
+                val spec=job.creationMode?.let { selected ->
+                    if(selected==CreationMode.CHARACTER)
+                        DetailedMethodologies.all.getValue(selected).rendererDirective
+                    else com.asterion.art.methodology.MethodologyAuthority
+                        .originalText(applicationContext,selected)
                 }.orEmpty()
                 val catalogue=job.creationMode?.let {
                     DetailedMethodologies.all[it]?.catalogue?.designsPerImage
