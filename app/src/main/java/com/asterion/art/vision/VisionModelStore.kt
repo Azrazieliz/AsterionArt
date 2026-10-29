@@ -6,21 +6,24 @@ import com.asterion.art.data.GeneratedImagePublisher
 import java.io.File
 import java.security.MessageDigest
 
-/** Pinned public Apache-2.0 official Qwen3-VL-2B GGUF pair. */
+/** Pinned public Apache-2.0 official Gemma 3-2B GGUF pair. */
 data class VisionWeight(
     val name:String,val bytesMax:Long,val sha256:String
 ) {
     val url:String get()=
-        "https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct-GGUF/resolve/main/"+
+        "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/"+
             name+"?download=true"
 }
 object VisionCatalog {
+    // The SAME Gemma 3 family is used for design reasoning and pixel vision.
+    // Separately validated GGUF + matching F16 projector, never substituted
+    // with an unrelated architecture or the old Gemma vision pair.
     val language=VisionWeight(
-        "Qwen3VL-2B-Instruct-Q4_K_M.gguf",1_107_409_952L,
-        "089d75c52f4b7ffc56ba998ffc50aae89fcafc755f9e7208aacca281dca6c2ae")
+        "google_gemma-3-4b-it-Q4_K_M.gguf",2_800_000_000L,
+        "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94")
     val projector=VisionWeight(
-        "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf",445_053_216L,
-        "f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82")
+        "mmproj-google_gemma-3-4b-it-f16.gguf",1_000_000_000L,
+        "8c0fb064b019a6972856aaae2c7e4792858af3ca4561be2dbf649123ba6c40cb")
     val all=listOf(language,projector)
 }
 data class VisionInstalledPair(val language:File,val projector:File)
@@ -28,15 +31,15 @@ class VisionModelStore(context:Context) {
     private val app=context.applicationContext
     private val roots=(app.getExternalFilesDirs(null).filterNotNull()
         .filter{Environment.getExternalStorageState(it)==Environment.MEDIA_MOUNTED}
-        .map{File(it,"asterion-vision-qwen3vl")}+
-        File(app.filesDir,"asterion-vision-qwen3vl"))
+        .map{File(it,"asterion-vision-gemma3")}+
+        File(app.filesDir,"asterion-vision-gemma3"))
     fun target(weight:VisionWeight):File {
         val existing=roots.map{File(it,weight.name)}
             .firstOrNull{it.isFile || File(it.path+".partial").exists()}
         if(existing!=null)return existing
         val root=roots.firstOrNull{
             (it.parentFile?.usableSpace?:0L)>weight.bytesMax+256L*1024*1024
-        } ?:error("Not enough app-owned storage to install the selected Qwen3-VL weights")
+        } ?:error("Not enough app-owned storage to install the selected Gemma 3 weights")
         root.mkdirs()
         return File(root,weight.name)
     }
