@@ -20,7 +20,7 @@ object BrainCatalog {
     val models=listOf(
         BrainWeights("gemma3_4b_q4","Gemma 3 4B IT · Q4_K_M · adaptable",
             "bartowski/google_gemma-3-4b-it-GGUF",
-            "google_gemma-3-4b-it-Q4_K_M.gguf",0L,
+            "google_gemma-3-4b-it-Q4_K_M.gguf",2489758112L,
             "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94")
     )
     fun get(id:String)=models.firstOrNull{it.id==id}
