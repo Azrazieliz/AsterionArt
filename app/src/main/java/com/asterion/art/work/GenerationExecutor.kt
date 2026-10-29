@@ -127,6 +127,16 @@ internal class GenerationExecutor(
                         repo.updateTaskProgress(taskId,0,100,stage)
                     }
             } else transcriptions
+            if(evidence.any{it.all().isEmpty()}) {
+                // An unlabelled sheet must be visually interpreted before
+                // the layered compiler can author its detailed specification.
+                // Do not claim a generic text prompt describes unseen pixels.
+                require(VisionModelStore(applicationContext).installed()!=null) {
+                    "One or more selected sheets contain no readable design text. "+
+                        "Install the matched local Gemma 3 vision projector for "+
+                        "actual image-based pre-render interpretation."
+                }
+            }
             require(job.creationMode != CreationMode.STYLE_CORRECTION ||
                 job.sourceImageUri != null) {
                 "Style correction requires a source illustration, not just a style sheet."
