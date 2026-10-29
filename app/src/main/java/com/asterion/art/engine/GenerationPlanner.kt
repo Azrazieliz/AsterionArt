@@ -88,9 +88,16 @@ object GenerationPlanner {
         // Visual metadata in the authoritative order:
         // identity, outfit+pose, theme, environment+elements, style+render+camera+lighting.
         val character = join(pieces(characters, "PRIMARY", "FACE", "EYES", "HAIR"))
+        // The owner's original Prompt Writing §5: an explicit Theme outfit
+        // prevails over the Character's default outfit. Never include both
+        // visual states as simultaneous positive instructions.
+        val themeOutfit=pieces(themes,"OUTFIT")
+        val prevailingOutfit=if(themeOutfit.isNotEmpty())themeOutfit
+            else pieces(characters,"OUTFIT")
         val outfitAndPose = join(
-            pieces(characters, "OUTFIT", "BODY", "DISTINCTIVE") +
-                pieces(themes, "POSE")
+            prevailingOutfit+
+                pieces(characters,"BODY","DISTINCTIVE")+
+                pieces(themes,"POSE","EXPRESSION")
         )
         val theme = join(pieces(themes, "PRIMARY", "VIEW"))
         val environmentAndElements = join(
@@ -107,8 +114,9 @@ object GenerationPlanner {
         require(core.isNotBlank()) { "No interpretable prompt content in selected reference images." }
 
         val positiveDetails = listOf(
-            pieces(characters, "FACE", "EYES", "HAIR", "BODY", "OUTFIT") +
-                pieces(themes, "POSE", "VIEW", "INTERACTION", "CONTACT") +
+            pieces(characters, "FACE", "EYES", "HAIR", "BODY") +
+                prevailingOutfit+
+                pieces(themes, "POSE", "EXPRESSION", "VIEW", "INTERACTION", "CONTACT") +
                 pieces(elements, "PLACEMENT", "STRUCTURE"),
             pieces(styles, "MATERIAL", "LIGHT", "COLOR") +
                 pieces(themes, "LIGHT", "ENVIRONMENT"),
