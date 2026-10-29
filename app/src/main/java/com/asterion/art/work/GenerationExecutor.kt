@@ -284,39 +284,33 @@ internal class GenerationExecutor(
                     }
                 }
             }
-            if (capacityCheck.isFailure && model.ditKind != "qwen21" &&
-                model.ditKind != "klein" && visualModel != null) {
-                // Don't truncate authoritative prompt text. Switch to a genuine
-                // reference-conditioned engine instead of dropping source facts.
-                model = visualModel
-                recipe = if(characterPlan!=null) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
-                        CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
-                else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,job.designPrompt,
-                        job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
-                else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
-                    GenerationPlanner.compileConcepts(
-                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
-                else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
-                    job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
-                size = model.generationSize.coerceIn(512, 1536)
-                // A fallback QNN engine must preserve the narrow, upright
-                // individual-character triptych, never switch to the final
-                // 16:9 five-character sheet's landscape resolution.
-                resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
-                    .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
-                foreground("Prompt exceeded text context; using " + model.name + " visual conditioning")
-                engine.prepare(model, resolution.first, resolution.second) { stopped() }
-                recipe.passes.forEach { pass ->
-                    check(engine.inspectText(pass.positive).limit>0) {
-                        "Selected model does not report native token capacity"
+            if (capacityCheck.isFailure && model.ditKind !in setOf("qwen21","klein")
+                && visualModel != null && visualModel.id!=model.id) {
+                // Switch only the native backend. The complete approved prompt,
+                // methodologies, source evidence and neural design stay frozen.
+                // Recompiling a different, shorter fallback loses the exact
+                // conditions whose overflow triggered this branch.
+                val originalFailure=capacityCheck.exceptionOrNull()
+                val replacementModel=visualModel
+                val oldModel=model
+                foreground("Verifying complete prompt on "+replacementModel.name)
+                model=replacementModel
+                resolution=com.asterion.art.nativeengine.NativeResolutionPolicy.choose(
+                    model,if(characterPlan!=null)"16:45" else job.settings.ratio)
+                try {
+                    engine.prepare(model,resolution.first,resolution.second) { stopped() }
+                    recipe.passes.forEach { pass ->
+                        engine.verifyText(pass.positive)
+                        if(pass.negative.isNotBlank())engine.verifyText(pass.negative)
                     }
+                } catch(error:Throwable) {
+                    throw com.asterion.art.engine.BackendUnavailable(
+                        "Neither "+oldModel.name+" nor "+replacementModel.name+
+                            " can condition on the complete frozen specification. "+
+                            "First backend: "+(originalFailure?.message?:"unknown")+
+                            "; replacement: "+(error.message?:"unknown"))
                 }
             } else {
-                // An image-model context overflow is a hard failure. Never
-                // ignore the tokenizer error and run diffusion with omitted
-                // character, scene or methodology instructions.
                 capacityCheck.getOrThrow()
             }
             val extraOriginal = job.sourceImageUri?.let { uri ->
