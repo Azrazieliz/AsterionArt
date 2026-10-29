@@ -1,5 +1,7 @@
 package com.asterion.art.brain
 
+import com.asterion.art.engine.NegativePromptAuthority
+
 /**
  * Validates the actual model answer before it is allowed to condition a
  * diffusion model. No raw generated prose is silently promoted to a prompt.
@@ -30,7 +32,7 @@ object StructuredPlanOutput {
             }
             return Result(
                 sheets.joinToString("\n\n"),
-                section(output,"NEGATIVE").ifBlank { baseNegative },
+                NegativePromptAuthority.merge(baseNegative,section(output,"NEGATIVE")),
                 sheets,
             )
         }
@@ -40,7 +42,7 @@ object StructuredPlanOutput {
         }
         return Result(
             positive,
-            section(output,"NEGATIVE").ifBlank { baseNegative },
+            NegativePromptAuthority.merge(baseNegative,section(output,"NEGATIVE")),
             emptyList(),
         )
     }
