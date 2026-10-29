@@ -13,8 +13,9 @@ from pathlib import Path
 import re
 import subprocess
 
-ORIGINAL_P12_SHA256 = "5a62e4254f13aaed0cf45586dc130735ae743bf8af8fec6a94a7c3e53edddef"
-REQUIRED_ALIAS = "asterion-art-release"
+ORIGINAL_P12_SHA256 = "90f19f1436cd0617b55ad0b35eaaae846e07e01e260571fa12a326bbf05e8864"
+REQUIRED_ALIAS = "asterion-art-persistent-20261028"
+REQUIRED_CERT_SHA256 = "b0263c37c9f4ae40423e30d275b6c8af0b777ed223d01e3fff1a114a43707ede"
 
 
 def keystore_matches_original(file: Path) -> bool:
@@ -69,8 +70,9 @@ def verify_apk(apk:Path,keystore:Path,apksigner:Path) -> str:
                  "-storetype","PKCS12","-storepass:env",
                  "ASTERION_RELEASE_PASSWORD","-alias",REQUIRED_ALIAS])
     source_fingerprint=digest_from_keytool(identity)
-    if signed_fingerprint!=source_fingerprint:
-        raise ValueError("APK was NOT signed by the original release identity")
+    if (signed_fingerprint!=source_fingerprint or
+        signed_fingerprint!=REQUIRED_CERT_SHA256):
+        raise ValueError("APK was NOT signed by the installed persistent release identity")
     return signed_fingerprint
 
 
