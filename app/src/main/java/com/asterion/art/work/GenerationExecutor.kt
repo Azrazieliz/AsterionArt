@@ -505,6 +505,21 @@ internal class GenerationExecutor(
                                 CharacterPhaseOne.NEGATIVE,recipe.passes.first().negative,
                                 job.designNegative,job.userNegativePrompt)
                             engine.verifyText(finalNegative)
+                            val actualPromptTrace=File(intermediate,
+                                "actual-native-stage-inputs.jsonl")
+                            val invocation=JSONObject().apply {
+                                put("candidate",candidate)
+                                put("identity",d.id)
+                                put("stage",1)
+                                put("model",model.id)
+                                put("positive",directive)
+                                put("negative",finalNegative)
+                                put("denoise",1.0)
+                                put("seed",seed+cell*104729L+1)
+                            }
+                            GeneratedImagePublisher.atomicWrite(actualPromptTrace,
+                                (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
+                                    invocation.toString()+"\n").toByteArray(Charsets.UTF_8))
                             if(stopped())throw CancellationException()
                             val stageLabel="Sheet "+candidate+"/"+count+
                                 " · identity "+d.id+" · complete native prompt"
@@ -599,6 +614,22 @@ internal class GenerationExecutor(
                     // stage prompt. Native tokenizer capacity is a real limit,
                     // NOT increased by feeding consecutive prompt fragments.
                     if(stopped())throw CancellationException()
+                    // Record the EXACT stage inputs, after all overrides, before
+                    // the native call. The early trace holds only the recipe.
+                    val actualPromptTrace=File(intermediate,
+                        "actual-native-stage-inputs.jsonl")
+                    val invocation=JSONObject().apply {
+                        put("candidate",candidate)
+                        put("stage",stage.number)
+                        put("model",model.id)
+                        put("positive",methodStage.positive)
+                        put("negative",methodStage.negative)
+                        put("denoise",methodStage.denoise.toDouble())
+                        put("seed",seed)
+                    }
+                    GeneratedImagePublisher.atomicWrite(actualPromptTrace,
+                        (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
+                            invocation.toString()+"\n").toByteArray(Charsets.UTF_8))
                     engine.verifyText(methodStage.positive)
                     if(methodStage.negative.isNotBlank())
                         engine.verifyText(methodStage.negative)
