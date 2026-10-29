@@ -105,7 +105,12 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
             activePlanId=created.id
             plan=created
             error=null
-            CharacterPreparationService.enqueue(context,created.id)
+            try {
+                CharacterPreparationService.enqueue(context,created.id)
+            } catch(e:Exception) {
+                store.fail(created.id,"Could not start foreground inference: "+e.message)
+                throw e
+            }
             savedPlans=store.recent()
         }.onFailure{error=it.message}
     }
@@ -304,7 +309,12 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                             plan=resume
                             error=null
                             attempt++
-                            CharacterPreparationService.enqueue(context,id)
+                            try {
+                                CharacterPreparationService.enqueue(context,id)
+                            } catch(e:Exception) {
+                                store.fail(id,"Could not resume foreground inference: "+e.message)
+                                throw e
+                            }
                             savedPlans=store.recent()
                         }.onFailure{error=it.message}
                     }){
