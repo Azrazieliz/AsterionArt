@@ -231,8 +231,7 @@ internal class GenerationExecutor(
             if(restoredCompilation!=null) {
                 recipe=recipe.copy(passes=recipe.passes.map { stage ->
                     stage.copy(
-                        positive=stage.positive+"\n\nORIGINAL VALIDATED COMPILER:\n"+
-                            restoredCompilation.text,
+                        positive=stage.positive+"\n\n"+restoredCompilation.text,
                         negative=listOf(stage.negative,restoredCompilation.negatives)
                             .filter{it.isNotBlank()}.distinct().joinToString(", ")
                     )
