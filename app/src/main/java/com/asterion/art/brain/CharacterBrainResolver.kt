@@ -16,7 +16,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -82,9 +82,27 @@ class CharacterBrainResolver(context:Context) {
                     require(tokens+maxOutput+160<context){
                         "Full concept evidence exceeds available local Qwen3 context"
                     }
-                    withTimeout(25L*60_000L){
-                        engine.sendUserPrompt(question,maxOutput).toList().joinToString("")
-                    }.trim().also{require(it.isNotEmpty()){"Empty neural design evidence"}}
+                    // TTFT includes native prompt prefill and first-token decode.
+                    // Stage stream duration excludes prompt processing.
+                    val started=System.nanoTime()
+                    var firstTokenAt:Long?=null
+                    val response=StringBuilder()
+                    try {
+                        withTimeout(25L*60_000L) {
+                            engine.sendUserPrompt(question,maxOutput).collect{piece->
+                                if(firstTokenAt==null)firstTokenAt=System.nanoTime()
+                                response.append(piece)
+                            }
+                        }
+                    } finally {
+                        val ended=System.nanoTime()
+                        val first=firstTokenAt
+                        timings.recordDuration(stage+"_ttft",(first?:ended)-started)
+                        if(first!=null)timings.recordDuration(stage+"_stream",ended-first)
+                    }
+                    response.toString().trim().also {
+                        require(it.isNotEmpty()){"Empty neural design evidence"}
+                    }
                 }
             val requestContext=currentCoroutineContext()
             DeviceInferenceGate.acquire{!requestContext.isActive}
