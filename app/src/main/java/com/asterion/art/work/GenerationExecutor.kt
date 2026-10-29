@@ -420,7 +420,8 @@ internal class GenerationExecutor(
                             "unified_v2_sheet_"+candidate+"_"+d.id+"_triptych.png")
                         val triptych=if(checkpoint.isFile && checkpoint.length()>1024L) {
                             val existing=checkpoint.readBytes()
-                            check(TechnicalImageScorer.score(existing).score.isFinite())
+                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                existing,"Restored frozen character "+d.id)
                             existing
                         } else {
                             thermalGate()
@@ -443,6 +444,8 @@ internal class GenerationExecutor(
                                                 step*20/(5*totalSteps),
                                             count*100,stageLabel)
                                 },referencePngs=referenceInputs)
+                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                result.png,"Frozen character "+d.id)
                             GeneratedImagePublisher.atomicWrite(checkpoint,result.png)
                             val duration=android.os.SystemClock.elapsedRealtime()-started
                             val metrics=File(intermediate,"native-unified-pass-timings.tsv")
@@ -477,7 +480,12 @@ internal class GenerationExecutor(
                     val path = File(intermediate, "unified_v2_candidate_" + candidate +
                         "_pass_" + stage.number + ".png")
                     if (path.isFile && path.length() > 100) {
-                        current = path.readBytes()
+                        val saved=path.readBytes()
+                        // Never reuse a stale checkpoint containing blank results.
+                        if (stage.number == stageSequence.last().number)
+                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                saved,"Restored rendered candidate "+candidate)
+                        current=saved
                         continue
                     }
                     thermalGate()
@@ -523,6 +531,8 @@ internal class GenerationExecutor(
                 }
                     current ?: error("No image produced")
                 }
+                com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                    image,"Generated candidate "+candidate)
                 val technical = TechnicalImageScorer.score(image)
                 if (technical.score > technicalLeaderScore) {
                     technicalLeaderScore = technical.score
