@@ -91,7 +91,7 @@ class DeterministicCompilationPipelineTest {
     }
 
     @Test
-    fun `art style sheet remains eligible in every slot when sufficient semantic data exists`() {
+    fun `style-only worksheet cannot impersonate Character or Theme authority`() {
         val testSheetSource = PngWorksheetSource(
             pngWithText(listOf(
                 "asterion.ocr.transcript" to """
@@ -151,15 +151,21 @@ class DeterministicCompilationPipelineTest {
             pipeline.compile(artStyleSlotRequest) to "Art Style slot",
         )
 
-        results.forEach { (result, slotName) ->
-            assertTrue("$slotName should generate, but got $result", result is WorksheetCompilationResult.Generated)
-            val generated = result as WorksheetCompilationResult.Generated
-            assertTrue("$slotName should still record unknown section telemetry", generated.parsedWorksheets.any { it.unknownSections.isNotEmpty() })
-            assertTrue(
-                "$slotName should not block on unknown sections",
-                generated.compilation.validationReport.issues.none { it.code == "UNKNOWN_WORKSHEET_SECTION" && it.severity != com.asterion.compiler.validation.ValidationSeverity.INFORMATIONAL },
-            )
+        // Roles are binding authorities. Style-specific information must
+        // never be silently treated as a character identity or scene.
+        for ((result, slotName) in results.take(2)) {
+            assertTrue("$slotName must reject unrelated style-only evidence",
+                result is WorksheetCompilationResult.Blocked)
         }
+        val (styleResult, styleSlot) = results.last()
+        assertTrue("$styleSlot should compile, got $styleResult",
+            styleResult is WorksheetCompilationResult.Generated)
+        val generated = styleResult as WorksheetCompilationResult.Generated
+        assertTrue(generated.parsedWorksheets.any { it.unknownSections.isNotEmpty() })
+        assertTrue(generated.compilation.validationReport.issues.none {
+            it.code == "UNKNOWN_WORKSHEET_SECTION" &&
+                it.severity != com.asterion.compiler.validation.ValidationSeverity.INFORMATIONAL
+        })
     }
 
     @Test
