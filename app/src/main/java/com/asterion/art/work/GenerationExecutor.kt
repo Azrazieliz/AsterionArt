@@ -468,6 +468,8 @@ internal class GenerationExecutor(
                 characterPlan!=null
             val stageSequence = if (oneShotCharacterSheet)
                 listOf(recipe.passes.first()) else recipe.passes
+            if(job.creationMode==null && !oneShotCharacterSheet)
+                com.asterion.art.engine.ArtworkFivePhaseContract.validate(stageSequence)
             val passesPerCandidate = stageSequence.size
             repo.updateTaskProgress(taskId,0,(count*passesPerCandidate+2)*100,"Beginning generation")
             for (candidate in 1..count) {
@@ -551,7 +553,11 @@ internal class GenerationExecutor(
                 var current: ByteArray? = originalImage
                 for (stage in stageSequence) {
                     if (stopped()) throw CancellationException()
-                    val path = File(intermediate, "unified_v2_candidate_" + candidate +
+                    // Do not reuse checkpoints produced under the former
+                    // anonymous five-pass sequence.
+                    val version=if(job.creationMode==null && !oneShotCharacterSheet)
+                        "owner23_artwork_v1_" else "unified_v2_"
+                    val path = File(intermediate, version+"candidate_" + candidate +
                         "_pass_" + stage.number + ".png")
                     if (path.isFile && path.length() > 100) {
                         val saved=path.readBytes()
@@ -565,7 +571,10 @@ internal class GenerationExecutor(
                     thermalGate()
                     val stageLabel = "Image " + candidate + "/" + count +
                         (if(oneShotCharacterSheet) " · one-shot master sheet"
-                         else " · native pass " + stage.number + "/" + stageSequence.size)
+                         else if(job.creationMode==null && stageSequence.size==5)
+                             " · "+com.asterion.art.engine.ArtworkFivePhaseContract
+                                 .at(stage.number).name+" · pass "+stage.number+"/5"
+                         else " · original "+stage.number+"/"+stageSequence.size)
                     repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
@@ -796,6 +805,13 @@ internal class GenerationExecutor(
                 put("character_render_method",if(characterPlan!=null)
                     "five_separate_frozen_identity_triptychs_composited_white_16_9"
                     else JSONObject.NULL)
+                put("owner_artwork_five_phase_definitions_restored",true)
+                put("artwork_phase_order",JSONArray().apply {
+                    if(job.creationMode==null && !oneShotCharacterSheet)
+                        com.asterion.art.engine.ArtworkFivePhaseContract.order.forEach{
+                            put(it.name)
+                        }
+                })
                 put("owner_artwork_five_phase_contract_verified",false)
                 put("native_image_encoder_expanded",false)
                 put("methodology_certified", false)
