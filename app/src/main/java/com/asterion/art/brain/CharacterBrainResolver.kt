@@ -266,33 +266,27 @@ class CharacterBrainResolver(context:Context) {
                             pairs+=PairwisePhysicalFusion(first,second,mechanism)
                             continue
                         }
-                        val response=runCatching {
-                            CharacterOutputSchema.parseObject(answer(
-                                "Return exactly one JSON object with key pairwise "+
-                                "whose value is an ARRAY of "+group.size+
-                                " objects. Every object must have STRING keys "+
-                                "first, second and mechanism. Mechanism must be "+
-                                "at least 65 characters of concrete, shared "+
-                                "physical anatomy; no labels, metaphors, icons "+
-                                "or decorative attachment substitutes. The "+
-                                "primary names must match exactly. REQUIRED PAIRS:\n"+
-                                specification+"\nFROZEN DESIGN:\n"+narrative+
-                                "\n",minOf(1000,context/4),"pairwise_batch"))
-                        }.onFailure{if(it is kotlinx.coroutines.CancellationException)throw it}
-                            .getOrNull()?.optJSONArray("pairwise")
+                        // Author a complete verified batch once. Repeating
+                        // a separate model call for every failed pair caused
+                        // substantial unattended stalls and identity drift.
+                        val response=CharacterOutputSchema.parseObject(answer(
+                            "Return exactly one JSON object with key pairwise "+
+                            "whose value is an ARRAY of "+group.size+
+                            " objects. Every object has STRING keys first, "+
+                            "second and mechanism. Each mechanism must detail "+
+                            "at least 65 characters of concrete physical anatomy "+
+                            "that integrates BOTH concepts with no decorative "+
+                            "substitution. Required pairs:\n"+
+                            specification+"\nFROZEN DESIGN:\n"+narrative+"\n",
+                            minOf(1000,context/4),"pairwise_batch"))
+                            .optJSONArray("pairwise")
                         for((first,second) in group) {
                             val mechanism=CharacterOutputSchema.validMechanism(
-                                response,first,second)?:
-                                answer(
-                                    "Write ONLY a concrete 90+ character shared "+
-                                    "physical anatomical mechanism for "+first+
-                                    " AND "+second+" within THIS frozen female "+
-                                    "character. No metaphor or decorative "+
-                                    "substitution.\nIDENTITY:\n"+narrative+
-                                    "\n",minOf(400,context/6),"pairwise_repair")
-                            require(mechanism.trim().length>=65){
-                                selection.id+": unresolved physical fusion "+
-                                    first+" + "+second
+                                response,first,second)
+                            require(!mechanism.isNullOrBlank()) {
+                                selection.id+": invalid physical fusion of "+
+                                    first+" + "+second+
+                                    "; original methodology not satisfied."
                             }
                             pairs+=PairwisePhysicalFusion(first,second,mechanism)
                         }
