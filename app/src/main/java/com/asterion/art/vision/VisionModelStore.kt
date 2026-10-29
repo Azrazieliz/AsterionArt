@@ -19,10 +19,10 @@ object VisionCatalog {
     // Separately validated GGUF + matching F16 projector, never substituted
     // with an unrelated architecture or the old Gemma vision pair.
     val language=VisionWeight(
-        "google_gemma-3-4b-it-Q4_K_M.gguf",2_800_000_000L,
+        "google_gemma-3-4b-it-Q4_K_M.gguf",2_489_758_112L,
         "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94")
     val projector=VisionWeight(
-        "mmproj-google_gemma-3-4b-it-f16.gguf",1_000_000_000L,
+        "mmproj-google_gemma-3-4b-it-f16.gguf",851_251_104L,
         "8c0fb064b019a6972856aaae2c7e4792858af3ca4561be2dbf649123ba6c40cb")
     val all=listOf(language,projector)
 }
