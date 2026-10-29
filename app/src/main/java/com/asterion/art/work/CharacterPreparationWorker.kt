@@ -15,6 +15,7 @@ import androidx.work.WorkerParameters
 import com.asterion.art.brain.CharacterBrainResolver
 import com.asterion.art.methodology.CharacterPlanStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import org.json.JSONObject
 
 /** Prepares an entire frozen Phase-1 population. Never calls an image backend. */
@@ -58,12 +59,32 @@ class CharacterPreparationWorker(context:Context,params:WorkerParameters):
             ready.assertComplete()
             foreground("All characters resolved; awaiting your Generate confirmation")
             Result.success()
+        } catch(e:TimeoutCancellationException) {
+            store.fail(planId,"Qwen3 request exceeded its deadline at "+
+                store.load(planId).progressStage+
+                "; previous frozen identities remain available for retry")
+            Result.failure()
         } catch(e:CancellationException) {
-            store.fail(planId,"Resolution cancelled, no image call made")
+            store.fail(planId,"Design worker cancelled by Android (stop reason "+
+                stopReason+") at "+store.load(planId).progressStage+
+                "; completed identities preserved")
             Result.failure()
         } catch(e:Exception) {
             store.fail(planId,e.message ?: "Unresolved neural character design")
             Result.failure()
+        }
+    }
+
+    override fun onStopped() {
+        super.onStopped()
+        // JobScheduler may stop long-running foreground work without the
+        // coroutine reaching catch. Retain the original plan and reason.
+        val planId=inputData.getString(KEY) ?: return
+        runCatching {
+            val store=CharacterPlanStore(applicationContext)
+            val stage=store.load(planId).progressStage
+            store.fail(planId,"Android stopped character worker (reason "+
+                stopReason+") at "+stage+"; checkpoints preserved")
         }
     }
 }
