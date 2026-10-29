@@ -41,7 +41,7 @@ data class DreamModel(
     val resolutions: List<Pair<Int, Int>>,
 )
 data class TokenCapacity(val count: Int, val limit: Int, val overflowOffset: Int) {
-    val fits: Boolean get() = (limit <= 0 || count <= limit) && overflowOffset < 0
+    val fits: Boolean get() = limit > 0 && count <= limit && overflowOffset < 0
 }
 data class GeneratedImage(val png: ByteArray, val seed: Long, val timeMs: Long)
 class BackendUnavailable(message: String): IllegalStateException(message)
