@@ -649,9 +649,10 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         sheetCounts.getOrDefault(role,0)+directReferences[role].orEmpty().size
     }
     val roleFailures=if(creationMode==null) {
-        if(sourceArtwork!=null||selected.isNotEmpty()||
-            directReferences.values.any{it.isNotEmpty()})emptyList()
-        else listOf("Select at least one source image or reference sheet")
+        listOf(SheetRole.CHARACTER,SheetRole.THEME,SheetRole.ART_STYLE)
+            .filter{counts.getOrDefault(it,0)==0}
+            .map{"Select a "+it.display+" sheet or existing "+it.display+
+                " sheet image. Create one in Sheet Creation from a reference."}
     } else MethodologyRegistry.validate(requireNotNull(creationMode),counts,
         sourceIllustration=sourceArtwork!=null)
     val ready = roleFailures.isEmpty() &&
@@ -662,8 +663,8 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     ) {
         item {
             Header("Image generator", "Artwork creation",
-                "Start from one real image, or combine character, style, theme and element references. "+
-                    "Source pixels are preserved for actual native conditioning.")
+                "Use Character, Theme and Art Style sheets, with an optional Element sheet. "+
+                    "Create sheets from individual references in Sheet Creation.")
         }
         item {
             OutlinedButton(onClick={
@@ -775,7 +776,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (ready) "Source references selected" else "No source selected", fontWeight = FontWeight.Bold)
+                    Text(if (ready) "Artwork sheet authorities ready" else "Required Artwork sheets missing", fontWeight = FontWeight.Bold)
                     Text(if (ready)
                         "Uses Asterion Art's integrated local QNN engine. A compatible installed "+
                         "image model is required; actual output is verified by rendering."
