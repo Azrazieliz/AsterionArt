@@ -46,10 +46,12 @@ object GenerationPlanner {
                              concepts: List<String>, sourceIllustration: Boolean) {
         val selected = sources.groupingBy { it.role }.eachCount()
         val errors = if (creation==null) {
-            // Artwork may begin from ONE actual image or any selected image
-            // authority; it must not require three unrelated sheet types.
-            if(sourceIllustration||sources.isNotEmpty())emptyList()
-            else listOf("Select at least one image or master-sheet reference")
+            // Artwork takes Character, Theme and Art Style sheet authorities.
+            // A single reference image belongs to Sheet Creation / editing,
+            // not an implicit replacement for the owner's three sheet roles.
+            listOf(SheetRole.CHARACTER,SheetRole.THEME,SheetRole.ART_STYLE)
+                .filter{selected.getOrDefault(it,0)==0}
+                .map{"Artwork requires a "+it.display+" sheet"}
         } else MethodologyRegistry.validate(
             creation,selected,concepts.size,sourceIllustration)
         require(errors.isEmpty()) { errors.joinToString("; ") }
