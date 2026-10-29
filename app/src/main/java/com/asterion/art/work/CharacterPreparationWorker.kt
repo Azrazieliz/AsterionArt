@@ -65,8 +65,9 @@ class CharacterPreparationWorker(context:Context,params:WorkerParameters):
                 "; previous frozen identities remain available for retry")
             Result.failure()
         } catch(e:CancellationException) {
-            store.fail(planId,"Design worker cancelled by Android (stop reason "+
-                stopReason+") at "+store.load(planId).progressStage+
+            val code=if(android.os.Build.VERSION.SDK_INT>=31)stopReason else -1
+            store.fail(planId,"Design worker cancelled (stop reason "+
+                code+") at "+store.load(planId).progressStage+
                 "; completed identities preserved")
             Result.failure()
         } catch(e:Exception) {
@@ -75,16 +76,4 @@ class CharacterPreparationWorker(context:Context,params:WorkerParameters):
         }
     }
 
-    override fun onStopped() {
-        super.onStopped()
-        // JobScheduler may stop long-running foreground work without the
-        // coroutine reaching catch. Retain the original plan and reason.
-        val planId=inputData.getString(KEY) ?: return
-        runCatching {
-            val store=CharacterPlanStore(applicationContext)
-            val stage=store.load(planId).progressStage
-            store.fail(planId,"Android stopped character worker (reason "+
-                stopReason+") at "+stage+"; checkpoints preserved")
-        }
-    }
 }
