@@ -37,9 +37,8 @@ data class NeuralDesignPlan(
 /**
  * Real inference: Qwen3 GGUF is loaded in CPU memory and released BEFORE QNN.
  *
- * Stage 1 interprets selected canonical knowledge.
- * Stage 2 authors distinct structures and interactions using learned preferences.
- * Stage 3 compiles fully detailed prompts appropriate to the output domain.
+ * One bounded inference receives the complete canonical input and user feedback.
+ * Deterministic collection/validation occurs before native generation.
  *
  * Not model-weight training; that is handled by the separate training pipeline.
  */
@@ -120,7 +119,7 @@ class AsterionReasoner(context:Context) {
         val engine=AiChat.getInferenceEngine(app)
         val contextSize=contextForRam()
         suspend fun answer(prompt:String,n:Int):String {
-            return withTimeout(25*60*1000L) {
+            return withTimeout(6*60*1000L) {
                 engine.sendUserPrompt(prompt,n).toList().joinToString("").trim()
             }.also { require(it.isNotBlank()) { "Neural planner generated no text" } }
         }
@@ -153,109 +152,45 @@ class AsterionReasoner(context:Context) {
                 "POSITIVE AUTHORITY:\n"+basePositive,
                 "NEGATIVE AUTHORITY:\n"+baseNegative
             ).joinToString("\n\n")
-            // No reason to ask the model to re-summarize all authority when
-            // the *unaltered* evidence fits the native Qwen context. This
-            // used to add a full CPU inference pass even to simple tasks.
-            val directAuthority=engine.countTokens(authority)+256<
-                contextSize/2
-            val pages=if(directAuthority)emptyList() else
-                BrainEvidencePager.pages(authority,
-                    (contextSize-2200).coerceAtLeast(256)){text->
-                    engine.countTokens(text)
-                }
-            val notes=mutableListOf<String>()
-            val first=if(directAuthority) {
-                onStage("Layer 1 · complete authority fits without inference rewrite")
-                authority
-            } else {
-                onStage("Layer 1 · complete paged authority interpretation")
-                for(page in pages) {
-                    engine.restartConversation(SYSTEM)
-                    onStage("Layer 1 · authority page "+page.index+"/"+pages.size)
-                    notes+=answer(
-                        "Extract every critical identity, physical mechanism, " +
-                            "construction rule, concept interaction, prohibitions and " +
-                            "output requirement in this authority page. " +
-                            "Quote exact numbered constraints and preserve source names. " +
-                            "Do not design yet. PAGE "+page.index+"/"+pages.size+"\n" +
-                            page.text+"\n/no_think",700)
-                }
-                // Each source page remains in evidence. Consolidate only when
-                // essential to fit the model; do not drop original knowledge.
-                var consolidated=notes.toList()
-                repeat(5) {
-                    val joined=consolidated.joinToString("\n\n")
-                    if(engine.countTokens(joined)<contextSize/3)
-                        return@repeat
-                    val groups=BrainEvidencePager.pages(joined,
-                        (contextSize/2).coerceAtLeast(256)){text->
-                        engine.countTokens(text)
-                    }
-                    val newer=mutableListOf<String>()
-                    for(group in groups) {
-                        engine.restartConversation(SYSTEM)
-                        newer+=answer(
-                            "Consolidate these already-interpreted constraints " +
-                                "without losing named identities, required counts, " +
-                                "construction mechanisms and forbidden changes. " +
-                                "Keep each mandatory condition checkable.\n"+
-                                group.text+"\n/no_think",1100)
-                    }
-                    require(newer.joinToString("").length<joined.length) {
-                        "Neural consolidation is not reducing context; refusing source loss"
-                    }
-                    consolidated=newer
-                }
-                consolidated.joinToString("\n\n")
+            // The compiler already has the canonical methodology, taxonomy,
+            // visual observations and owner feedback. No repeated Qwen evidence
+            // summaries, consolidation loops or synthetic design-rewrite stages.
+            // One bounded semantic compilation keeps the original authority intact.
+            val outputBudget=if(candidateCount>=10)minOf(4200,contextSize/4)
+                else minOf(2200,contextSize/4)
+            val requestedOutput=if(domain==CreativeDomain.CHARACTER &&
+                candidateCount==15)
+                "Output exactly [SHEET_1], [SHEET_2], [SHEET_3] with five " +
+                    "distinct, fully described frozen characters in each, then " +
+                    "[NEGATIVE]. Preserve all methodology counts and viewpoints."
+            else "Return [POSITIVE] one complete detailed image/video model " +
+                    "instruction [/POSITIVE] and [NEGATIVE] constraints [/NEGATIVE]."
+            val request="Compile the following verified owner authority into ONE " +
+                "complete coherent native generation specification. " +
+                "Preserve every binding methodology condition, reference identity, " +
+                "output format, concept interaction and owner-approved correction. " +
+                "Do not invent additional methodology stages. For distinct outputs " +
+                "include all "+candidateCount+" independent designs.\n"+
+                requestedOutput+"\nFULL AUTHORITY:\n"+authority+
+                "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n/no_think"
+            require(engine.countTokens(request)+engine.countTokens(SYSTEM)+
+                outputBudget+256<contextSize) {
+                "Complete owner methodology and reference evidence exceed " +
+                    "the installed reasoning model's measured context; " +
+                    "do not silently truncate or recursively rewrite authority."
             }
-            require(engine.countTokens(first)<contextSize/2) {
-                "Full authority could not be safely fit into design context"
-            }
+            onStage("One bounded Qwen3 compilation of complete original authority")
             engine.restartConversation(SYSTEM)
-            onStage("Layer 2 · distinct structural synthesis")
-            val second=answer(
-                "Construct "+candidateCount+" genuinely distinct production-quality "+
-                    domain.name.lowercase().replace('_',' ')+" design(s) " +
-                    "from the verified interpretation. Create causal interactions and " +
-                    "specific geometry. For multiple outputs label designs D01 onward, " +
-                    "with individually frozen geometry, silhouette, materials, anatomy, " +
-                    "palette, attach points and differentiating features. " +
-                    "Return NO generic boilerplate and no image model prompt yet.\n" +
-                    "INTERPRETATION:\n"+first+"\nPREFERENCES:\n"+guidance+
-                    "\nREQUIRED OUTPUT: follow every explicit constraint above.\n/no_think",if(candidateCount>=10)3800 else 1700)
-            onStage("Layer 3 · model-facing prompt compilation")
-            val request=if(domain==CreativeDomain.CHARACTER && candidateCount==15)
-                "Produce THREE exact complete sheet prompts. Each has five different " +
-                "designs (D01-D05, D06-D10, D11-D15) with exact same-identity " +
-                "front/side/rear views, five entities per landscape sheet. " +
-                "Give explicit anatomy and material details for each identity. " +
-                "Format [SHEET_1]...[/SHEET_1], [SHEET_2]...[/SHEET_2], "+
-                "[SHEET_3]...[/SHEET_3], then [NEGATIVE]...[/NEGATIVE]."
-            else "Produce exactly one fully detailed POSITIVE model-facing image/video " +
-                "prompt and one NEGATIVE prompt. Output [POSITIVE]...[/POSITIVE] " +
-                "[NEGATIVE]...[/NEGATIVE]. Mention all unique construction mechanisms."
-            engine.restartConversation(SYSTEM)
-            val predict=if(candidateCount>=10)4500 else 2200
-            val baseline=request+"\nFULL INTERPRETATION (from all "+pages.size+
-                " authority page(s)):\n"+first+
-                "\nDESIGNS:\n"+second+
-                "\n/no_think"
-            require(engine.countTokens(baseline)+predict+512<contextSize) {
-                "Compiled design synthesis exceeds configured neural context"
-            }
-            val additional="\nEXACT ORIGINAL POSITIVE CONTRACT:\n"+basePositive+
-                "\nEXACT ORIGINAL NEGATIVE CONTRACT:\n"+baseNegative
-            val complete=if(engine.countTokens(baseline+additional)+predict+512<contextSize)
-                baseline+additional else baseline
-            val third=answer(complete,predict)
+            val third=answer(request,outputBudget)
             val sheets=(1..3).map{parsePart(third,"SHEET_"+it)}
                 .filter{it.isNotBlank()}
+            val positive=parsePart(third,"POSITIVE").ifBlank {
+                if(sheets.isNotEmpty())sheets.joinToString("\n\n") else third
+            }
+            require(positive.isNotBlank()) { "No complete generation prompt returned" }
             val result=NeuralDesignPlan(
-                weights.id,contextSize,domain,first,second,
-                parsePart(third,"POSITIVE").ifBlank {
-                    if(sheets.isNotEmpty())sheets.joinToString("\n\n") else third
-                },
-                parsePart(third,"NEGATIVE").ifBlank{baseNegative},sheets)
+                weights.id,contextSize,domain,authority,third,
+                positive,parsePart(third,"NEGATIVE").ifBlank{baseNegative},sheets)
             val path=File(app.filesDir,"generation-plans/"+jobId+"-brain.json")
             val source=JSONObject().apply {
                 put("schema","asterion.neural-planning.v1")
@@ -267,12 +202,12 @@ class AsterionReasoner(context:Context) {
                 put("final_positive",result.positive)
                 put("final_negative",result.negative)
                 put("sheets",JSONArray(result.sheetPrompts))
-                put("authority_pages",pages.size)
+                put("authority_pages",0)
                 put("authority_chars",authority.length)
-                put("all_authority_pages_processed",directAuthority||notes.size==pages.size)
+                put("all_authority_pages_processed",true)
                 put("original_source_evidence",authority)
-                put("hierarchical_consolidation",!directAuthority&&notes.size>1)
-                put("direct_original_authority_used",directAuthority)
+                put("hierarchical_consolidation",false)
+                put("direct_original_authority_used",true)
                 put("model_training_applied",false)
                 put("learning_method","user-authored detailed grading; contextual evidence only")
                 put("grading_evidence_applied",guidance.isNotBlank())

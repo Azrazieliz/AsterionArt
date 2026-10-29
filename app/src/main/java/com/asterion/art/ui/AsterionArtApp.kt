@@ -687,7 +687,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             Text("OUTPUT MODE", color = Gold, style = MaterialTheme.typography.labelLarge)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(RenderMode.entries.toList()) { item ->
+                items(listOf(RenderMode.ANIME,RenderMode.COSPLAY,RenderMode.REALISTIC)) { item ->
                     FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item.display) })
                 }
             }

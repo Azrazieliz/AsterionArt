@@ -265,14 +265,27 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         }
         item {
             Column(Modifier.padding(horizontal=18.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                // Start after validation. Optional prompt review remains available.
                 Button(
+                    enabled=modelReady&&images.isNotEmpty(),
+                    modifier=Modifier.fillMaxWidth(),
+                    onClick={
+                        runCatching {
+                            val plan=VideoPlanStore(context).create(images,preset,seconds,
+                                customMotion,if(images.size==1)repeatSegments else images.size)
+                            val task=repo.recordTask(plan.id,TaskKind.VIDEO)
+                            VideoGenerationWorker.enqueue(context,plan.id,task.id)
+                        }.onSuccess { onQueued() }.onFailure { diagnostic=it.message }
+                    }
+                ) { Text("Start video in background") }
+                OutlinedButton(
                     enabled=modelReady&&images.isNotEmpty(),
                     modifier=Modifier.fillMaxWidth(),
                     onClick={showPromptReview=true}
                 ) {
                     androidx.compose.material3.Icon(Icons.Default.PlayArrow,null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Review video prompt")
+                    Text("Inspect video prompt (optional)")
                 }
                 Text("Generation uses the embedded llmedge Wan video runtime. "+
                     "A high-memory device is required; native model load or RAM errors "+

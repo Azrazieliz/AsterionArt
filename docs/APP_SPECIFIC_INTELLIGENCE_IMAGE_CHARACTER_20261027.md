@@ -16,7 +16,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 ## (2) Native image inference improvements
 
 - Character Creation renders each independently frozen character as its own three-view clinical reference instead of asking one short-context image encoder to attend to five different character payloads at once.
-- Native image tokenizer measurements confirm every pass fits the actual selected model. When needed, sequential passes carry the frozen character ID, every concept name and a no-identity-change anchor. This is NOT an expanded simultaneous diffusion text encoder.
+- Native image tokenizer checks must verify ONE complete owner-approved character specification per generation. The incompatible prompt-sliced sequential repaint mechanism was removed on the recovery branch; true image-encoder extension remains unimplemented. This is NOT an expanded simultaneous diffusion text encoder.
 - Completed identity triptychs are saved in per-character checkpoints. Five are assembled into a single 16:9 continuous white analytical sheet without artificial bars or surrounding captions. Nonwhite tile backgrounds fail rather than silently becoming decorated panels.
 - Rendered sheets and per-identity records remain traceable to frozen specifications, and the vision model can be scheduled only AFTER the NPU image engine releases its memory.
 - The 32K Qwen reasoning decoder is fixed to expose native token counting and explicit conversation reset. Both prompt overflow and generation-time context exhaustion stop cleanly instead of silently shifting away earlier methodology authority.
@@ -34,7 +34,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 - Reasoning weights, Qwen3-VL language/projector weights and converted QNN image-generation checkpoints are owner-selected and loaded **from within the app**, not automatically extracted from APK assets. The app's model selectors and import paths exist; completion of the first-run setup workflow has not been device-tested.
 - Qwen3-VL native `mtmd` remains experimental, and inference reliability, latency, memory requirements and device compatibility are unverified.
 - The local trained image-feature scoring heads are not semantic vision learning or LoRA fine-tuning. Only explicitly approved Advanced Grading is an authoritative label; the training/evaluation loop for improved generative quality is incomplete.
-- Sequential inference is not an expanded simultaneous diffusion text context. The compatibility of native model resolutions, image input semantics, true exact-profile views, and cross-view consistency is unverified.
+- The unapproved sequential prompt-slicing path was removed: it never expanded simultaneous diffusion text context. The compatibility of native model resolutions, image input semantics, true exact-profile views, and cross-view consistency is unverified.
 - Artwork generation, Sheet Creation, other Originals, video, editing, library, and Core integration all have separate implementation/verification gaps; see `docs/IMPLEMENTATION_STATUS.md` for the cross-application status. Video currently needs a separate phone-local Nightmare-compatible process; no self-contained integrated video backend is proven.
 - The old automatically embedded model packaging and source-only model-packaging workflows have been removed because they contradicted the owner's first-run installation decision. No assumption of public distribution is made.
 

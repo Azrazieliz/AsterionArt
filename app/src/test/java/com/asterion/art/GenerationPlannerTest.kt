@@ -2,6 +2,7 @@ package com.asterion.art
 
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.SourceEvidence
+import com.asterion.art.model.CreationMode
 import com.asterion.art.model.GeneratorSettings
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.SheetRole
@@ -70,4 +71,17 @@ class GenerationPlannerTest {
                 sourceIllustration=false)
         }.isFailure)
     }
+    @Test fun eachOriginalUsesItsOwnSingleCompleteNativePrompt() {
+        // No Original is a beneficiary of Artwork's five image-quality phases.
+        val female=GenerationPlanner.compileVisual(
+            emptyList(),RenderMode.ANIME,GeneratorSettings(),
+            creation=CreationMode.FEMINISATION,sourceIllustration=true)
+        assertEquals(1,female.passes.size)
+        assertEquals(1,female.passes.first().number)
+        val creature=GenerationPlanner.compileConcepts(
+            listOf("Rose"),CreationMode.CREATURE,RenderMode.ANIME,GeneratorSettings())
+        assertEquals(1,creature.passes.size)
+        assertTrue(creature.passes.first().positive.contains("Rose"))
+    }
+
 }
