@@ -21,6 +21,14 @@ internal class QwenStageTelemetry(private val nowNanos:()->Long=System::nanoTime
         }
     }
 
+    /** Timing of first-token wait and streamed output per neural stage. */
+    fun recordDuration(stage:String,nanos:Long) {
+        require(stage.matches(Regex("[a-z_]{2,48}")))
+        val row=measured.getOrPut(stage){Measurement()}
+        row.calls++
+        row.nanos+=nanos.coerceAtLeast(0L)
+    }
+
     fun snapshot(planId:String,outcome:String):JSONObject=JSONObject().apply {
         put("schema","asterion.qwen3-stage-timings.v1")
         put("plan_id",planId)
