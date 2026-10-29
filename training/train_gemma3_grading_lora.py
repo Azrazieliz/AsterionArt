@@ -2,7 +2,7 @@
 """Offline, opt-in Gemma 3 correction-language LoRA from explicit Grading records.
 
 This specializes TEXT reasoning to user-authored feature corrections and
-preservation instructions. It DOES NOT teach a text-only Llama model to see
+preservation instructions. It DOES NOT by itself train the multimodal Gemma model to interpret
 pixel evidence, does not train diffusion/vision, and does not run automatically.
 
 Default --validate uses Python standard library and never fetches weights.
@@ -103,9 +103,9 @@ def train(args, examples):
             prefix = tokenizer.encode(user_text, add_special_tokens=False)
             answer = tokenizer.encode(desired, add_special_tokens=False)
             remaining = args.context - len(prefix) - 1
-            if remaining < 24 or not answer:
-                continue  # invalid capacity, do not label a prompt as trained
-            answer = answer[:remaining] + [tokenizer.eos_token_id]
+            if remaining < 24 or not answer or len(answer) + 1 > remaining:
+                continue  # Never learn from truncated user corrections
+            answer = answer + [tokenizer.eos_token_id]
             ids = torch.tensor([prefix + answer], device=device)
             logits = model(input_ids=ids).logits[:, :-1, :].float()
             labels = ids[:, 1:].clone()
