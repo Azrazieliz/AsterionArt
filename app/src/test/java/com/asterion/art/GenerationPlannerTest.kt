@@ -35,6 +35,22 @@ class GenerationPlannerTest {
         assertTrue(recipe.passes.all { it.positive.contains(required.trim()) })
     }
 
+    @Test fun ThemeOutfitOverridesCharacterDefaultAcrossAllArtworkPhases() {
+        val overridden=sheets.map {source->
+            if(source.role==SheetRole.THEME)
+                source.copy(byPanel=source.byPanel+(
+                    "OUTFIT" to listOf("Distinct crimson ceremonial gown")))
+            else source
+        }
+        val recipe=GenerationPlanner.compile(overridden,RenderMode.ANIME,
+            GeneratorSettings())
+        assertEquals(5,recipe.passes.size)
+        assertTrue(recipe.passes.all{
+            it.positive.contains("Distinct crimson ceremonial gown")
+        })
+        assertTrue(recipe.passes.all{!it.positive.contains("Blue armor")})
+    }
+
     @Test fun fivePassesCarryCompleteFoundation() {
         val recipe = GenerationPlanner.compile(sheets, RenderMode.ANIME, GeneratorSettings())
         assertEquals(5, recipe.passes.size)
