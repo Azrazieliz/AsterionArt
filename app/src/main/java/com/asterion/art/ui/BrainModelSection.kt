@@ -22,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** Android-local Qwen3 planning model, entirely separate from image-QNN weights. */
+/** Android-local LoRA-adaptable Llama planning model, entirely separate from image-QNN weights. */
 @Composable
 fun BrainModelSection() {
     val context=LocalContext.current
@@ -77,7 +77,7 @@ fun BrainModelSection() {
                         .getWorkInfosByTag("asterion-brain-download").get()
                         .filter { !it.state.isFinished }
                         .associate {
-                            val model=it.tags.firstOrNull{tag->tag.startsWith("qwen3_")}.orEmpty()
+                            val model=it.tags.firstOrNull{tag->tag.startsWith("llama32_")}.orEmpty()
                             model to it.progress.getInt("percent",0)
                         }
                 }.getOrDefault(emptyMap())
@@ -90,7 +90,7 @@ fun BrainModelSection() {
             verticalArrangement=Arrangement.spacedBy(9.dp)) {
             Text("ASTERION DESIGN BRAIN",color=Gold,
                 style=MaterialTheme.typography.titleMedium)
-            Text("Local, real Qwen3 reasoning. It interprets concepts and methods before " +
+            Text("Local, trainable Llama 3.2 inference. It interprets concepts and methods before " +
                 "any image or video model runs. The image model retains its own text limit.",
                 color=Mist,style=MaterialTheme.typography.bodySmall)
             Text("Context: "+contextTokens+" native LLM tokens",color=Gold)
@@ -107,7 +107,7 @@ fun BrainModelSection() {
             BrainCatalog.models.forEach { model ->
                 val ready=installed.any { it.id==model.id }
                 Text(model.label+(if(ready)" · Installed" else
-                    " · "+(model.bytes/1048576)+" MiB"),
+                    " · SHA-256 pinned Hugging Face model"),
                     style=MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
                     if(ready) {
@@ -134,8 +134,8 @@ fun BrainModelSection() {
             }
             if(selected!=null) {
                 HorizontalDivider()
-                Text("QWEN3 LORA ADAPTERS",color=Gold)
-                Text("Select an adapter compatible with the active Qwen3 base. " +
+                Text("LLAMA 3.2 LORA ADAPTERS",color=Gold)
+                Text("Select an adapter compatible with the active Llama 3.2 base. " +
                     "Loading it modifies live neural inference; it does not " +
                     "retrain the diffusion model.",color=Mist)
                 OutlinedButton(enabled=!adapterBusy,onClick={
