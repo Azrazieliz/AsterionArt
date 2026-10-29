@@ -68,10 +68,10 @@ object OriginalCompilerBridge {
                 val passes=output.compilation.passes
                 if(passes.isEmpty()||passes.any{it.positivePrompt.isBlank()})return null
                 Compiled(
-                    text=passes.joinToString("\n\n"){p->
-                        "OWNER HISTORICAL COMPILER / "+p.type.displayName+
-                            "\n"+p.positivePrompt
-                    },
+                    text=passes.flatMap { pass ->
+                        pass.positivePrompt.split(",").map(String::trim)
+                    }.filter(String::isNotBlank).distinct()
+                        .joinToString(" "),
                     negatives=passes.map{it.negativePrompt}.filter{it.isNotBlank()}
                         .distinct().joinToString(", "),
                     sourceIds=selected.map{it.first.id},
