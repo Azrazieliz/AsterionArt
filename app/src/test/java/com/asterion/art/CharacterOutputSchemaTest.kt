@@ -93,4 +93,17 @@ class CharacterOutputSchemaTest {
         assertNull(CharacterOutputSchema.validMechanism(items,"B","C"))
         assertNull(CharacterOutputSchema.validMechanism(null,"A","B"))
     }
+
+    @Test fun explicitMaterialFusionCanEliminateSecondQwenCallWithoutInventingAnatomy() {
+        val fusion="Aberration and Acid integrate through a shared cartilage joint: "+
+            "acid vascular channels carve an aberrant load-bearing skeletal root, "+
+            "and both tissues carry compression through the same continuous membrane."
+        assertEquals(fusion,CharacterOutputSchema.validNamedFusion(fusion,
+            "Aberration","Acid"))
+        assertNull(CharacterOutputSchema.validNamedFusion(
+            "Acid and Aberration form a beautiful color theme and mysterious aura.",
+            "Aberration","Acid"))
+        assertNull(CharacterOutputSchema.validNamedFusion(
+            fusion.replace("Acid","salt"),"Aberration","Acid"))
+    }
 }
