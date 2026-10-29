@@ -278,7 +278,13 @@ fun MethodologyStudioV3(
             OutlinedButton(onClick=openParameters) { Text("Advanced parameters") }
             if(errors.isNotEmpty()) Text(errors.joinToString(" · "),color=Red)
             if(message!=null) Text(message.orEmpty(),color=Red)
+            // One Start after validation. Manual prompt inspection remains optional.
             Button(
+                modifier=Modifier.fillMaxWidth(),
+                enabled=eligible && (!isCharacter || action==StageAction.CATALOGUE),
+                onClick={enqueueApproved()}
+            ) { Text("Start in background") }
+            OutlinedButton(
                 modifier=Modifier.fillMaxWidth(),
                 enabled=eligible && (!isCharacter || action==StageAction.CATALOGUE),
                 onClick={
@@ -306,7 +312,7 @@ fun MethodologyStudioV3(
                 }) {
                 Text(when {
                     !eligible->"Complete the required authorities"
-                    else->"Review prompts"
+                    else->"Inspect prompts (optional)"
                 })
             }
         }
