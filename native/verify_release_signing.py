@@ -42,9 +42,12 @@ def digest_from_apksigner(stdout: str) -> str:
     results = re.findall(
         r"^Signer #(\d+) certificate SHA-256 digest:\s*([a-fA-F0-9]{64})\s*$",
         stdout,flags=re.MULTILINE)
-    if (len(results)!=1 or results[0][0]!="1" or
-        "Verified using v2 scheme (APK Signature Scheme v2): true" not in stdout):
-        raise ValueError("APK lacks a unique valid V2 owner signing certificate")
+    valid_scheme = any(
+        f"Verified using v{version} scheme (APK Signature Scheme v{version}): true" in stdout
+        for version in ("2", "3", "3.1")
+    )
+    if len(results)!=1 or results[0][0]!="1" or not valid_scheme:
+        raise ValueError("APK lacks a unique valid V2/V3 owner signing certificate")
     return results[0][1].lower()
 
 
