@@ -18,10 +18,10 @@ object BrainCatalog {
     // The official Hub LFS SHA256 is pinned. The file length is checked
     // against the actual response and SHA256, not a guessed rounded size.
     val models=listOf(
-        BrainWeights("llama32_3b_q4","Llama 3.2 3B Instruct · Q4_K_M",
-            "bartowski/Llama-3.2-3B-Instruct-GGUF",
-            "Llama-3.2-3B-Instruct-Q4_K_M.gguf",0L,
-            "6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff")
+        BrainWeights("gemma3_4b_q4","Gemma 3 4B IT · Q4_K_M · adaptable",
+            "bartowski/google_gemma-3-4b-it-GGUF",
+            "google_gemma-3-4b-it-Q4_K_M.gguf",0L,
+            "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94")
     )
     fun get(id:String)=models.firstOrNull{it.id==id}
 }
