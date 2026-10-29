@@ -2,8 +2,8 @@ package com.asterion.art.brain
 
 import org.json.JSONObject
 
-/** Monotonic Qwen3 stage timings, without prompts, concepts, or generated text. */
-internal class QwenStageTelemetry(private val nowNanos:()->Long=System::nanoTime) {
+/** Monotonic Reasoning stage timings, without prompts, concepts, or generated text. */
+internal class ReasoningStageTelemetry(private val nowNanos:()->Long=System::nanoTime) {
     private val beganAt=nowNanos()
     private data class Measurement(var calls:Int=0,var nanos:Long=0)
     private val measured=linkedMapOf<String,Measurement>()
@@ -30,7 +30,7 @@ internal class QwenStageTelemetry(private val nowNanos:()->Long=System::nanoTime
     }
 
     fun snapshot(planId:String,outcome:String):JSONObject=JSONObject().apply {
-        put("schema","asterion.qwen3-stage-timings.v1")
+        put("schema","asterion.reasoning-stage-timings.v1")
         put("plan_id",planId)
         put("outcome",outcome)
         put("total_elapsed_ms",((nowNanos()-beganAt).coerceAtLeast(0L))/1_000_000L)

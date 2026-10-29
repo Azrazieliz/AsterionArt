@@ -185,6 +185,8 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
                         repo.updateTaskProgress(task,completed,total,label)
                     })
             }
+            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                output,"Generated "+sheet.role.display+" reference sheet")
             val info=BitmapFactory.Options().apply{inJustDecodeBounds=true}
             BitmapFactory.decodeByteArray(output,0,output.size,info)
             require(info.outWidth>0&&info.outHeight>0){"Native model returned invalid image"}

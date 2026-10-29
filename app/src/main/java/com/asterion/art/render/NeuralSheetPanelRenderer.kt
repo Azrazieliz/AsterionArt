@@ -98,6 +98,8 @@ object NeuralSheetPanelRenderer {
                 GeneratedImagePublisher.atomicWrite(path,generated)
                 generated
             }
+            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                bytes,"Generated "+panel.title+" sheet panel")
             val digest=sha(bytes)
             require(digest!=sourceHash) {
                 "Neural sheet panel exactly duplicated the source image"

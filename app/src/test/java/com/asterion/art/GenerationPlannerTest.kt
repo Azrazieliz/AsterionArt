@@ -23,6 +23,34 @@ class GenerationPlannerTest {
             mapOf("PRIMARY" to listOf("Monumental throne setting"),
                 "POSE" to listOf("Symmetrical seating"))),
     )
+    @Test fun longAuthoritativeSheetDescriptionsSurviveUnchanged() {
+        val required="Canonical multi-component source identity: " +
+            "precise facial geometry, hair architecture, body construction, " +
+            "material and distinctive traits preserved with no substitution. ".repeat(5)
+        val source=SourceEvidence("long-source",SheetRole.CHARACTER,
+            mapOf("PRIMARY" to listOf(required)))
+        val recipe=GenerationPlanner.compile(
+            listOf(source)+sheets.filter{it.role!=SheetRole.CHARACTER},
+            RenderMode.ANIME,GeneratorSettings())
+        assertTrue(recipe.passes.all { it.positive.contains(required.trim()) })
+    }
+
+    @Test fun ThemeOutfitOverridesCharacterDefaultAcrossAllArtworkPhases() {
+        val overridden=sheets.map {source->
+            if(source.role==SheetRole.THEME)
+                source.copy(byPanel=source.byPanel+(
+                    "OUTFIT" to listOf("Distinct crimson ceremonial gown")))
+            else source
+        }
+        val recipe=GenerationPlanner.compile(overridden,RenderMode.ANIME,
+            GeneratorSettings())
+        assertEquals(5,recipe.passes.size)
+        assertTrue(recipe.passes.all{
+            it.positive.contains("Distinct crimson ceremonial gown")
+        })
+        assertTrue(recipe.passes.all{!it.positive.contains("Blue armor")})
+    }
+
     @Test fun fivePassesCarryCompleteFoundation() {
         val recipe = GenerationPlanner.compile(sheets, RenderMode.ANIME, GeneratorSettings())
         assertEquals(5, recipe.passes.size)
@@ -52,7 +80,7 @@ class GenerationPlannerTest {
         assertEquals("qnn_123456789012345678901234",
             GenerationPlanner.selectModelId(nativeModels,RenderMode.ANIME))
     }
-    @Test fun aSingleReferenceImageCanStartArtworkWithoutOtherSheetTypes() {
+    @Test fun aSingleSourceImageRemainsAvailableToIndependentImageEditing() {
         val selected=GeneratorSettings(denoise=0.62f)
         val recipe=GenerationPlanner.compileFromSource(RenderMode.ANIME,selected)
         assertEquals(5,recipe.passes.size)
@@ -60,15 +88,20 @@ class GenerationPlannerTest {
         assertTrue(recipe.passes.first().positive.contains("SOURCE IMAGE PIXELS"))
         assertTrue(recipe.passes.all{it.positive.contains("identity")})
     }
-    @Test fun sourceImageIsAValidArtworkAuthorityWithoutMandatorySheetTrio() {
-        val alternative=GenerationPlanner.compileVisual(
-            emptyList(),RenderMode.ANIME,GeneratorSettings(),
-            sourceIllustration=true)
-        assertEquals(5,alternative.passes.size)
-        assertTrue(runCatching{
+    @Test fun artworkRequiresCharacterThemeAndArtStyleAuthorities() {
+        assertTrue(runCatching {
             GenerationPlanner.compileVisual(
                 emptyList(),RenderMode.ANIME,GeneratorSettings(),
-                sourceIllustration=false)
+                sourceIllustration=true)
+        }.isFailure)
+        val complete=GenerationPlanner.compileVisual(
+            sheets,RenderMode.ANIME,GeneratorSettings())
+        assertEquals(5,complete.passes.size)
+        assertTrue(runCatching {
+            GenerationPlanner.compileVisual(
+                sheets.filter{it.role!=SheetRole.THEME},
+                RenderMode.ANIME,GeneratorSettings(),
+                sourceIllustration=true)
         }.isFailure)
     }
     @Test fun eachOriginalUsesItsOwnSingleCompleteNativePrompt() {

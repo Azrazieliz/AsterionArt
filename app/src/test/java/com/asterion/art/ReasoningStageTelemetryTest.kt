@@ -1,14 +1,14 @@
 package com.asterion.art
 
-import com.asterion.art.brain.QwenStageTelemetry
+import com.asterion.art.brain.ReasoningStageTelemetry
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 
-class QwenStageTelemetryTest {
+class ReasoningStageTelemetryTest {
     @Test fun stagesAggregateElapsedDurationsWithoutExposingAuthority()=runBlocking {
         var nanos=0L
-        val meter=QwenStageTelemetry{nanos}
+        val meter=ReasoningStageTelemetry{nanos}
         meter.measure("model_load"){nanos+=125_000_000L}
         meter.measure("identity_json"){nanos+=70_000_000L}
         meter.measure("identity_json"){nanos+=30_000_000L}
@@ -27,7 +27,7 @@ class QwenStageTelemetryTest {
 
     @Test fun failedStagesStillRecordActualElapsedTime()=runBlocking {
         var nanos=0L
-        val meter=QwenStageTelemetry{nanos}
+        val meter=ReasoningStageTelemetry{nanos}
         assertThrows(IllegalStateException::class.java) {
             runBlocking {
                 meter.measure("pairwise_batch"){
@@ -42,7 +42,7 @@ class QwenStageTelemetryTest {
     }
 
     @Test fun neuralFirstTokenAndStreamingLatencyAreTrackedSeparately() {
-        val meter=QwenStageTelemetry{0L}
+        val meter=ReasoningStageTelemetry{0L}
         meter.recordDuration("identity_json_ttft",41_200_000_000L)
         meter.recordDuration("identity_json_stream",181_000_000_000L)
         meter.recordDuration("identity_json_ttft",-12L)

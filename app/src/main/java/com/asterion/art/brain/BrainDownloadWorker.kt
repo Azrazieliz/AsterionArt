@@ -44,7 +44,8 @@ class BrainDownloadWorker(context:Context,params:WorkerParameters):
         manager.createNotificationChannel(NotificationChannel(
             CHANNEL,"Asterion reasoning model downloads",NotificationManager.IMPORTANCE_LOW))
         suspend fun show(received:Long) {
-            val percentage=(100*received/model.bytes).toInt().coerceIn(0,100)
+            val percentage=if(model.bytes>0L)
+                (100*received/model.bytes).toInt().coerceIn(0,100) else 0
             val notification=Notification.Builder(applicationContext,CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setContentTitle("Installing "+model.label)
@@ -61,7 +62,7 @@ class BrainDownloadWorker(context:Context,params:WorkerParameters):
             val uri=inputData.getString("uri")
             if(uri.isNullOrBlank()) {
                 val received=if(partial.exists())partial.length() else 0L
-                require(received in 0..model.bytes){"Invalid partial download"}
+                require(received in 0L..6_000_000_000L){"Invalid partial download"}
                 val conn=URL(model.downloadUrl).openConnection() as HttpURLConnection
                 conn.connectTimeout=25_000
                 conn.readTimeout=60_000
@@ -88,7 +89,8 @@ class BrainDownloadWorker(context:Context,params:WorkerParameters):
                                 val n=input.read(buffer)
                                 if(n<0)break
                                 total+=n
-                                require(total<=model.bytes){"Download exceeded expected size"}
+                                require(total<=6_000_000_000L &&
+                                    (model.bytes<=0L||total<=model.bytes)){"Download exceeded safe model size"}
                                 output.write(buffer,0,n)
                                 if(total-last>=8L*1024*1024){
                                     show(total)
@@ -97,7 +99,8 @@ class BrainDownloadWorker(context:Context,params:WorkerParameters):
                             }
                         }
                     }
-                    require(total==model.bytes) {
+                    require(total>100_000_000L &&
+                        (model.bytes<=0L||total==model.bytes)) {
                         "Incomplete GGUF: "+total+" / "+model.bytes
                     }
                 } finally {conn.disconnect()}
@@ -114,15 +117,17 @@ class BrainDownloadWorker(context:Context,params:WorkerParameters):
                             val n=input.read(bytes)
                             if(n<0)break
                             total+=n
-                            require(total<=model.bytes){"Original exceeds expected GGUF size"}
+                            require(total<=6_000_000_000L &&
+                                (model.bytes<=0L||total<=model.bytes)){"GGUF exceeds safe size"}
                             output.write(bytes,0,n)
                             if(total%(8L*1024*1024)<1024*1024)show(total)
                         }
                     }
-                    require(total==model.bytes){"Imported GGUF size mismatch"}
+                    require(total>100_000_000L &&
+                        (model.bytes<=0L||total==model.bytes)){"Imported GGUF size mismatch"}
                 }
             }
-            show(model.bytes)
+            show(partial.length())
             store.verifyAndCommit(model,partial)
             Result.success()
         } catch(e:CancellationException) {

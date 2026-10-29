@@ -34,7 +34,10 @@ object GenerationPlanner {
     private val alphaNum = Regex(".*[\\p{L}\\p{N}].*")
     private fun clean(words: List<String>): List<String> =
         words.map { it.trim().replace(Regex("\\s+"), " ") }
-            .filter { it.length in 3..280 && alphaNum.matches(it) }
+            // Source authority must not vanish merely because a user-supplied
+            // field exceeds a guessed short prompt-fragment length.
+            // Native capacity is validated AFTER complete compilation.
+            .filter { it.length >= 3 && alphaNum.matches(it) }
             .distinct()
 
     private fun join(words: List<String>) = clean(words).joinToString(", ")
@@ -43,10 +46,12 @@ object GenerationPlanner {
                              concepts: List<String>, sourceIllustration: Boolean) {
         val selected = sources.groupingBy { it.role }.eachCount()
         val errors = if (creation==null) {
-            // Artwork may begin from ONE actual image or any selected image
-            // authority; it must not require three unrelated sheet types.
-            if(sourceIllustration||sources.isNotEmpty())emptyList()
-            else listOf("Select at least one image or master-sheet reference")
+            // Artwork takes Character, Theme and Art Style sheet authorities.
+            // A single reference image belongs to Sheet Creation / editing,
+            // not an implicit replacement for the owner's three sheet roles.
+            listOf(SheetRole.CHARACTER,SheetRole.THEME,SheetRole.ART_STYLE)
+                .filter{selected.getOrDefault(it,0)==0}
+                .map{"Artwork requires a "+it.display+" sheet"}
         } else MethodologyRegistry.validate(
             creation,selected,concepts.size,sourceIllustration)
         require(errors.isEmpty()) { errors.joinToString("; ") }
@@ -83,9 +88,16 @@ object GenerationPlanner {
         // Visual metadata in the authoritative order:
         // identity, outfit+pose, theme, environment+elements, style+render+camera+lighting.
         val character = join(pieces(characters, "PRIMARY", "FACE", "EYES", "HAIR"))
+        // The owner's original Prompt Writing §5: an explicit Theme outfit
+        // prevails over the Character's default outfit. Never include both
+        // visual states as simultaneous positive instructions.
+        val themeOutfit=pieces(themes,"OUTFIT")
+        val prevailingOutfit=if(themeOutfit.isNotEmpty())themeOutfit
+            else pieces(characters,"OUTFIT")
         val outfitAndPose = join(
-            pieces(characters, "OUTFIT", "BODY", "DISTINCTIVE") +
-                pieces(themes, "POSE")
+            prevailingOutfit+
+                pieces(characters,"BODY","DISTINCTIVE")+
+                pieces(themes,"POSE","EXPRESSION")
         )
         val theme = join(pieces(themes, "PRIMARY", "VIEW"))
         val environmentAndElements = join(
@@ -102,18 +114,23 @@ object GenerationPlanner {
         require(core.isNotBlank()) { "No interpretable prompt content in selected reference images." }
 
         val positiveDetails = listOf(
-            pieces(characters, "FACE", "EYES", "HAIR", "BODY", "OUTFIT"),
+            pieces(characters, "FACE", "EYES", "HAIR", "BODY") +
+                prevailingOutfit+
+                pieces(themes, "POSE", "EXPRESSION", "VIEW", "INTERACTION", "CONTACT") +
+                pieces(elements, "PLACEMENT", "STRUCTURE"),
             pieces(styles, "MATERIAL", "LIGHT", "COLOR") +
                 pieces(themes, "LIGHT", "ENVIRONMENT"),
-            pieces(characters, "DISTINCTIVE", "DIAGNOSTIC") +
-                pieces(elements, "STRUCTURE", "PLACEMENT", "VARIATIONS", "MATERIAL", "COLOR"),
+            pieces(characters, "FACE", "EYES", "HAIR", "DISTINCTIVE", "DIAGNOSTIC") +
+                pieces(styles, "LINEWORK", "DETAIL", "TEXTURE") +
+                pieces(elements, "STRUCTURE", "VARIATIONS", "MATERIAL", "COLOR"),
             pieces(styles, "FINGERPRINT", "COMPOSITION") +
                 pieces(themes, "VIEW")
         )
-        val negative = join(
-            pieces(styles, "NEGATIVE") +
+        val negative = NegativePromptAuthority.merge(
+            (pieces(characters, "NEGATIVE") +
+                pieces(styles, "NEGATIVE") +
                 pieces(themes, "NEGATIVE") +
-                pieces(elements, "NEGATIVE")
+                pieces(elements, "NEGATIVE")).map { it.trim() }
         )
 
         val denoise = listOf(1f, 0.48f, 0.32f, 0.22f, 0.13f)
@@ -124,6 +141,7 @@ object GenerationPlanner {
             GenerationPass(n, full, negative, denoise[n - 1])
         } else listOf(GenerationPass(1, core, negative,
             if (creation == CreationMode.STYLE_CORRECTION) settings.denoise else 1f))
+        if(creation==null)ArtworkFivePhaseContract.validate(passes)
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings),
             creation,concepts,sources,resolver)
@@ -214,6 +232,7 @@ object GenerationPlanner {
         val passes=if(creation==null)(1..5).map { index ->
             GenerationPass(index,base+" "+modifiers[index-1],"",denoise[index-1])
         } else listOf(GenerationPass(1,base,"",denoise.first()))
+        if(creation==null)ArtworkFivePhaseContract.validate(passes)
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode,passes,sources.map { it.sheetId },settings),
             creation,concepts,sources,resolver)

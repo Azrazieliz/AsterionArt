@@ -20,7 +20,6 @@ import com.asterion.art.data.EditJobStore
 import com.asterion.art.data.GeneratedImagePublisher
 import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.engine.GenerationPlanner
-import com.asterion.art.engine.ConditioningSchedule
 import com.asterion.art.engine.UniversalCreativePlanner
 import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.DesignIntent
@@ -121,8 +120,10 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
                 negative=listOf(recipe.passes.last().negative,
                     brainPlan?.negative.orEmpty()).filter{it.isNotBlank()}
                     .distinct().joinToString(", "))
-            val schedule=ConditioningSchedule.compile(
-                selectedPass.positive,selectedPass.negative,engine::inspectText)
+            // One complete edit prompt; never repaint independent fragments.
+            engine.verifyText(selectedPass.positive)
+            if(selectedPass.negative.isNotBlank())
+                engine.verifyText(selectedPass.negative)
             // The masked edit is conditioned on its own preservation contract.
             // Source pixel geometry remains authoritative; do not let the
             // full artwork template overwrite the local edit instruction.
@@ -136,25 +137,15 @@ class SelectiveEditWorker(context: Context, params: WorkerParameters) :
                 val patch = SelectiveImageEditor.prepare(original, mask,nativeSize,nativeSize)
                 repo.updateTaskProgress(taskId,0,0,
                     "Masked image generation · backend progress unavailable")
-                var finalPng=patch.imagePng
-                for(chunk in schedule.chunks) {
-                    if(isStopped)throw java.util.concurrent.CancellationException()
-                    val pass=selectedPass.copy(
-                        positive=chunk.positive,negative=chunk.negative,
-                        denoise=if(chunk.index==1)selectedPass.denoise
-                            else minOf(selectedPass.denoise,chunk.denoise))
-                    engine.verifyText(pass.positive)
-                    if(pass.negative.isNotBlank())engine.verifyText(pass.negative)
-                    val generated=engine.generate(
-                        pass,source.settings,nativeSize,nativeSize,finalPng,
-                        (source.settings.seed ?: source.createdAt)+chunk.index-1,
-                        {isStopped},{step,total->
-                            if(total>0) repo.updateTaskProgress(taskId,0,0,
-                                "Masked inference "+chunk.index+"/"+schedule.chunks.size+
-                                    " · step "+step+"/"+total)
-                        },maskPng=patch.maskPng)
-                    finalPng=generated.png
-                }
+                if(isStopped)throw java.util.concurrent.CancellationException()
+                val generated=engine.generate(
+                    selectedPass,source.settings,nativeSize,nativeSize,patch.imagePng,
+                    source.settings.seed ?: source.createdAt,
+                    {isStopped},{step,total->
+                        if(total>0) repo.updateTaskProgress(taskId,0,0,
+                            "Complete masked inference · step "+step+"/"+total)
+                    },maskPng=patch.maskPng)
+                val finalPng=generated.png
                 repo.updateTaskProgress(taskId,0,0,"Compositing protected pixels")
                 val blended = SelectiveImageEditor.composite(
                     original,finalPng,mask,patch.rectangle)

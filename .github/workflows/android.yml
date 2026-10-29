@@ -1,7 +1,7 @@
 name: Asterion Art Android integration and APK
 on:
   push:
-    branches: ['research/model-capabilities-no-build-20261027']
+    branches: ['research/model-capabilities-no-build-20261027', 'implementation/p0-compiler-engine-model-recovery-20261029']
   workflow_dispatch:
 concurrency:
   group: asterion-android-${{ github.ref }}
@@ -30,6 +30,10 @@ jobs:
           python -m unittest discover -s fusion -p 'test_*.py' -v
       - name: Validate native extraction
         run: python -m unittest discover -s native -p 'test_*.py' -v
+      - name: Validate adaptable Gemma 3 training corpus
+        run: |
+          python -m py_compile training/train_gemma3_grading_lora.py
+          python -m unittest discover -s training -p 'test_*.py' -v
       - name: Install Android NDK and native CMake
         run: |
           yes | sdkmanager "ndk;27.2.12479018" "cmake;3.31.6" >/dev/null
@@ -46,19 +50,12 @@ jobs:
           gradle-version: 8.10.2
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
-      - name: Build debug APK
+      - name: Build internal P0 diagnostic APK (NEVER install)
         run: gradle --no-daemon :app:assembleDebug --stacktrace
-      - name: Verify embedded native long-context LLM
+      - name: Verify packaged reasoning engine
         run: unzip -l app/build/outputs/apk/debug/*.apk | grep "libai-chat.so"
-      - name: Verify packaged engine and Qualcomm runtime checksums
+      - name: Verify packaged QNN image runtime
         run: python3 native/verify_apk_native.py
-      - name: Download and verify APK-bundled offline reasoning and vision weights
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          python3 native/prepare_inference_weights.py --project .
-          test -s app/src/main/assets/inference/Qwen_Qwen3-0.6B-Q5_K_M.gguf
-          test -s app/src/main/assets/inference/Qwen3VL-2B-Instruct-Q4_K_M.gguf
-          test -s app/src/main/assets/inference/mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf
       - name: Build and verify release; sign ONLY with existing owner identity
         id: release
         shell: bash
@@ -104,6 +101,12 @@ jobs:
         with:
           name: Asterion-Art-UNSIGNED-DIAGNOSTIC-NOT-INSTALLABLE
           path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Asterion-Art-P0-DEBUG-APK-DEVICE-DIAGNOSTIC-ONLY
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

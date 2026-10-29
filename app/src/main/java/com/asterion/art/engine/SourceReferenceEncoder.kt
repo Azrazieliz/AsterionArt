@@ -18,7 +18,7 @@ object SourceReferenceEncoder {
         val order=listOf(SheetRole.CHARACTER,SheetRole.ART_STYLE,
             SheetRole.THEME,SheetRole.ELEMENT)
         val ordered=sheets.sortedBy { order.indexOf(it.role) }
-        val sources=ordered.flatMap { it.sourceUris }.distinct()
+        val sources=com.asterion.art.model.SheetReferenceAuthority.primaryUris(ordered)
         return encodeUris(context,sources)
     }
 

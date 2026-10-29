@@ -649,9 +649,10 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         sheetCounts.getOrDefault(role,0)+directReferences[role].orEmpty().size
     }
     val roleFailures=if(creationMode==null) {
-        if(sourceArtwork!=null||selected.isNotEmpty()||
-            directReferences.values.any{it.isNotEmpty()})emptyList()
-        else listOf("Select at least one source image or reference sheet")
+        listOf(SheetRole.CHARACTER,SheetRole.THEME,SheetRole.ART_STYLE)
+            .filter{counts.getOrDefault(it,0)==0}
+            .map{"Select a "+it.display+" sheet or existing "+it.display+
+                " sheet image. Create one in Sheet Creation from a reference."}
     } else MethodologyRegistry.validate(requireNotNull(creationMode),counts,
         sourceIllustration=sourceArtwork!=null)
     val ready = roleFailures.isEmpty() &&
@@ -662,15 +663,15 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     ) {
         item {
             Header("Image generator", "Artwork creation",
-                "Start from one real image, or combine character, style, theme and element references. "+
-                    "Source pixels are preserved for actual native conditioning.")
+                "Use Character, Theme and Art Style sheets, with an optional Element sheet. "+
+                    "Create sheets from individual references in Sheet Creation.")
         }
         item {
             OutlinedButton(onClick={
                 sourcePicker.launch(arrayOf("image/*"))
             },modifier=Modifier.fillMaxWidth()) {
-                Text(if(sourceArtwork==null)"Use one original image as reference"
-                    else "Change source image")
+                Text(if(sourceArtwork==null)"Optional additional source illustration"
+                    else "Change additional source illustration")
             }
             sourceArtwork?.let{source->
                 AsyncImage(model=Uri.parse(source),
@@ -702,7 +703,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                     directReferenceRole=role
                     directReferencePicker.launch(arrayOf("image/*"))
                 },modifier=Modifier.fillMaxWidth()) {
-                    Text("Add "+role.display+" reference image directly")
+                    Text("Import an existing "+role.display+" sheet image")
                 }
                 directReferences[role].orEmpty().forEachIndexed{index,source->
                     Row(verticalAlignment=Alignment.CenterVertically,
@@ -716,8 +717,9 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                         }){Text("Remove")}
                     }
                 }
-                Text("You may use an existing master sheet or select actual image references. "+
-                    "All chosen source pixels remain linked to the job.",color=Mist,
+                Text("Select a finished "+role.display+" sheet, or import an already "+
+                    "completed sheet image. Build new sheets from ordinary source "+
+                    "images in Sheet Creation.",color=Mist,
                     style=MaterialTheme.typography.bodySmall)
             }
             if (these.isEmpty()) {
@@ -775,7 +777,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
         item {
             OutlinedCard(colors = CardDefaults.outlinedCardColors(containerColor = Panel)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (ready) "Source references selected" else "No source selected", fontWeight = FontWeight.Bold)
+                    Text(if (ready) "Artwork sheet authorities ready" else "Required Artwork sheets missing", fontWeight = FontWeight.Bold)
                     Text(if (ready)
                         "Uses Asterion Art's integrated local QNN engine. A compatible installed "+
                         "image model is required; actual output is verified by rendering."

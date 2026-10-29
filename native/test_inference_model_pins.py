@@ -15,13 +15,13 @@ BRAIN=ROOT/"app/src/main/java/com/asterion/art/brain/BrainModelStore.kt"
 VISION=ROOT/"app/src/main/java/com/asterion/art/vision/VisionModelStore.kt"
 
 class TestInferenceModelPins(unittest.TestCase):
-    def test_exact_three_inference_files_and_no_image_checkpoints(self):
+    def test_exact_shared_gemma_inference_files_and_no_image_checkpoints(self):
         names=[row[0] for row in prepare_inference_weights.WEIGHTS]
-        self.assertEqual(3,len(names))
-        self.assertEqual(3,len(set(names)))
-        self.assertTrue(any("Qwen3VL" in name for name in names))
+        self.assertEqual(2,len(names))
+        self.assertEqual(2,len(set(names)))
+        self.assertTrue(any("gemma-3-4b-it-Q4_K_M" in name for name in names))
         self.assertTrue(any("mmproj" in name for name in names))
-        self.assertTrue(any("Qwen_Qwen3" in name for name in names))
+        self.assertFalse(any("Qwen" in name for name in names))
         self.assertFalse(any("sdxl" in name.lower() or "anima" in name.lower()
             for name in names))
 

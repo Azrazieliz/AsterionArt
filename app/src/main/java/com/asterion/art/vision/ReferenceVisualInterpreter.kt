@@ -85,11 +85,12 @@ class ReferenceVisualInterpreter(context: Context) {
         sheets.forEachIndexed { index,sheet ->
             require(transcriptions[index].sheetId==sheet.id)
             require(transcriptions[index].role==sheet.role)
-            require(sheet.sourceUris.size==sheet.referenceSlots.size)
-            sheet.sourceUris.forEachIndexed { i,uri ->
-                val panel=sheet.referenceSlots[i]
+            com.asterion.art.model.SheetReferenceAuthority.primary(sheet)
+                .forEachIndexed { i,authority ->
+                val uri=authority.uri
+                val panel=authority.panel
                 onProgress("Hashing "+sheet.role.name+" reference "+(i+1)+
-                    "/"+sheet.sourceUris.size)
+                    "/"+com.asterion.art.model.SheetReferenceAuthority.primary(sheet).size)
                 val actual=imageHash(uri)
                 val key=sha(("reference-visual-v1|"+actual+"|"+sheet.role.name+
                     "|"+panel+"|"+VisionCatalog.language.sha256+"|"+
@@ -114,7 +115,7 @@ class ReferenceVisualInterpreter(context: Context) {
                     catch (error:LinkageError) {
                         throw IllegalStateException(
                             "The installed vision weights cannot run because the "+
-                            "native Qwen3-VL engine is missing or incompatible.",error)
+                            "native Gemma 3 multimodal engine is missing or incompatible.",error)
                     }
                 session.use { vision ->
                     misses.forEachIndexed { i,entry ->

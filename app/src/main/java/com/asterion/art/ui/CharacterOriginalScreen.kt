@@ -98,7 +98,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
         runCatching {
             CharacterPhaseOne.validateSlots(slots)
             require(model!=null) {
-                "Select and install a verified local Qwen3 reasoning model under " +
+                "Select and install the selected adaptable Gemma 3 reasoning model under " +
                     "Models before resolving Character Creation designs."
             }
             val created=store.create(slots,sheets,System.currentTimeMillis())

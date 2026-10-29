@@ -14,13 +14,14 @@ data class BrainWeights(
 }
 
 object BrainCatalog {
+    // Replacement for Qwen: a LoRA-trainable on-device llama.cpp model.
+    // The official Hub LFS SHA256 is pinned. The file length is checked
+    // against the actual response and SHA256, not a guessed rounded size.
     val models=listOf(
-        BrainWeights("qwen3_06_q5","Qwen3 0.6B · Q5_K_M",
-            "bartowski/Qwen_Qwen3-0.6B-GGUF","Qwen_Qwen3-0.6B-Q5_K_M.gguf",
-            551378336L,"2df7894c99ee7716f0ed3c7d454c2386a7ae976c4b0ad0e716d55399c1360648"),
-        BrainWeights("qwen3_17_q4","Qwen3 1.7B · Q4_K_M",
-            "unsloth/Qwen3-1.7B-GGUF","Qwen3-1.7B-Q4_K_M.gguf",
-            1107409472L,"b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897")
+        BrainWeights("gemma3_4b_q4","Gemma 3 4B IT · Q4_K_M · adaptable",
+            "bartowski/google_gemma-3-4b-it-GGUF",
+            "google_gemma-3-4b-it-Q4_K_M.gguf",2489758112L,
+            "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94")
     )
     fun get(id:String)=models.firstOrNull{it.id==id}
 }
@@ -41,18 +42,24 @@ class BrainModelStore(context:Context) {
         }
         if(staged!=null)return staged
         val root=roots.drop(1).lastOrNull {
-            (it.parentFile?.usableSpace?:0L)>model.bytes+512L*1024*1024
+            (it.parentFile?.usableSpace?:0L)>maxOf(model.bytes,2_500_000_000L)+512L*1024*1024
         }?:privateRoot
         root.mkdirs()
-        require(root.usableSpace>model.bytes+256L*1024*1024){
-            "Not enough free app storage to install the selected Qwen3 model"
+        require(root.usableSpace>maxOf(model.bytes,2_000_000_000L)+256L*1024*1024){
+            "Not enough free app storage to install the selected reasoning model"
         }
         return File(root,model.filename)
     }
-    fun location(model:BrainWeights):File?=roots.map{File(it,model.filename)}
-        .firstOrNull{f-> f.isFile&&f.length()==model.bytes&&
-            File(f.path+".verified").takeIf{it.isFile}?.readText()?.trim()
-                ?.equals(model.sha256,true)==true}
+    fun location(model:BrainWeights):File? {
+        val externalVision=app.getExternalFilesDirs(null).filterNotNull()
+            .map{File(it,"asterion-vision-gemma3")}
+        val vision=File(app.filesDir,"asterion-vision-gemma3")
+        return (roots+externalVision+vision).map{File(it,model.filename)}
+            .firstOrNull{f->f.isFile&&f.length()>100_000_000L&&
+                (model.bytes<=0L||f.length()==model.bytes)&&
+                File(f.path+".verified").takeIf{it.isFile}?.readText()?.trim()
+                    ?.equals(model.sha256,true)==true}
+    }
     fun installed(): List<BrainWeights> = BrainCatalog.models.filter{location(it)!=null}
     fun selected():BrainWeights?=BrainCatalog.get(prefs.getString("selected","").orEmpty())
         ?.takeIf{location(it)!=null}?:installed().lastOrNull()
@@ -67,7 +74,8 @@ class BrainModelStore(context:Context) {
         check(prefs.edit().putInt("context",n).commit())
     }
     fun verifyAndCommit(model:BrainWeights,candidate:File):File {
-        require(candidate.isFile&&candidate.length()==model.bytes) {
+        require(candidate.isFile&&candidate.length()>100_000_000L &&
+            (model.bytes<=0L||candidate.length()==model.bytes)) {
             "GGUF file length does not match the pinned model"
         }
         val digest=MessageDigest.getInstance("SHA-256")
@@ -93,7 +101,7 @@ class BrainModelStore(context:Context) {
                     candidate.inputStream().use{src->
                         temp.outputStream().use{out->src.copyTo(out,1024*1024)}
                     }
-                    check(temp.length()==model.bytes)
+                    check(temp.length()==candidate.length())
                     check(temp.renameTo(dst))
                 } finally {temp.delete()}
             }

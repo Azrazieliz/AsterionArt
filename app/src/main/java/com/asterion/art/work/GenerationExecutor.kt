@@ -100,6 +100,16 @@ internal class GenerationExecutor(
                 }
             }
             val sheets=storedSheets+directSheets
+            if(job.creationMode==null && job.designPrompt.isNullOrBlank()) {
+                val selectedRoles=sheets.map{it.role}.toSet()
+                val absent=listOf(SheetRole.CHARACTER,SheetRole.THEME,
+                    SheetRole.ART_STYLE).filter{it !in selectedRoles}
+                require(absent.isEmpty()) {
+                    "Artwork requires completed Character, Theme and Art Style "+
+                        "sheet references. Missing: "+
+                        absent.joinToString(", "){it.display}
+                }
+            }
             require(storedSheets.all { it.outputUri != null }) {
                 "Reference sheet creation is not complete"
             }
@@ -117,6 +127,16 @@ internal class GenerationExecutor(
                         repo.updateTaskProgress(taskId,0,100,stage)
                     }
             } else transcriptions
+            if(evidence.any{it.all().isEmpty()}) {
+                // An unlabelled sheet must be visually interpreted before
+                // the layered compiler can author its detailed specification.
+                // Do not claim a generic text prompt describes unseen pixels.
+                require(VisionModelStore(applicationContext).installed()!=null) {
+                    "One or more selected sheets contain no readable design text. "+
+                        "Install the matched local Gemma 3 vision projector for "+
+                        "actual image-based pre-render interpretation."
+                }
+            }
             require(job.creationMode != CreationMode.STYLE_CORRECTION ||
                 job.sourceImageUri != null) {
                 "Style correction requires a source illustration, not just a style sheet."
@@ -135,7 +155,14 @@ internal class GenerationExecutor(
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
                         job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
-                else GenerationPlanner.compile(evidence,job.mode,job.settings,
+                else if(evidence.any{it.all().isEmpty()}) {
+                    // A legitimate image reference can have no OCR text.
+                    // Select the reference-conditioned methodology compiler
+                    // EXPLICITLY from the actual evidence type, not as a
+                    // catch-all fallback after an arbitrary compiler failure.
+                    GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
+                        job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
+                } else GenerationPlanner.compile(evidence,job.mode,job.settings,
                     job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
             }
             val engine = EmbeddedEngineFactory.open(applicationContext)
@@ -148,8 +175,10 @@ internal class GenerationExecutor(
             val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
                 ?: models.firstOrNull { it.ditKind == "klein" }
             var model = models.firstOrNull { it.id == preferredId }
-            val imageSourceCount=(sheets.flatMap{it.sourceUris}+
-                job.designReferenceUris+listOfNotNull(job.sourceImageUri)).distinct().size
+            val imageSourceCount=(
+                com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
+                job.designReferenceUris+listOfNotNull(job.sourceImageUri)
+            ).distinct().size
             require(imageSourceCount<=10){
                 "More than 10 source images; select a bounded visual reference set"
             }
@@ -160,47 +189,80 @@ internal class GenerationExecutor(
                     "reference-capable Qwen/Klein QNN model; source pixels cannot " +
                     "be silently discarded or replaced with text alone.")
             }
-            var recipe = compilerAttempt.getOrNull()
-            if (model == null || recipe == null) {
-                model = visualModel ?: error(
-                    "Text-only preferred model or authoritative text is unavailable and " +
-                        "no reference-aware Qwen/Klein model is installed.")
-                recipe = if(characterPlan!=null) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
-                        CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
-                else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,job.designPrompt,
-                        job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
-                else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
-                    GenerationPlanner.compileConcepts(
-                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
-                else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
-                    job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
+            // A failed Original/Artwork planning contract MUST remain a
+            // failure. Generic visual recompilation silently changes
+            // methodology, required input roles and output structure.
+            var recipe=compilerAttempt.getOrElse { original ->
+                throw IllegalArgumentException(
+                    "Original authoritative prompt compilation failed: "+
+                        (original.message ?: original.javaClass.simpleName),
+                    original)
             }
-            // Additional user direction composes with, rather than replaces,
-            // each reference authority. Originals retain their own method.
-            if(job.creationMode==null &&
-                (job.userScenePrompt.isNotBlank()||job.userNegativePrompt.isNotBlank())) {
+            if(model==null) {
+                model=visualModel ?: error(
+                    "No installed QNN image model accepts the requested "+
+                        job.mode.display+" output. The job was NOT replaced "+
+                        "with an unrelated generic model or prompt.")
+            }
+            // Owner-authored additions compose with every approved image
+            // methodology. Manual adjustments never silently replace the
+            // original method, required sheet roles or its output count.
+            if((job.userScenePrompt.isNotBlank()||
+                job.userNegativePrompt.isNotBlank()) && characterPlan==null) {
                 recipe=recipe.copy(passes=recipe.passes.map {pass ->
                     pass.copy(
                         positive=pass.positive+
                             if(job.userScenePrompt.isBlank())"" else
-                                "\n\nUSER SCENE DIRECTION (PRESERVE CANONICAL REFERENCES):\n"+
+                                "\n\nUSER-APPROVED ADDITIONAL DIRECTION (PRESERVE ORIGINAL METHODOLOGY):\n"+
                                     job.userScenePrompt,
-                        negative=pass.negative+
-                            if(job.userNegativePrompt.isBlank())"" else
-                                ", "+job.userNegativePrompt)
+                        negative=com.asterion.art.engine.NegativePromptAuthority
+                            .merge(pass.negative,job.userNegativePrompt))
                 })
+            }
+            // Recover and execute the original deterministic compiler for
+            // compatible approved Artwork worksheets (never for Originals).
+            // Invalid/non-structured PNGs are not misrepresented as compiled.
+            val restoredCompilation=if(job.creationMode==null && sheets.isNotEmpty())
+                runCatching {
+                    com.asterion.art.engine.OriginalCompilerBridge.compile(
+                        applicationContext,sheets)
+                }.getOrNull() else null
+            if(restoredCompilation!=null) {
+                recipe=recipe.copy(passes=recipe.passes.map { stage ->
+                    stage.copy(
+                        positive=stage.positive+"\n\n"+restoredCompilation.text,
+                        negative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                            stage.negative,restoredCompilation.negatives)
+                    )
+                })
+                foreground("Original deterministic worksheet compiler: "+
+                    restoredCompilation.passNames.joinToString(", "))
             }
             // Perform true neural interpretation/synthesis/prompt compilation
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
+            val preRenderStart=android.os.SystemClock.elapsedRealtime()
             val neural=AsterionReasoner(applicationContext)
-            val brainPlan=if(characterPlan!=null) null else if(neural.available()) {
+            val requiresAutoCompilation=characterPlan==null &&
+                restoredCompilation==null && job.designPrompt.isNullOrBlank()
+            require(!requiresAutoCompilation || neural.available()) {
+                "The approved pre-render compilation is unavailable: no verified "+
+                    "adaptable reasoning model is installed. Cannot skip it and "+
+                    "pretend an uncompiled image prompt is the requested result."
+            }
+            // When the owner's original deterministic Compiler has already
+            // validated the structured sheets, do not re-author its prompt
+            // through a slow second language model. Optional manual edits
+            // are already included in the frozen generation authority.
+            val brainPlan=if(characterPlan!=null || restoredCompilation!=null)
+                null else if(neural.available()) {
                 foreground("Asterion Brain · interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
-                val spec=job.creationMode?.let {
-                    DetailedMethodologies.all[it]?.rendererDirective
+                val spec=job.creationMode?.let { selected ->
+                    if(selected==CreationMode.CHARACTER)
+                        DetailedMethodologies.all.getValue(selected).rendererDirective
+                    else com.asterion.art.methodology.MethodologyAuthority
+                        .originalText(applicationContext,selected)
                 }.orEmpty()
                 val catalogue=job.creationMode?.let {
                     DetailedMethodologies.all[it]?.catalogue?.designsPerImage
@@ -221,16 +283,51 @@ internal class GenerationExecutor(
                     targetDesignId=job.parentDesignIds.singleOrNull()
                 )
             } else null
+            require(!requiresAutoCompilation || brainPlan!=null) {
+                "The mandatory complete pre-render compilation did not produce "+
+                    "a verified design specification; native generation blocked."
+            }
             if(brainPlan!=null &&
                 !(job.creationMode==CreationMode.CHARACTER && job.designPrompt==null)) {
                 recipe=recipe.copy(passes=recipe.passes.map { pass ->
                     pass.copy(
                         positive=pass.positive+"\n\nNEURAL DESIGN SPECIFICATION:\n"+
                             brainPlan.positive,
-                        negative=listOf(pass.negative,brainPlan.negative)
-                            .filter { it.isNotBlank() }.distinct().joinToString(", "))
+                        negative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                            pass.negative,brainPlan.negative))
                 })
             }
+            val preRenderElapsed=android.os.SystemClock.elapsedRealtime()-preRenderStart
+            // Retain the exact authoritative text before native model loading.
+            // Previously failure/crashes could leave no record of the actual
+            // prompt fed to the image engine; output-only provenance is late.
+            val promptTrace=JSONObject().apply {
+                put("schema","asterion.prompt-trace.v1")
+                put("job_id",job.id)
+                put("methodology",job.creationMode?.name?:JSONObject.NULL)
+                put("mode",job.mode.name)
+                put("model_id",model.id)
+                put("pre_render_elapsed_ms",preRenderElapsed)
+                put("compiled_model",brainPlan?.modelId?:JSONObject.NULL)
+                put("compiler_used",restoredCompilation!=null)
+                put("selected_sheet_ids",JSONArray(job.sheetIds))
+                put("native_stage_prompts",JSONArray().apply{
+                    recipe.passes.forEach{stage ->
+                        put(JSONObject().apply{
+                            put("number",stage.number)
+                            put("positive",stage.positive)
+                            put("negative",stage.negative)
+                            put("denoise",stage.denoise.toDouble())
+                        })
+                    }
+                })
+                put("source_data_preserved",true)
+                put("pre_native_checkpoint",true)
+            }
+            val promptTracePath=File(applicationContext.filesDir,
+                "generation-checkpoints/"+job.id+"/native-prompt-trace.json")
+            GeneratedImagePublisher.atomicWrite(promptTracePath,
+                promptTrace.toString(2).toByteArray(Charsets.UTF_8))
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
@@ -256,41 +353,34 @@ internal class GenerationExecutor(
                     }
                 }
             }
-            if (capacityCheck.isFailure && model.ditKind != "qwen21" &&
-                model.ditKind != "klein" && visualModel != null) {
-                // Don't truncate authoritative prompt text. Switch to a genuine
-                // reference-conditioned engine instead of dropping source facts.
-                model = visualModel
-                recipe = if(characterPlan!=null) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
-                        CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
-                else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,job.designPrompt,
-                        job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
-                else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
-                    GenerationPlanner.compileConcepts(
-                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
-                else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
-                    job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
-                size = model.generationSize.coerceIn(512, 1536)
-                // A fallback QNN engine must preserve the narrow, upright
-                // individual-character triptych, never switch to the final
-                // 16:9 five-character sheet's landscape resolution.
-                resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
-                    .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
-                foreground("Prompt exceeded text context; using " + model.name + " visual conditioning")
-                engine.prepare(model, resolution.first, resolution.second) { stopped() }
-                recipe.passes.forEach { pass ->
-                    check(engine.inspectText(pass.positive).limit>0) {
-                        "Selected model does not report native token capacity"
+            if (capacityCheck.isFailure && model.ditKind !in setOf("qwen21","klein")
+                && visualModel != null && visualModel.id!=model.id) {
+                // Switch only the native backend. The complete approved prompt,
+                // methodologies, source evidence and neural design stay frozen.
+                // Recompiling a different, shorter fallback loses the exact
+                // conditions whose overflow triggered this branch.
+                val originalFailure=capacityCheck.exceptionOrNull()
+                val replacementModel=visualModel
+                val oldModel=model
+                foreground("Verifying complete prompt on "+replacementModel.name)
+                model=replacementModel
+                resolution=com.asterion.art.nativeengine.NativeResolutionPolicy.choose(
+                    model,if(characterPlan!=null)"16:45" else job.settings.ratio)
+                try {
+                    engine.prepare(model,resolution.first,resolution.second) { stopped() }
+                    recipe.passes.forEach { pass ->
+                        engine.verifyText(pass.positive)
+                        if(pass.negative.isNotBlank())engine.verifyText(pass.negative)
                     }
+                } catch(error:Throwable) {
+                    throw com.asterion.art.engine.BackendUnavailable(
+                        "Neither "+oldModel.name+" nor "+replacementModel.name+
+                            " can condition on the complete frozen specification. "+
+                            "First backend: "+(originalFailure?.message?:"unknown")+
+                            "; replacement: "+(error.message?:"unknown"))
                 }
             } else {
-                if(capacityCheck.isFailure &&
-                    capacityCheck.exceptionOrNull()?.message
-                        ?.contains("exceeds",ignoreCase=true)!=true) {
-                    capacityCheck.getOrThrow()
-                }
+                capacityCheck.getOrThrow()
             }
             val extraOriginal = job.sourceImageUri?.let { uri ->
                 SheetRecord(role=SheetRole.CHARACTER,label="Original source image",
@@ -299,11 +389,11 @@ internal class GenerationExecutor(
             // The GENERATED authoritative master sheet must reach the
             // neural reference-conditioning path. Keep original source pixels
             // available as secondary evidence, without replacing the master.
-            val combinedSourceUris=sheets.flatMap { sheet ->
-                listOfNotNull(sheet.outputUri)+sheet.sourceUris
-            }.distinct()+
+            val combinedSourceUris=(
+                com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
                 listOfNotNull(extraOriginal?.sourceUris?.firstOrNull())+
                 job.designReferenceUris
+            ).distinct()
             val referenceInputs = if (model.ditKind == "qwen21" ||
                 model.ditKind == "klein") {
                 if(combinedSourceUris.isEmpty())emptyList()
@@ -320,7 +410,8 @@ internal class GenerationExecutor(
                 // character pixels as an img2img source rather than silently
                 // replacing the selected character with prose alone.
                 ?:if(job.creationMode==null)
-                    sheets.flatMap{it.sourceUris}.distinct().singleOrNull()
+                    com.asterion.art.model.SheetReferenceAuthority
+                        .primaryUris(sheets).singleOrNull()
                   else null
             val originalImage=originalSource?.let {
                 SourceReferenceEncoder.encodeUris(applicationContext,listOf(it)).single()
@@ -375,6 +466,8 @@ internal class GenerationExecutor(
                 characterPlan!=null
             val stageSequence = if (oneShotCharacterSheet)
                 listOf(recipe.passes.first()) else recipe.passes
+            if(job.creationMode==null && !oneShotCharacterSheet)
+                com.asterion.art.engine.ArtworkFivePhaseContract.validate(stageSequence)
             val passesPerCandidate = stageSequence.size
             repo.updateTaskProgress(taskId,0,(count*passesPerCandidate+2)*100,"Beginning generation")
             for (candidate in 1..count) {
@@ -385,6 +478,7 @@ internal class GenerationExecutor(
                 // prohibitively expensive unconditional guidance path.
                 val candidateSettings = if(turboAuto)tunedSettings else
                     PreferenceLearning.candidate(tunedSettings,candidate - 1)
+                val candidateRenderStart=android.os.SystemClock.elapsedRealtime()
                 val image:ByteArray=if(characterPlan!=null) {
                     // Five independent Character Creation triptychs use a
                     // 16:45 output crop. Anima/SDXL still load their fixed
@@ -400,20 +494,39 @@ internal class GenerationExecutor(
                             "unified_v2_sheet_"+candidate+"_"+d.id+"_triptych.png")
                         val triptych=if(checkpoint.isFile && checkpoint.length()>1024L) {
                             val existing=checkpoint.readBytes()
-                            check(TechnicalImageScorer.score(existing).score.isFinite())
+                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                existing,"Restored frozen character "+d.id)
                             existing
                         } else {
                             thermalGate()
                             val directive=CharacterSheetCompiler.individual(d)
                             engine.verifyText(directive)
-                            engine.verifyText(CharacterPhaseOne.NEGATIVE)
+                            val finalNegative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                                CharacterPhaseOne.NEGATIVE,recipe.passes.first().negative,
+                                job.designNegative,job.userNegativePrompt)
+                            engine.verifyText(finalNegative)
+                            val actualPromptTrace=File(intermediate,
+                                "actual-native-stage-inputs.jsonl")
+                            val invocation=JSONObject().apply {
+                                put("candidate",candidate)
+                                put("identity",d.id)
+                                put("stage",1)
+                                put("model",model.id)
+                                put("positive",directive)
+                                put("negative",finalNegative)
+                                put("denoise",1.0)
+                                put("seed",seed+cell*104729L+1)
+                            }
+                            GeneratedImagePublisher.atomicWrite(actualPromptTrace,
+                                (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
+                                    invocation.toString()+"\n").toByteArray(Charsets.UTF_8))
                             if(stopped())throw CancellationException()
                             val stageLabel="Sheet "+candidate+"/"+count+
                                 " · identity "+d.id+" · complete native prompt"
                             foreground(stageLabel)
                             val started=android.os.SystemClock.elapsedRealtime()
                             val result=engine.generate(
-                                GenerationPass(1,directive,CharacterPhaseOne.NEGATIVE,1f),
+                                GenerationPass(1,directive,finalNegative,1f),
                                 nativeSettings,resolution.first,resolution.second,
                                 null,seed+cell*104729L+1,
                                 {stopped()},{step,totalSteps->
@@ -423,6 +536,8 @@ internal class GenerationExecutor(
                                                 step*20/(5*totalSteps),
                                             count*100,stageLabel)
                                 },referencePngs=referenceInputs)
+                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                result.png,"Frozen character "+d.id)
                             GeneratedImagePublisher.atomicWrite(checkpoint,result.png)
                             val duration=android.os.SystemClock.elapsedRealtime()-started
                             val metrics=File(intermediate,"native-unified-pass-timings.tsv")
@@ -454,16 +569,28 @@ internal class GenerationExecutor(
                 var current: ByteArray? = originalImage
                 for (stage in stageSequence) {
                     if (stopped()) throw CancellationException()
-                    val path = File(intermediate, "unified_v2_candidate_" + candidate +
+                    // Do not reuse checkpoints produced under the former
+                    // anonymous five-pass sequence.
+                    val version=if(job.creationMode==null && !oneShotCharacterSheet)
+                        "owner23_artwork_v1_" else "unified_v2_"
+                    val path = File(intermediate, version+"candidate_" + candidate +
                         "_pass_" + stage.number + ".png")
                     if (path.isFile && path.length() > 100) {
-                        current = path.readBytes()
+                        val saved=path.readBytes()
+                        // Validate EACH restored stage, including Foundation.
+                        // Never progress to stage 2+ from a blank checkpoint.
+                        com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                            saved,"Restored candidate "+candidate+" stage "+stage.number)
+                        current=saved
                         continue
                     }
                     thermalGate()
                     val stageLabel = "Image " + candidate + "/" + count +
                         (if(oneShotCharacterSheet) " · one-shot master sheet"
-                         else " · pass " + stage.number + "/5")
+                         else if(job.creationMode==null && stageSequence.size==5)
+                             " · "+com.asterion.art.engine.ArtworkFivePhaseContract
+                                 .at(stage.number).name+" · pass "+stage.number+"/5"
+                         else " · original "+stage.number+"/"+stageSequence.size)
                     repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
@@ -479,15 +606,34 @@ internal class GenerationExecutor(
                     }
                     else if(characterPlan!=null)
                         stage.copy(positive=characterPlan.prompts[candidate-1],
-                            negative=CharacterPhaseOne.NEGATIVE)
+                            negative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                                stage.negative,CharacterPhaseOne.NEGATIVE,
+                                job.designNegative,job.userNegativePrompt))
                     else stage
                     // Every native call sees the complete methodology/Artwork
                     // stage prompt. Native tokenizer capacity is a real limit,
                     // NOT increased by feeding consecutive prompt fragments.
                     if(stopped())throw CancellationException()
+                    // Record the EXACT stage inputs, after all overrides, before
+                    // the native call. The early trace holds only the recipe.
+                    val actualPromptTrace=File(intermediate,
+                        "actual-native-stage-inputs.jsonl")
+                    val invocation=JSONObject().apply {
+                        put("candidate",candidate)
+                        put("stage",stage.number)
+                        put("model",model.id)
+                        put("positive",methodStage.positive)
+                        put("negative",methodStage.negative)
+                        put("denoise",methodStage.denoise.toDouble())
+                        put("seed",seed)
+                    }
+                    GeneratedImagePublisher.atomicWrite(actualPromptTrace,
+                        (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
+                            invocation.toString()+"\n").toByteArray(Charsets.UTF_8))
                     engine.verifyText(methodStage.positive)
                     if(methodStage.negative.isNotBlank())
                         engine.verifyText(methodStage.negative)
+                    val nativeStageStart=android.os.SystemClock.elapsedRealtime()
                     val result=engine.generate(
                         methodStage,candidateSettings,resolution.first,resolution.second,
                         current,seed,{stopped()},{step,totalSteps->
@@ -497,13 +643,33 @@ internal class GenerationExecutor(
                                         (stage.number-1)*100+(step*100/totalSteps),
                                     (count*passesPerCandidate+2)*100,stageLabel)
                         },referencePngs=referenceInputs)
+                    // A degenerate Foundation must never receive a second
+                    // repaint, and failed refinements must not become final.
+                    com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                        result.png,"Candidate "+candidate+" phase "+stage.number)
+                    val stageElapsed=android.os.SystemClock.elapsedRealtime()-nativeStageStart
+                    val stageScore=TechnicalImageScorer.score(result.png)
+                    val metrics=File(intermediate,"native-stage-measurements.tsv")
+                    GeneratedImagePublisher.atomicWrite(metrics,
+                        (metrics.takeIf{it.exists()}?.readText().orEmpty()+
+                            candidate+"\t"+stage.number+"\t"+stageElapsed+
+                            "\t"+stageScore.score+"\t"+stageScore.contrast+
+                            "\t"+stageScore.detail+"\n").toByteArray(Charsets.UTF_8))
                     current=result.png
                     GeneratedImagePublisher.atomicWrite(path,result.png)
                     taskProgress(candidate,stage.number)
                 }
                     current ?: error("No image produced")
                 }
+                com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                    image,"Generated candidate "+candidate)
+                val nativeRenderElapsed=android.os.SystemClock.elapsedRealtime()-candidateRenderStart
                 val technical = TechnicalImageScorer.score(image)
+                val decodedBounds=android.graphics.BitmapFactory.Options().apply{
+                    inJustDecodeBounds=true
+                }
+                android.graphics.BitmapFactory.decodeByteArray(
+                    image,0,image.size,decodedBounds)
                 if (technical.score > technicalLeaderScore) {
                     technicalLeaderScore = technical.score
                     technicalLeader = image
@@ -555,7 +721,10 @@ internal class GenerationExecutor(
                         id=job.id+"-D"+ordinal.toString().padStart(3,'0'),
                         jobId=job.id,mode=job.mode,creationMode=job.creationMode,
                         ordinal=ordinal,sheetNumber=candidate,prompt=specification,
-                        negative=if(characterPlan!=null) CharacterPhaseOne.NEGATIVE
+                        negative=if(characterPlan!=null)
+                            com.asterion.art.engine.NegativePromptAuthority.merge(
+                                CharacterPhaseOne.NEGATIVE,stageSequence.first().negative,
+                                job.designNegative,job.userNegativePrompt)
                             else stageSequence.first().negative,sheetUri=uri.toString(),
                         status=if(job.designPrompt!=null)"REVISION" else "CANDIDATE",
                         parents=job.parentDesignIds,sourceSheetIds=job.sheetIds,
@@ -606,11 +775,27 @@ internal class GenerationExecutor(
                         else if(characterPlan!=null)
                         characterPlan.prompts[candidate-1]
                         else stageSequence.joinToString("\n\n") { it.positive })
-                    put("prompt_negative", if(job.designPrompt!=null)
-                        job.designNegative.orEmpty()
-                        else if(characterPlan!=null)
-                        CharacterPhaseOne.NEGATIVE
+                    put("prompt_negative", if(characterPlan!=null)
+                        com.asterion.art.engine.NegativePromptAuthority.merge(
+                            CharacterPhaseOne.NEGATIVE,stageSequence.first().negative,
+                            job.designNegative,job.userNegativePrompt)
                         else stageSequence.joinToString("\n\n") { it.negative })
+                    put("pre_render_elapsed_ms",preRenderElapsed)
+                    put("model_load_elapsed_ms",loadElapsed)
+                    put("native_render_elapsed_ms",nativeRenderElapsed)
+                    put("output_width",decodedBounds.outWidth)
+                    put("output_height",decodedBounds.outHeight)
+                    put("native_pass_count",if(characterPlan!=null)5 else stageSequence.size)
+                    put("native_prompt_token_count",if(characterPlan!=null)
+                        JSONObject.NULL
+                        else runCatching {
+                            engine.inspectText(stageSequence.last().positive).count
+                        }.getOrNull()?:JSONObject.NULL)
+                    put("native_prompt_token_limit",if(characterPlan!=null)
+                        JSONObject.NULL
+                        else runCatching {
+                            engine.inspectText(stageSequence.last().positive).limit
+                        }.getOrNull()?:JSONObject.NULL)
                     put("technical_score", technical.score)
                     put("contrast", technical.contrast)
                     put("detail", technical.detail)
@@ -670,6 +855,14 @@ internal class GenerationExecutor(
                 put("character_render_method",if(characterPlan!=null)
                     "five_separate_frozen_identity_triptychs_composited_white_16_9"
                     else JSONObject.NULL)
+                put("owner_artwork_five_phase_definitions_restored",true)
+                put("artwork_phase_order",JSONArray().apply {
+                    if(job.creationMode==null && !oneShotCharacterSheet)
+                        com.asterion.art.engine.ArtworkFivePhaseContract.order.forEach{
+                            put(it.name)
+                        }
+                })
+                put("owner_artwork_five_phase_contract_verified",false)
                 put("native_image_encoder_expanded",false)
                 put("methodology_certified", false)
                 put("reference_sheet_ids", JSONArray(job.sheetIds))

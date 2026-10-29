@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Offline, opt-in Qwen3 correction-language LoRA from explicit Grading records.
+"""Offline, opt-in Gemma 3 correction-language LoRA from explicit Grading records.
 
 This specializes TEXT reasoning to user-authored feature corrections and
-preservation instructions. It DOES NOT teach a text-only Qwen model to see
+preservation instructions. It DOES NOT by itself train the multimodal Gemma model to interpret
 pixel evidence, does not train diffusion/vision, and does not run automatically.
 
 Default --validate uses Python standard library and never fetches weights.
@@ -65,16 +65,16 @@ def train(args, examples):
     import torch
     import torch.nn.functional as F
     from peft import LoraConfig, TaskType, get_peft_model
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from transformers import AutoTokenizer, Gemma3ForConditionalGeneration
 
-    if args.model not in ("Qwen/Qwen3-0.6B", "Qwen/Qwen3-1.7B"):
-        raise ValueError("Unsupported Qwen3 adapter base")
+    if args.model != "google/gemma-3-4b-it":
+        raise ValueError("Unsupported Gemma 3 adapter base")
     torch.manual_seed(20261027)
     on_gpu = torch.cuda.is_available()
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=False)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
+    model = Gemma3ForConditionalGeneration.from_pretrained(
         args.model, torch_dtype=torch.float16 if on_gpu else torch.float32,
         trust_remote_code=False
     )
@@ -98,14 +98,14 @@ def train(args, examples):
         for question, desired in examples:
             user_text = tokenizer.apply_chat_template(
                 [{"role": "user", "content": question}],
-                tokenize=False, add_generation_prompt=True, enable_thinking=False
+                tokenize=False, add_generation_prompt=True
             )
             prefix = tokenizer.encode(user_text, add_special_tokens=False)
             answer = tokenizer.encode(desired, add_special_tokens=False)
             remaining = args.context - len(prefix) - 1
-            if remaining < 24 or not answer:
-                continue  # invalid capacity, do not label a prompt as trained
-            answer = answer[:remaining] + [tokenizer.eos_token_id]
+            if remaining < 24 or not answer or len(answer) + 1 > remaining:
+                continue  # Never learn from truncated user corrections
+            answer = answer + [tokenizer.eos_token_id]
             ids = torch.tensor([prefix + answer], device=device)
             logits = model(input_ids=ids).logits[:, :-1, :].float()
             labels = ids[:, 1:].clone()
@@ -128,7 +128,7 @@ def train(args, examples):
     model.save_pretrained(args.output, safe_serialization=True)
     tokenizer.save_pretrained(args.output)
     manifest = {
-        "schema": "asterion.grade-conditioned-qwen3-lora.v1",
+        "schema": "asterion.grade-conditioned-gemma3-lora.v1",
         "training_kind": "TEXT_CORRECTION_SFT_ONLY",
         "base_model": args.model,
         "total_explicit_examples": len(examples),
@@ -151,7 +151,7 @@ def train(args, examples):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=Path, required=True)
-    parser.add_argument("--model", default="Qwen/Qwen3-0.6B")
+    parser.add_argument("--model", default="google/gemma-3-4b-it")
     parser.add_argument("--output", type=Path, default=Path("grade-lora-output"))
     parser.add_argument("--max-examples", type=int, default=2500)
     parser.add_argument("--context", type=int, default=2048)

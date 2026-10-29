@@ -35,7 +35,7 @@ data class NeuralDesignPlan(
 )
 
 /**
- * Real inference: Qwen3 GGUF is loaded in CPU memory and released BEFORE QNN.
+ * Real inference: Gemma 3 GGUF is loaded in CPU memory and released BEFORE QNN.
  *
  * One bounded inference receives the complete canonical input and user feedback.
  * Deterministic collection/validation occurs before native generation.
@@ -57,7 +57,27 @@ class AsterionReasoner(context:Context) {
             "modify the others; never replace physical integration with theme stickers. " +
             "Preserve all user-required constraints and candidate counts. " +
             "Make viable, internally coherent, visually distinct designs. " +
-            "Answer only the requested structured artifact. /no_think"
+            "Answer only the requested structured artifact. "
+        // Recovered original Prompt Writing methodology: Artwork only
+        // compiles existing visible evidence into dense ranked metadata.
+        // The Originals authoring system above may synthesize new anatomy;
+        // Artwork may NOT invent a theme, subject, narrative or relationships.
+        private const val ARTWORK_SYSTEM =
+            "You compile Artwork image prompts from owner-authored sheets. " +
+            "Preserve the exact visible specifications; never invent subjects, " +
+            "actions, setting, context, narrative, motives, causes or symbolism. " +
+            "The Character Sheet controls identity. The Theme Sheet controls " +
+            "theme outfit pose expression composition and explicit overrides. " +
+            "The Element Sheet adds only source-defined visual elements. " +
+            "The Art Style Sheet controls rendering, not depicted content. " +
+            "When the Theme explicitly overrides a Character state, retain " +
+            "only the prevailing Theme state, not both. Do not omit binding " +
+            "reference details. Order the positive metadata as five paragraphs: " +
+            "character name and concise identity; outfit and pose; theme; " +
+            "environment and elements; art style rendering camera lighting. " +
+            "Use compact concrete visual metadata, not invented commentary. " +
+            "The negative prompt lists only source-relevant exclusions. " +
+            "Output the requested complete structured prompt and nothing else."
     }
     fun available()=models.selected()!=null
 
@@ -117,9 +137,10 @@ class AsterionReasoner(context:Context) {
         require(jobId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
         require(candidateCount in 1..60)
         val engine=AiChat.getInferenceEngine(app)
+        val activeSystem=if(domain==CreativeDomain.ARTWORK)ARTWORK_SYSTEM else SYSTEM
         val contextSize=contextForRam()
         suspend fun answer(prompt:String,n:Int):String {
-            return withTimeout(6*60*1000L) {
+            return withTimeout(3*60*1000L) {
                 engine.sendUserPrompt(prompt,n).toList().joinToString("").trim()
             }.also { require(it.isNotBlank()) { "Neural planner generated no text" } }
         }
@@ -135,12 +156,12 @@ class AsterionReasoner(context:Context) {
             }
             onStage("Loading "+weights.label+" with "+contextSize+" tokens")
             engine.loadModel(weightFile.absolutePath,contextSize)
-            // LoRA is applied to a compatible Qwen3 base, never silently
+            // LoRA is applied to a compatible Gemma 3 base, never silently
             // substituted for an incompatible architecture.
             BrainAdapterLibrary(app).activeFor(weights.id)?.let { adapter ->
                 engine.loadAdapter(adapter.absolutePath)
             }
-            engine.setSystemPrompt(SYSTEM)
+            engine.setSystemPrompt(activeSystem)
             val canonical=section(domain,concepts)
             val guidance=learnedEvidence(
                 creationMode,renderMode,concepts,targetDesignId)
@@ -153,7 +174,7 @@ class AsterionReasoner(context:Context) {
                 "NEGATIVE AUTHORITY:\n"+baseNegative
             ).joinToString("\n\n")
             // The compiler already has the canonical methodology, taxonomy,
-            // visual observations and owner feedback. No repeated Qwen evidence
+            // visual observations and owner feedback. No repeated Gemma evidence
             // summaries, consolidation loops or synthetic design-rewrite stages.
             // One bounded semantic compilation keeps the original authority intact.
             val outputBudget=if(candidateCount>=10)minOf(4200,contextSize/4)
@@ -172,25 +193,22 @@ class AsterionReasoner(context:Context) {
                 "Do not invent additional methodology stages. For distinct outputs " +
                 "include all "+candidateCount+" independent designs.\n"+
                 requestedOutput+"\nFULL AUTHORITY:\n"+authority+
-                "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n/no_think"
-            require(engine.countTokens(request)+engine.countTokens(SYSTEM)+
+                "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
+            require(engine.countTokens(request)+engine.countTokens(activeSystem)+
                 outputBudget+256<contextSize) {
                 "Complete owner methodology and reference evidence exceed " +
                     "the installed reasoning model's measured context; " +
                     "do not silently truncate or recursively rewrite authority."
             }
-            onStage("One bounded Qwen3 compilation of complete original authority")
-            engine.restartConversation(SYSTEM)
+            onStage("One bounded Gemma 3 compilation of complete original authority")
+            engine.restartConversation(activeSystem)
             val third=answer(request,outputBudget)
-            val sheets=(1..3).map{parsePart(third,"SHEET_"+it)}
-                .filter{it.isNotBlank()}
-            val positive=parsePart(third,"POSITIVE").ifBlank {
-                if(sheets.isNotEmpty())sheets.joinToString("\n\n") else third
-            }
-            require(positive.isNotBlank()) { "No complete generation prompt returned" }
+            val valid=StructuredPlanOutput.validate(
+                third,baseNegative,domain==CreativeDomain.CHARACTER &&
+                    candidateCount==15)
             val result=NeuralDesignPlan(
                 weights.id,contextSize,domain,authority,third,
-                positive,parsePart(third,"NEGATIVE").ifBlank{baseNegative},sheets)
+                valid.positive,valid.negative,valid.sheetPrompts)
             val path=File(app.filesDir,"generation-plans/"+jobId+"-brain.json")
             val source=JSONObject().apply {
                 put("schema","asterion.neural-planning.v1")

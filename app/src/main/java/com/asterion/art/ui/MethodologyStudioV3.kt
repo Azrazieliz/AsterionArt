@@ -61,6 +61,8 @@ fun MethodologyStudioV3(
     val direction: String? = null
     var message by remember(method) { mutableStateOf<String?>(null) }
     var promptReview by remember(method) { mutableStateOf<Pair<String,String>?>(null) }
+    var ownerPositive by remember(method) { mutableStateOf("") }
+    var ownerNegative by remember(method) { mutableStateOf("") }
     val picturePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(
@@ -113,7 +115,9 @@ fun MethodologyStudioV3(
                 ratio=if(geometry.preserveOriginalFraming)repo.settings.ratio else geometry.ratio,
                 batch=geometry.imageCount)
             val job=GenerationJobStore(context).create(
-                media,chosen.map { it.id },adjusted,method,illustration,names)
+                media,chosen.map { it.id },adjusted,method,illustration,names,
+                userScenePrompt=ownerPositive,
+                userNegativePrompt=ownerNegative)
             val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
             GenerationWorker.enqueue(context,job.id,task.id)
         }.onSuccess { onQueued() }.onFailure { message=it.message }
@@ -275,6 +279,18 @@ fun MethodologyStudioV3(
             }
         }
         item {
+            Text("OPTIONAL PROMPT ADJUSTMENT",color=Gold)
+            OutlinedTextField(
+                value=ownerPositive,onValueChange={ownerPositive=it},
+                label={Text("Additional visual instructions")},
+                minLines=2,maxLines=7,modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value=ownerNegative,onValueChange={ownerNegative=it},
+                label={Text("Additional exclusions")},
+                minLines=1,maxLines=5,modifier=Modifier.fillMaxWidth())
+            Text("Your additions are included in the frozen native instructions. "+
+                "The Original's required methodology and output structure stay intact.",
+                style=MaterialTheme.typography.bodySmall,color=Mist)
             OutlinedButton(onClick=openParameters) { Text("Advanced parameters") }
             if(errors.isNotEmpty()) Text(errors.joinToString(" · "),color=Red)
             if(message!=null) Text(message.orEmpty(),color=Red)

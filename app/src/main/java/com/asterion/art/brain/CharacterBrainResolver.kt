@@ -46,7 +46,7 @@ class CharacterBrainResolver(context:Context) {
             "coherent hand-illustrated 2D appearance. Each character is independently " +
             "authored, aesthetically complete and legibly female despite radical " +
             "concept anatomy. No Design Direction, sub-concepts or uniform mannequins. " +
-            "Return only the requested output. /no_think"
+            "Return only the requested output. "
     }
     private fun memoryContext():Int {
         val info=ActivityManager.MemoryInfo()
@@ -66,21 +66,21 @@ class CharacterBrainResolver(context:Context) {
             val plan=plans.load(id)
             require(plan.status=="DESIGNING")
             val model=weights.selected()?:error(
-                "Install Qwen3 before preparing original character designs")
-            val file=weights.location(model)?:error("Qwen3 model file not verified")
+                "Install Gemma 3 before preparing original character designs")
+            val file=weights.location(model)?:error("Gemma 3 model file not verified")
             val selections=CharacterPrimaryResolver.resolve(
                 plan.slots,plan.sheets,taxonomy.list(),Random(plan.seed))
             val engine=AiChat.getInferenceEngine(app)
             val context=memoryContext()
             val completed=plan.frozen.toMutableList()
-            val timings=QwenStageTelemetry()
+            val timings=ReasoningStageTelemetry()
             var outcome="FAILED_OR_CANCELLED"
             suspend fun answer(question:String,maxOutput:Int,stage:String):String =
                 timings.measure(stage) {
                     engine.restartConversation(SYSTEM)
                     val tokens=engine.countTokens(question)+engine.countTokens(SYSTEM)
                     require(tokens+maxOutput+160<context){
-                        "Full concept evidence exceeds available local Qwen3 context"
+                        "Full concept evidence exceeds available local Gemma 3 context"
                     }
                     // TTFT includes native prompt prefill and first-token decode.
                     // Stage stream duration excludes prompt processing.
@@ -88,7 +88,7 @@ class CharacterBrainResolver(context:Context) {
                     var firstTokenAt:Long?=null
                     val response=StringBuilder()
                     try {
-                        withTimeout(25L*60_000L) {
+                        withTimeout(3L*60_000L) {
                             engine.sendUserPrompt(question,maxOutput).collect{piece->
                                 if(firstTokenAt==null)firstTokenAt=System.nanoTime()
                                 response.append(piece)
@@ -116,7 +116,7 @@ class CharacterBrainResolver(context:Context) {
                         }
                     }
                 }
-                progress(completed.size,plan.total,"Loading Qwen3 for anatomical design")
+                progress(completed.size,plan.total,"Loading Gemma 3 for anatomical design")
                 timings.measure("model_load") {
                     engine.loadModel(file.absolutePath,context)
                     BrainAdapterLibrary(app).activeFor(model.id)?.let{
@@ -124,43 +124,22 @@ class CharacterBrainResolver(context:Context) {
                     }
                     engine.setSystemPrompt(SYSTEM)
                 }
-                val canonicalFull=mutableMapOf<String,String>()
-                val canonicalSummaries=mutableMapOf<String,String>()
+                // Read the original canonical record ONCE, without asking the
+                // reasoning model to paraphrase, shorten or re-summarize it.
+                // Long records are an explicit native-context compatibility
+                // issue; sequential paraphrases are not expanded attention.
                 val explicitGrades=DetailedGradeStore(app).list()
-                suspend fun conceptEvidence(c:PrimaryConcept,summarize:Boolean):String {
+                fun conceptEvidence(c:PrimaryConcept):String {
                     val record=taxonomy.find(c.canonicalId?:c.name)
                         ?:return "FIXED OPEN LITERAL: "+c.name+
-                            ". Derive complete physical meaning; never replace or invent SC IDs."
-                    val full=canonicalFull.getOrPut(record.id) {
-                        "CANONICAL "+record.id+": "+record.name+"\n"+record.fullRecord
-                    }
-                    // Reading source directly does not require generating hundreds
-                    // of new Qwen tokens. Preserve the exact canonical text when
-                    // the full design request fits the loaded model's context.
-                    if(!summarize)return full
-                    canonicalSummaries[record.id]?.let{return it}
-                    val pages=BrainEvidencePager.pages(full,
-                        (context-1900).coerceAtLeast(256)){engine.countTokens(it)}
-                    val notes=mutableListOf<String>()
-                    for(page in pages) {
-                        progress(completed.size,plan.total,
-                            "Interpreting canonical "+record.id+" "+page.index+"/"+page.total)
-                        notes+=answer(
-                            "Extract ALL mandatory major recognizable anatomical, material, " +
-                                "fusion, symbiosis and interpretation-boundary knowledge from " +
-                                "this canonical concept. No character yet. PAGE "+
-                                page.index+"/"+page.total+"\n"+page.text,
-                            minOf(650,context/6),"canonical_evidence")
-                    }
-                    val evidence="CANONICAL "+record.id+" "+record.name+"\n"+
-                        notes.joinToString("\n")
-                    canonicalSummaries[record.id]=evidence
-                    return evidence
+                            ". Preserve the exact selected concept identifier."
+                    return "CANONICAL "+record.id+": "+record.name+"\n"+
+                        record.fullRecord
                 }
                 for((index,selection) in selections.withIndex()) {
                     if(index<completed.size)continue
                     progress(index,plan.total,"Designing "+selection.id)
-                    val descriptions=selection.concepts.map {conceptEvidence(it,false)}
+                    val descriptions=selection.concepts.map(::conceptEvidence)
                     val prior=completed.takeLast(10).joinToString("\n"){
                         it.id+": "+it.anatomy.take(180)+"; "+it.topology.take(120)+
                             "; "+it.fusion.take(160)+"; "+it.faceEyesHair.take(110)
@@ -220,131 +199,36 @@ class CharacterBrainResolver(context:Context) {
                     fun inputFor(evidence:String)=format+"\nCHARACTER "+selection.id+
                         "\nPRIMARY: "+selection.names.joinToString(" × ")+
                         "\n"+CharacterPhaseOne.DRAWING+
-                        "\nDESIGN EVIDENCE:\n"+evidence+"\n/no_think"
+                        "\nDESIGN EVIDENCE:\n"+evidence+"\n"
                     suspend fun fits(evidence:String):Boolean =
                         engine.countTokens(inputFor(evidence))+
                             engine.countTokens(SYSTEM)+outputLimit+160<context
-                    // Route full canonical evidence to synthesis unchanged whenever
-                    // it fits. Only call Qwen's expensive evidence summarization
-                    // for requests that genuinely cannot fit the model's context.
-                    val fullAuthority=authorityFor(descriptions)
-                    val study=if(fits(fullAuthority)) {
-                        progress(index,plan.total,"Using complete canonical evidence directly")
-                        fullAuthority
-                    } else {
-                        val compressed=selection.concepts.map {conceptEvidence(it,true)}
-                        val authority=authorityFor(compressed)
-                        if(fits(authority))authority else {
-                        val authorityPages=BrainEvidencePager.pages(authority,
-                            (context-1650).coerceAtLeast(256)){engine.countTokens(it)}
-                        val notes=mutableListOf<String>()
-                        for(page in authorityPages) {
-                            progress(index,plan.total,
-                                "Reading full design evidence "+page.index+"/"+
-                                    page.total+" for "+selection.id)
-                            notes+=answer(
-                                "Preserve all binding anatomical, material and " +
-                                "pairwise concept-fusion requirements; no character " +
-                                "output yet. PAGE "+page.index+"/"+page.total+
-                                "\n"+page.text,minOf(620,context/6),"design_authority_pages")
-                        }
-                        notes.joinToString("\n")
-                        }
+                    // A single complete authority must fit the measured
+                    // context. Never spend hours reducing its binding detail.
+                    val study=authorityFor(descriptions)
+                    require(fits(study)) {
+                        "The exact character methodology and canonical concepts "+
+                            "exceed the installed Gemma 3 context. No multi-hour "+
+                            "summarization or authority loss is permitted."
                     }
+                    progress(index,plan.total,
+                        "Using one complete canonical identity specification")
                     val baseInput=inputFor(study)
                     progress(index,plan.total,
-                        "Qwen3 authoring full anatomical identity "+selection.id)
+                        "Gemma 3 authoring full anatomical identity "+selection.id)
                     val raw=answer(baseInput,outputLimit,"identity_json")
-                    val data=CharacterOutputSchema.parseOrRecover(raw).let{partial->
-                        if(CharacterOutputSchema.missingFields(partial).size<
-                            CharacterOutputSchema.identityFields.size)partial else {
-                            // Only repeat the entire schema if not even one
-                            // complete model-written field was recoverable.
-                            CharacterOutputSchema.parseOrRecover(answer(
-                                "Your prior response lacked complete design fields. "+
-                                "Return exactly EIGHT flat string fields with anatomically "+
-                                "specific independent construction; use 600+ characters "+
-                                "for render_description. No nested objects. "+
-                                "PRIOR OUTPUT:\n"+raw.take(4500)+
-                                "\nPRIMARY: "+selection.names.joinToString(" × ")+
-                                "\n/no_think",outputLimit,"identity_json_recovery"))
-                        }
+                    // One bounded structured authoring request, not a
+                    // sequence of costly per-field hallucinated repairs.
+                    // Invalid output remains recoverable from the saved plan;
+                    // never certify a character with missing anatomy.
+                    val data=CharacterOutputSchema.parseOrRecover(raw)
+                    val missing=CharacterOutputSchema.missingFields(data)
+                    require(missing.isEmpty()) {
+                        selection.id+": incomplete original design fields: "+
+                            missing.joinToString(", ")+
+                            ". The model failed its required schema."
                     }
                     val names=CharacterOutputSchema.identityFields
-                    // Recover several omitted fields in bounded pairs, not one
-                    // expensive prompt-prefill/model call for every omitted key.
-                    // Preserve the valid fields from the original response.
-                    val omitted=CharacterOutputSchema.missingFields(data)
-                    if(omitted.size>=3) {
-                        for(group in omitted.chunked(2)) {
-                            if(group.size<2)continue
-                            progress(index,plan.total,"Recovering "+
-                                group.joinToString(" + ")+" for "+selection.id)
-                            val retained=names.mapNotNull{key->
-                                (data.opt(key) as? String)?.takeIf{value->
-                                    value.length>=CharacterOutputSchema.minimumLength(key)
-                                }?.let{key+": "+it.take(260)}
-                            }.joinToString("\n")
-                            val keys=group.joinToString(", ")
-                            val requirements=group.joinToString("; "){field->
-                                field+" minimum "+CharacterOutputSchema.minimumLength(field)+
-                                    " characters"
-                            }
-                            val batch=runCatching {
-                                CharacterOutputSchema.parseOrRecover(answer(
-                                    "Return ONLY one FLAT JSON object with EXACTLY "+
-                                    "these two prose STRING keys: "+keys+
-                                    ". "+requirements+". SAME independent "+
-                                    "character "+selection.id+
-                                    "; preserve the already frozen design "+
-                                    "details. Both values must physically embody "+
-                                    "all primary concepts, not decorative "+
-                                    "references. No nested data or commentary."+
-                                    "\nPRIMARY: "+selection.names.joinToString(" × ")+
-                                    "\nRETAINED DESIGN:\n"+retained+
-                                    "\nBINDING STUDY:\n"+study.take(1800)+
-                                    "\n/no_think",
-                                    minOf(1900,context/3),"field_repair_batch"))
-                            }.onFailure {
-                                if(it is kotlinx.coroutines.CancellationException) throw it
-                            }.getOrNull()
-                            for(field in group) {
-                                val value=batch?.optString(field)?.trim().orEmpty()
-                                if(value.length>=CharacterOutputSchema.minimumLength(field))
-                                    data.put(field,value)
-                            }
-                        }
-                    }
-                    // Repair only fields still absent after the batch. Never
-                    // redo a complete character or overwrite a valid field.
-                    for(field in names) {
-                        val existing=data.opt(field)
-                        val minimum=CharacterOutputSchema.minimumLength(field)
-                        if(field !in CharacterOutputSchema.missingFields(data))
-                            continue
-                        progress(index,plan.total,"Repairing "+field+
-                            " for "+selection.id)
-                        val others=names.mapNotNull{key->
-                            (data.opt(key) as? String)?.takeIf{it.length>=60}
-                                ?.let{key+": "+it.take(320)}
-                        }.joinToString("\n")
-                        val text=answer(
-                            "Produce ONLY the missing character-design prose " +
-                            "field "+field+" for the SAME independently authored "+
-                            selection.id+". Minimum "+minimum+" characters. "+
-                            "Use every primary concept in physically meaningful "+
-                            "anatomy, not ornament; preserve the already designed "+
-                            "identity. No JSON, no fields besides "+field+
-                            ".\nPRIMARY: "+selection.names.joinToString(" × ")+
-                            "\nRETAINED DESIGN:\n"+others+
-                            "\nBINDING STUDY:\n"+study.take(2400)+
-                            "\n/no_think",
-                            minOf(if(minimum>=600)1000 else 550,context/4),"field_repair")
-                        require(text.length>=minimum) {
-                            selection.id+": neural "+field+" remains incomplete"
-                        }
-                        data.put(field,text)
-                    }
                     val narrative=names.joinToString("\n"){field->
                         field+": "+data.getString(field).take(420)
                     }
@@ -374,7 +258,7 @@ class CharacterBrainResolver(context:Context) {
                                 " in the SAME frozen anatomical character. " +
                                 "Specify joint, material or load-path integration " +
                                 "rather than ornaments or metaphor. Plain prose, " +
-                                "not JSON.\nIDENTITY:\n"+narrative+"\n/no_think",
+                                "not JSON.\nIDENTITY:\n"+narrative+"\n",
                                 minOf(400,context/6),"pairwise_single")
                             require(mechanism.length>=65) {
                                 selection.id+": unresolved physical fusion "+first+" + "+second
@@ -382,33 +266,27 @@ class CharacterBrainResolver(context:Context) {
                             pairs+=PairwisePhysicalFusion(first,second,mechanism)
                             continue
                         }
-                        val response=runCatching {
-                            CharacterOutputSchema.parseObject(answer(
-                                "Return exactly one JSON object with key pairwise "+
-                                "whose value is an ARRAY of "+group.size+
-                                " objects. Every object must have STRING keys "+
-                                "first, second and mechanism. Mechanism must be "+
-                                "at least 65 characters of concrete, shared "+
-                                "physical anatomy; no labels, metaphors, icons "+
-                                "or decorative attachment substitutes. The "+
-                                "primary names must match exactly. REQUIRED PAIRS:\n"+
-                                specification+"\nFROZEN DESIGN:\n"+narrative+
-                                "\n/no_think",minOf(1000,context/4),"pairwise_batch"))
-                        }.onFailure{if(it is kotlinx.coroutines.CancellationException)throw it}
-                            .getOrNull()?.optJSONArray("pairwise")
+                        // Author a complete verified batch once. Repeating
+                        // a separate model call for every failed pair caused
+                        // substantial unattended stalls and identity drift.
+                        val response=CharacterOutputSchema.parseObject(answer(
+                            "Return exactly one JSON object with key pairwise "+
+                            "whose value is an ARRAY of "+group.size+
+                            " objects. Every object has STRING keys first, "+
+                            "second and mechanism. Each mechanism must detail "+
+                            "at least 65 characters of concrete physical anatomy "+
+                            "that integrates BOTH concepts with no decorative "+
+                            "substitution. Required pairs:\n"+
+                            specification+"\nFROZEN DESIGN:\n"+narrative+"\n",
+                            minOf(1000,context/4),"pairwise_batch"))
+                            .optJSONArray("pairwise")
                         for((first,second) in group) {
                             val mechanism=CharacterOutputSchema.validMechanism(
-                                response,first,second)?:
-                                answer(
-                                    "Write ONLY a concrete 90+ character shared "+
-                                    "physical anatomical mechanism for "+first+
-                                    " AND "+second+" within THIS frozen female "+
-                                    "character. No metaphor or decorative "+
-                                    "substitution.\nIDENTITY:\n"+narrative+
-                                    "\n/no_think",minOf(400,context/6),"pairwise_repair")
-                            require(mechanism.trim().length>=65){
-                                selection.id+": unresolved physical fusion "+
-                                    first+" + "+second
+                                response,first,second)
+                            require(!mechanism.isNullOrBlank()) {
+                                selection.id+": invalid physical fusion of "+
+                                    first+" + "+second+
+                                    "; original methodology not satisfied."
                             }
                             pairs+=PairwisePhysicalFusion(first,second,mechanism)
                         }
@@ -419,7 +297,7 @@ class CharacterBrainResolver(context:Context) {
                         "requires ALL the primary concepts together, not merely "+
                         "pairwise associations. Same frozen identity. "+
                         "PRIMARY: "+selection.names.joinToString(" × ")+
-                        "\nDESIGN:\n"+narrative+"\n/no_think",
+                        "\nDESIGN:\n"+narrative+"\n",
                         minOf(500,context/6),"higher_order")
                     val character=FrozenCharacter(
                         selection.number,selection.concepts,

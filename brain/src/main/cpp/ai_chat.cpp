@@ -99,7 +99,7 @@ static llama_context *init_context(llama_model *model, const int n_ctx = DEFAULT
     ctx_params.n_ubatch = BATCH_SIZE;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads;
-    // Long-context Qwen3 on a 12 GB phone otherwise allocates ~1.75 GiB
+    // Long-context Gemma 3 on a 12 GB phone otherwise allocates ~1.75 GiB
     // of F16 KV memory at 16K tokens, on top of weights and compute buffers.
     // Q8 KV retains the user's chosen context and canonical source evidence.
     // Fall back to the original F16 path if the active backend rejects Q8 KV.
@@ -310,7 +310,7 @@ static void reset_long_term_states(const bool clear_kv_cache = true) {
         llama_memory_clear(llama_get_memory(g_context), false);
 }
 
-// Qwen3's GGUF template defaults to thinking mode. The old legacy
+// Gemma 3's GGUF template defaults to thinking mode. The old legacy
 // template formatter could not pass enable_thinking=false and consumed
 // precious CPU output tokens on <think> text before any design was authored.
 // Apply the model's actual Jinja chat template in non-thinking mode and
@@ -336,9 +336,9 @@ static std::string chat_add_and_format(const std::string &role, const std::strin
     inputs.add_generation_prompt = role == ROLE_USER;
     const auto full = common_chat_templates_apply(g_chat_templates.get(), inputs).prompt.str();
     if (full.size() < prefix.size() || full.compare(0, prefix.size(), prefix) != 0) {
-        LOGe("%s: Qwen3 non-thinking chat template changed an earlier message prefix", __func__);
+        LOGe("%s: Gemma 3 GGUF chat template changed an earlier message prefix", __func__);
         // Preserve the previous known working formatter on unexpected
-        // template behavior rather than passing an empty prompt to Qwen3.
+        // template behavior rather than passing an empty prompt to Gemma 3.
         const auto legacy = common_chat_format_single(
             g_chat_templates.get(), chat_msgs, new_msg,
             role == ROLE_USER, /* use_jinja */ false);
