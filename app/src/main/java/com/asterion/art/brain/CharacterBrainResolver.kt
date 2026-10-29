@@ -46,7 +46,7 @@ class CharacterBrainResolver(context:Context) {
             "coherent hand-illustrated 2D appearance. Each character is independently " +
             "authored, aesthetically complete and legibly female despite radical " +
             "concept anatomy. No Design Direction, sub-concepts or uniform mannequins. " +
-            "Return only the requested output. /no_think"
+            "Return only the requested output. "
     }
     private fun memoryContext():Int {
         val info=ActivityManager.MemoryInfo()
@@ -66,21 +66,21 @@ class CharacterBrainResolver(context:Context) {
             val plan=plans.load(id)
             require(plan.status=="DESIGNING")
             val model=weights.selected()?:error(
-                "Install Qwen3 before preparing original character designs")
-            val file=weights.location(model)?:error("Qwen3 model file not verified")
+                "Install Gemma 3 before preparing original character designs")
+            val file=weights.location(model)?:error("Gemma 3 model file not verified")
             val selections=CharacterPrimaryResolver.resolve(
                 plan.slots,plan.sheets,taxonomy.list(),Random(plan.seed))
             val engine=AiChat.getInferenceEngine(app)
             val context=memoryContext()
             val completed=plan.frozen.toMutableList()
-            val timings=QwenStageTelemetry()
+            val timings=GemmaStageTelemetry()
             var outcome="FAILED_OR_CANCELLED"
             suspend fun answer(question:String,maxOutput:Int,stage:String):String =
                 timings.measure(stage) {
                     engine.restartConversation(SYSTEM)
                     val tokens=engine.countTokens(question)+engine.countTokens(SYSTEM)
                     require(tokens+maxOutput+160<context){
-                        "Full concept evidence exceeds available local Qwen3 context"
+                        "Full concept evidence exceeds available local Gemma 3 context"
                     }
                     // TTFT includes native prompt prefill and first-token decode.
                     // Stage stream duration excludes prompt processing.
@@ -88,7 +88,7 @@ class CharacterBrainResolver(context:Context) {
                     var firstTokenAt:Long?=null
                     val response=StringBuilder()
                     try {
-                        withTimeout(25L*60_000L) {
+                        withTimeout(3L*60_000L) {
                             engine.sendUserPrompt(question,maxOutput).collect{piece->
                                 if(firstTokenAt==null)firstTokenAt=System.nanoTime()
                                 response.append(piece)
@@ -116,7 +116,7 @@ class CharacterBrainResolver(context:Context) {
                         }
                     }
                 }
-                progress(completed.size,plan.total,"Loading Qwen3 for anatomical design")
+                progress(completed.size,plan.total,"Loading Gemma 3 for anatomical design")
                 timings.measure("model_load") {
                     engine.loadModel(file.absolutePath,context)
                     BrainAdapterLibrary(app).activeFor(model.id)?.let{
@@ -135,7 +135,7 @@ class CharacterBrainResolver(context:Context) {
                         "CANONICAL "+record.id+": "+record.name+"\n"+record.fullRecord
                     }
                     // Reading source directly does not require generating hundreds
-                    // of new Qwen tokens. Preserve the exact canonical text when
+                    // of new Gemma tokens. Preserve the exact canonical text when
                     // the full design request fits the loaded model's context.
                     if(!summarize)return full
                     canonicalSummaries[record.id]?.let{return it}
@@ -220,12 +220,12 @@ class CharacterBrainResolver(context:Context) {
                     fun inputFor(evidence:String)=format+"\nCHARACTER "+selection.id+
                         "\nPRIMARY: "+selection.names.joinToString(" × ")+
                         "\n"+CharacterPhaseOne.DRAWING+
-                        "\nDESIGN EVIDENCE:\n"+evidence+"\n/no_think"
+                        "\nDESIGN EVIDENCE:\n"+evidence+"\n"
                     suspend fun fits(evidence:String):Boolean =
                         engine.countTokens(inputFor(evidence))+
                             engine.countTokens(SYSTEM)+outputLimit+160<context
                     // Route full canonical evidence to synthesis unchanged whenever
-                    // it fits. Only call Qwen's expensive evidence summarization
+                    // it fits. Only call Gemma's expensive evidence summarization
                     // for requests that genuinely cannot fit the model's context.
                     val fullAuthority=authorityFor(descriptions)
                     val study=if(fits(fullAuthority)) {
@@ -253,7 +253,7 @@ class CharacterBrainResolver(context:Context) {
                     }
                     val baseInput=inputFor(study)
                     progress(index,plan.total,
-                        "Qwen3 authoring full anatomical identity "+selection.id)
+                        "Gemma 3 authoring full anatomical identity "+selection.id)
                     val raw=answer(baseInput,outputLimit,"identity_json")
                     val data=CharacterOutputSchema.parseOrRecover(raw).let{partial->
                         if(CharacterOutputSchema.missingFields(partial).size<
@@ -267,7 +267,7 @@ class CharacterBrainResolver(context:Context) {
                                 "for render_description. No nested objects. "+
                                 "PRIOR OUTPUT:\n"+raw.take(4500)+
                                 "\nPRIMARY: "+selection.names.joinToString(" × ")+
-                                "\n/no_think",outputLimit,"identity_json_recovery"))
+                                "\n",outputLimit,"identity_json_recovery"))
                         }
                     }
                     val names=CharacterOutputSchema.identityFields
@@ -303,7 +303,7 @@ class CharacterBrainResolver(context:Context) {
                                     "\nPRIMARY: "+selection.names.joinToString(" × ")+
                                     "\nRETAINED DESIGN:\n"+retained+
                                     "\nBINDING STUDY:\n"+study.take(1800)+
-                                    "\n/no_think",
+                                    "\n",
                                     minOf(1900,context/3),"field_repair_batch"))
                             }.onFailure {
                                 if(it is kotlinx.coroutines.CancellationException) throw it
@@ -338,7 +338,7 @@ class CharacterBrainResolver(context:Context) {
                             ".\nPRIMARY: "+selection.names.joinToString(" × ")+
                             "\nRETAINED DESIGN:\n"+others+
                             "\nBINDING STUDY:\n"+study.take(2400)+
-                            "\n/no_think",
+                            "\n",
                             minOf(if(minimum>=600)1000 else 550,context/4),"field_repair")
                         require(text.length>=minimum) {
                             selection.id+": neural "+field+" remains incomplete"
@@ -374,7 +374,7 @@ class CharacterBrainResolver(context:Context) {
                                 " in the SAME frozen anatomical character. " +
                                 "Specify joint, material or load-path integration " +
                                 "rather than ornaments or metaphor. Plain prose, " +
-                                "not JSON.\nIDENTITY:\n"+narrative+"\n/no_think",
+                                "not JSON.\nIDENTITY:\n"+narrative+"\n",
                                 minOf(400,context/6),"pairwise_single")
                             require(mechanism.length>=65) {
                                 selection.id+": unresolved physical fusion "+first+" + "+second
@@ -393,7 +393,7 @@ class CharacterBrainResolver(context:Context) {
                                 "or decorative attachment substitutes. The "+
                                 "primary names must match exactly. REQUIRED PAIRS:\n"+
                                 specification+"\nFROZEN DESIGN:\n"+narrative+
-                                "\n/no_think",minOf(1000,context/4),"pairwise_batch"))
+                                "\n",minOf(1000,context/4),"pairwise_batch"))
                         }.onFailure{if(it is kotlinx.coroutines.CancellationException)throw it}
                             .getOrNull()?.optJSONArray("pairwise")
                         for((first,second) in group) {
@@ -405,7 +405,7 @@ class CharacterBrainResolver(context:Context) {
                                     " AND "+second+" within THIS frozen female "+
                                     "character. No metaphor or decorative "+
                                     "substitution.\nIDENTITY:\n"+narrative+
-                                    "\n/no_think",minOf(400,context/6),"pairwise_repair")
+                                    "\n",minOf(400,context/6),"pairwise_repair")
                             require(mechanism.trim().length>=65){
                                 selection.id+": unresolved physical fusion "+
                                     first+" + "+second
@@ -419,7 +419,7 @@ class CharacterBrainResolver(context:Context) {
                         "requires ALL the primary concepts together, not merely "+
                         "pairwise associations. Same frozen identity. "+
                         "PRIMARY: "+selection.names.joinToString(" × ")+
-                        "\nDESIGN:\n"+narrative+"\n/no_think",
+                        "\nDESIGN:\n"+narrative+"\n",
                         minOf(500,context/6),"higher_order")
                     val character=FrozenCharacter(
                         selection.number,selection.concepts,
