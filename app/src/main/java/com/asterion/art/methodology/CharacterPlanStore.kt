@@ -145,6 +145,14 @@ class CharacterPlanStore(context:Context) {
             j.optString("progress_stage","")
         )
     }
+    /** Recover independent populations after activity/process recreation. */
+    @Synchronized fun recent(limit:Int=12):List<CharacterPhaseOnePlan> =
+        folder.listFiles().orEmpty()
+            .filter { it.isFile && it.extension=="json" }
+            .mapNotNull { runCatching { load(it.nameWithoutExtension) }.getOrNull() }
+            .sortedByDescending { it.createdAt }
+            .take(limit.coerceIn(1,100))
+
     /**
      * Retry a failed Qwen design without discarding the fully validated
      * identities already frozen in the original durable population.
