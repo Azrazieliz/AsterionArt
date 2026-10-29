@@ -583,7 +583,7 @@ private object WorksheetSemanticGrammar {
             canonicalName = "camera",
             headingAliases = listOf("camera", "lens", "perspective", "shot", "angle"),
             fields = listOf(
-                FieldDefinition("perspective", listOf("perspective", "view", "angle")),
+                FieldDefinition("perspective", listOf("perspective", "view")),
                 FieldDefinition("lens", listOf("lens", "focal length", "lens type")),
                 FieldDefinition("angle", listOf("angle", "camera angle", "view angle")),
             ),
@@ -625,7 +625,14 @@ private object WorksheetSemanticGrammar {
         val normalized = normalizeText(value)
 
         return canonicalSectionByAlias.entries
-            .firstOrNull { (alias, _) -> normalized == alias || normalized.containsPhrase(alias) }
+            // Prose mentioning a pose/scene is NOT a section heading.
+            // Require a real heading, otherwise the parser silently loses
+            // unknown-section evidence and changes worksheet ownership.
+            .firstOrNull { (alias, _) ->
+                normalized == alias ||
+                    normalized == "section "+alias ||
+                    normalized == alias+" section"
+            }
             ?.value
     }
 
