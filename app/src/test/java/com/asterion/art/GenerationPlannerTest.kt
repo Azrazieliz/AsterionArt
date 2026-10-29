@@ -23,6 +23,17 @@ class GenerationPlannerTest {
             mapOf("PRIMARY" to listOf("Monumental throne setting"),
                 "POSE" to listOf("Symmetrical seating"))),
     )
+    @Test fun longAuthoritativeSheetDescriptionsSurviveUnchanged() {
+        val required="Canonical multi-component source identity: " +
+            "precise facial geometry, hair architecture, body construction, " +
+            "material and distinctive traits preserved with no substitution. ".repeat(5)
+        val source=SourceEvidence("long-source",SheetRole.CHARACTER,
+            mapOf("PRIMARY" to listOf(required)))
+        val recipe=GenerationPlanner.compile(
+            listOf(source),RenderMode.ANIME,GeneratorSettings())
+        assertTrue(recipe.passes.all { it.positive.contains(required.trim()) })
+    }
+
     @Test fun fivePassesCarryCompleteFoundation() {
         val recipe = GenerationPlanner.compile(sheets, RenderMode.ANIME, GeneratorSettings())
         assertEquals(5, recipe.passes.size)
