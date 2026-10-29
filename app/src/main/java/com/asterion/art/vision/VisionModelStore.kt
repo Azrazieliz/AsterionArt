@@ -44,12 +44,22 @@ class VisionModelStore(context:Context) {
         return File(root,weight.name)
     }
     private fun marker(file:File)=File(file.path+".verified")
-    fun path(weight:VisionWeight):File?=
-        roots.map{File(it,weight.name)}.firstOrNull{
+    fun path(weight:VisionWeight):File? {
+        // Reuse the exact same SHA-verified Gemma 3 language GGUF when
+        // already installed as the design brain, avoiding a redundant 2.49GB
+        // download and retaining owner-provisioned model storage.
+        if(weight.name==VisionCatalog.language.name) {
+            val shared=com.asterion.art.brain.BrainCatalog.models
+                .firstOrNull{it.filename==weight.name&&it.sha256==weight.sha256}
+                ?.let{com.asterion.art.brain.BrainModelStore(app).location(it)}
+            if(shared!=null)return shared
+        }
+        return roots.map{File(it,weight.name)}.firstOrNull{
             it.isFile&&it.length() in 100_000_000L..weight.bytesMax &&
                 marker(it).isFile &&
                 marker(it).readText().trim().equals(weight.sha256,true)
         }
+    }
     fun installed():VisionInstalledPair? {
         val first=path(VisionCatalog.language)?:return null
         val second=path(VisionCatalog.projector)?:return null
