@@ -21,7 +21,7 @@ android {
             if(!store.isNullOrBlank() && !pass.isNullOrBlank()) {
                 storeFile = file(store)
                 storePassword = pass
-                keyAlias = System.getenv("ASTERION_RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "asterion-art-release"
+                keyAlias = System.getenv("ASTERION_RELEASE_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "asterion-art-persistent-20261028"
                 keyPassword = pass
                 storeType = "pkcs12"
             }
