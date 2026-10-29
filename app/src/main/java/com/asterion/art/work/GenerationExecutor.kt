@@ -314,11 +314,10 @@ internal class GenerationExecutor(
                     }
                 }
             } else {
-                if(capacityCheck.isFailure &&
-                    capacityCheck.exceptionOrNull()?.message
-                        ?.contains("exceeds",ignoreCase=true)!=true) {
-                    capacityCheck.getOrThrow()
-                }
+                // An image-model context overflow is a hard failure. Never
+                // ignore the tokenizer error and run diffusion with omitted
+                // character, scene or methodology instructions.
+                capacityCheck.getOrThrow()
             }
             val extraOriginal = job.sourceImageUri?.let { uri ->
                 SheetRecord(role=SheetRole.CHARACTER,label="Original source image",
