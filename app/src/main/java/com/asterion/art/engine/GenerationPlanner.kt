@@ -117,11 +117,13 @@ object GenerationPlanner {
         )
 
         val denoise = listOf(1f, 0.48f, 0.32f, 0.22f, 0.13f)
-        val passes = (1..5).map { n ->
+        val passes = if (creation == null) (1..5).map { n ->
+            // The owner's five quality phases belong to Artwork Creation ONLY.
             val extra = if (n == 1) emptyList() else positiveDetails[n - 2]
             val full = if (extra.isEmpty()) core else core + "\n\n" + join(extra)
             GenerationPass(n, full, negative, denoise[n - 1])
-        }
+        } else listOf(GenerationPass(1, core, negative,
+            if (creation == CreationMode.STYLE_CORRECTION) settings.denoise else 1f))
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings),
             creation,concepts,sources,resolver)
@@ -209,9 +211,9 @@ object GenerationPlanner {
         )
         val denoise=listOf(if (creation==CreationMode.STYLE_CORRECTION) .5f else 1f,
             .45f,.32f,.22f,.13f)
-        val passes=(1..5).map { index ->
+        val passes=if(creation==null)(1..5).map { index ->
             GenerationPass(index,base+" "+modifiers[index-1],"",denoise[index-1])
-        }
+        } else listOf(GenerationPass(1,base,"",denoise.first()))
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode,passes,sources.map { it.sheetId },settings),
             creation,concepts,sources,resolver)
@@ -237,9 +239,9 @@ object GenerationPlanner {
             "Resolve anatomical and material interaction with consistent lighting.",
             "Detail intrinsic morphology, hair, surfaces and smaller structure without redesign.",
             "Finalize faithful visual coherence and clean neutral presentation.")
-        val passes=(1..5).map { i ->
-            GenerationPass(i,base+"\n"+details[i-1],"",listOf(1f,.46f,.32f,.21f,.13f)[i-1])
-        }
+        // Creature/Character are Originals and must not inherit Artwork's
+        // five sequential image refinements. Their methodology owns the output.
+        val passes=listOf(GenerationPass(1,base+"\n"+details.joinToString("\n"),"",1f))
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode,passes,emptyList(),settings),
             creation,concepts,emptyList(),resolver)
