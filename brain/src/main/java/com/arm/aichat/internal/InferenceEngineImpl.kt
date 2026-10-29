@@ -271,7 +271,7 @@ internal class InferenceEngineImpl private constructor(
             processUserPrompt(message, predictLength).let { result ->
                 if (result != 0) {
                     val failure=IllegalStateException(
-                        "Native Qwen prompt processing failed; context may be exhausted (code: $result)")
+                        "Native reasoning prompt processing failed; context may be exhausted (code: $result)")
                     Log.e(TAG, failure.message.orEmpty())
                     _state.value = InferenceEngine.State.Error(failure)
                     throw failure
