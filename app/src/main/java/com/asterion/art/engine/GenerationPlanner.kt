@@ -126,10 +126,11 @@ object GenerationPlanner {
             pieces(styles, "FINGERPRINT", "COMPOSITION") +
                 pieces(themes, "VIEW")
         )
-        val negative = join(
-            pieces(styles, "NEGATIVE") +
+        val negative = NegativePromptAuthority.merge(
+            (pieces(characters, "NEGATIVE") +
+                pieces(styles, "NEGATIVE") +
                 pieces(themes, "NEGATIVE") +
-                pieces(elements, "NEGATIVE")
+                pieces(elements, "NEGATIVE")).map { it.trim() }
         )
 
         val denoise = listOf(1f, 0.48f, 0.32f, 0.22f, 0.13f)
