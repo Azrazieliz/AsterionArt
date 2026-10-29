@@ -1,4 +1,4 @@
-# Optional local Qwen LoRA training; nothing installed automatically.
+# Optional Gemma 3 LoRA training; nothing installed automatically.
 torch>=2.4,<3
 transformers>=4.52,<5
 peft>=0.15,<1
