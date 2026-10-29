@@ -199,7 +199,10 @@ class CharacterBrainResolver(context:Context) {
                         "topology 160-450, fusion 160-450, materials 160-400, " +
                         "differentiation 160-400, render_description 600-1100, " +
                         "audit_evidence 120-350. Do not spend the response " +
-                        "on the first field. Fully design one original " +
+                        "on the first field. For exactly two concepts, the " +
+                        "fusion field MUST name both and detail their actual " +
+                        "shared anatomical load path and material interface. " +
+                        "Fully design one original " +
                         "anatomical character, with " +
                         "complete feminine silhouette, original face/eyes/hair, " +
                         "rooted appendages, consequential integration of EVERY " +
@@ -210,7 +213,10 @@ class CharacterBrainResolver(context:Context) {
                         "props, no scenes. Do not include pairwise or higher_order " +
                         "in THIS response; these are authored separately with an " +
                         "independent output budget. No Markdown or commentary."
-                    val outputLimit=minOf(2300,context/2)
+                    // Keep all eight authored fields but avoid the 2300-token
+                    // response budget that repeatedly ran into multi-minute
+                    // decoding and truncated JSON on the phone.
+                    val outputLimit=minOf(1400,context/3)
                     fun inputFor(evidence:String)=format+"\nCHARACTER "+selection.id+
                         "\nPRIMARY: "+selection.names.joinToString(" × ")+
                         "\n"+CharacterPhaseOne.DRAWING+
@@ -299,6 +305,8 @@ class CharacterBrainResolver(context:Context) {
                                     "\nBINDING STUDY:\n"+study.take(1800)+
                                     "\n/no_think",
                                     minOf(1900,context/3),"field_repair_batch"))
+                            }.onFailure {
+                                if(it is kotlinx.coroutines.CancellationException) throw it
                             }.getOrNull()
                             for(field in group) {
                                 val value=batch?.optString(field)?.trim().orEmpty()
@@ -354,6 +362,12 @@ class CharacterBrainResolver(context:Context) {
                         // This is the common two-primary-concept Phase-1 path.
                         if(group.size==1) {
                             val (first,second)=group.single()
+                            val authored=CharacterOutputSchema.validNamedFusion(
+                                data.getString("fusion"),first,second)
+                            if(authored!=null) {
+                                pairs+=PairwisePhysicalFusion(first,second,authored)
+                                continue
+                            }
                             val mechanism=answer(
                                 "Write ONLY one detailed 110+ character physical " +
                                 "fusion mechanism shared by "+first+" AND "+second+
