@@ -215,9 +215,8 @@ internal class GenerationExecutor(
                             if(job.userScenePrompt.isBlank())"" else
                                 "\n\nUSER-APPROVED ADDITIONAL DIRECTION (PRESERVE ORIGINAL METHODOLOGY):\n"+
                                     job.userScenePrompt,
-                        negative=pass.negative+
-                            if(job.userNegativePrompt.isBlank())"" else
-                                ", "+job.userNegativePrompt)
+                        negative=com.asterion.art.engine.NegativePromptAuthority
+                            .merge(pass.negative,job.userNegativePrompt))
                 })
             }
             // Recover and execute the original deterministic compiler for
@@ -232,8 +231,8 @@ internal class GenerationExecutor(
                 recipe=recipe.copy(passes=recipe.passes.map { stage ->
                     stage.copy(
                         positive=stage.positive+"\n\n"+restoredCompilation.text,
-                        negative=listOf(stage.negative,restoredCompilation.negatives)
-                            .filter{it.isNotBlank()}.distinct().joinToString(", ")
+                        negative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                            stage.negative,restoredCompilation.negatives)
                     )
                 })
                 foreground("Original deterministic worksheet compiler: "+
@@ -294,8 +293,8 @@ internal class GenerationExecutor(
                     pass.copy(
                         positive=pass.positive+"\n\nNEURAL DESIGN SPECIFICATION:\n"+
                             brainPlan.positive,
-                        negative=listOf(pass.negative,brainPlan.negative)
-                            .filter { it.isNotBlank() }.distinct().joinToString(", "))
+                        negative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                            pass.negative,brainPlan.negative))
                 })
             }
             val preRenderElapsed=android.os.SystemClock.elapsedRealtime()-preRenderStart
@@ -502,14 +501,17 @@ internal class GenerationExecutor(
                             thermalGate()
                             val directive=CharacterSheetCompiler.individual(d)
                             engine.verifyText(directive)
-                            engine.verifyText(CharacterPhaseOne.NEGATIVE)
+                            val finalNegative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                                CharacterPhaseOne.NEGATIVE,recipe.passes.first().negative,
+                                job.designNegative,job.userNegativePrompt)
+                            engine.verifyText(finalNegative)
                             if(stopped())throw CancellationException()
                             val stageLabel="Sheet "+candidate+"/"+count+
                                 " · identity "+d.id+" · complete native prompt"
                             foreground(stageLabel)
                             val started=android.os.SystemClock.elapsedRealtime()
                             val result=engine.generate(
-                                GenerationPass(1,directive,CharacterPhaseOne.NEGATIVE,1f),
+                                GenerationPass(1,directive,finalNegative,1f),
                                 nativeSettings,resolution.first,resolution.second,
                                 null,seed+cell*104729L+1,
                                 {stopped()},{step,totalSteps->
@@ -589,7 +591,9 @@ internal class GenerationExecutor(
                     }
                     else if(characterPlan!=null)
                         stage.copy(positive=characterPlan.prompts[candidate-1],
-                            negative=CharacterPhaseOne.NEGATIVE)
+                            negative=com.asterion.art.engine.NegativePromptAuthority.merge(
+                                stage.negative,CharacterPhaseOne.NEGATIVE,
+                                job.designNegative,job.userNegativePrompt))
                     else stage
                     // Every native call sees the complete methodology/Artwork
                     // stage prompt. Native tokenizer capacity is a real limit,
@@ -686,7 +690,10 @@ internal class GenerationExecutor(
                         id=job.id+"-D"+ordinal.toString().padStart(3,'0'),
                         jobId=job.id,mode=job.mode,creationMode=job.creationMode,
                         ordinal=ordinal,sheetNumber=candidate,prompt=specification,
-                        negative=if(characterPlan!=null) CharacterPhaseOne.NEGATIVE
+                        negative=if(characterPlan!=null)
+                            com.asterion.art.engine.NegativePromptAuthority.merge(
+                                CharacterPhaseOne.NEGATIVE,stageSequence.first().negative,
+                                job.designNegative,job.userNegativePrompt)
                             else stageSequence.first().negative,sheetUri=uri.toString(),
                         status=if(job.designPrompt!=null)"REVISION" else "CANDIDATE",
                         parents=job.parentDesignIds,sourceSheetIds=job.sheetIds,
@@ -737,10 +744,10 @@ internal class GenerationExecutor(
                         else if(characterPlan!=null)
                         characterPlan.prompts[candidate-1]
                         else stageSequence.joinToString("\n\n") { it.positive })
-                    put("prompt_negative", if(job.designPrompt!=null)
-                        job.designNegative.orEmpty()
-                        else if(characterPlan!=null)
-                        CharacterPhaseOne.NEGATIVE
+                    put("prompt_negative", if(characterPlan!=null)
+                        com.asterion.art.engine.NegativePromptAuthority.merge(
+                            CharacterPhaseOne.NEGATIVE,stageSequence.first().negative,
+                            job.designNegative,job.userNegativePrompt)
                         else stageSequence.joinToString("\n\n") { it.negative })
                     put("pre_render_elapsed_ms",preRenderElapsed)
                     put("model_load_elapsed_ms",loadElapsed)
