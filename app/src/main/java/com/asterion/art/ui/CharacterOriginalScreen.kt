@@ -48,6 +48,22 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     var plan by remember{mutableStateOf<CharacterPhaseOnePlan?>(null)}
     var error by remember{mutableStateOf<String?>(null)}
     var review by remember{mutableStateOf(false)}
+    var savedPlans by remember{mutableStateOf(emptyList<CharacterPhaseOnePlan>())}
+    LaunchedEffect(Unit) {
+        val saved=withContext(Dispatchers.IO){store.recent()}
+        savedPlans=saved
+        if(activePlanId==null) {
+            val recover=saved.firstOrNull {
+                it.frozen.isNotEmpty() && it.status!="AUTHORIZED"
+            } ?: saved.firstOrNull {
+                it.status=="DESIGNING"||it.status=="FAILED"||it.status=="READY"
+            }
+            if(recover!=null) {
+                activePlanId=recover.id
+                plan=recover
+            }
+        }
+    }
     // The owner installs or loads the chosen reasoning model through Models.
     // Refresh while this screen is open so manual installation is detected.
     var model by remember(context) {
@@ -90,6 +106,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
             plan=created
             error=null
             CharacterPreparationService.enqueue(context,created.id)
+            savedPlans=store.recent()
         }.onFailure{error=it.message}
     }
     fun authorizeGeneration() {
@@ -288,6 +305,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                             error=null
                             attempt++
                             CharacterPreparationService.enqueue(context,id)
+                            savedPlans=store.recent()
                         }.onFailure{error=it.message}
                     }){
                         Text("Retry unresolved design · preserve "+
@@ -307,6 +325,26 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                 OutlinedButton(onClick={
                     plan=null;activePlanId=null;error=null
                 }){Text("Start a new population")}
+            }
+        }
+        item {
+            val recoverable=savedPlans.filter {
+                it.id!=activePlanId && it.frozen.isNotEmpty()
+            }.take(6)
+            if(recoverable.isNotEmpty()) {
+                Text("PRESERVED CHARACTER POPULATIONS",color=Gold)
+                recoverable.forEach{saved->
+                    TextButton(onClick={
+                        activePlanId=saved.id
+                        plan=saved
+                        error=null
+                        attempt++
+                    }) {
+                        Text("Restore "+saved.id.take(8)+" · "+
+                            saved.frozen.size+"/"+saved.total+
+                            " frozen · "+saved.status)
+                    }
+                }
             }
         }
         item { Text("CANONICAL SELECTOR · "+options.size+" results",color=Gold) }
