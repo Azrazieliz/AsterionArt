@@ -211,10 +211,10 @@ internal class InferenceEngineImpl private constructor(
     override suspend fun countTokens(text:String):Int =
         withContext(llamaDispatcher) {
             check(_state.value is InferenceEngine.State.ModelReady){
-                "Qwen3 tokenizer requires a loaded model"
+                "Gemma 3 tokenizer requires a loaded model"
             }
             countTokensNative(text).also{
-                check(it>=0){"Native Qwen tokenizer failed"}
+                check(it>=0){"Native Gemma tokenizer failed"}
             }
         }
 
@@ -224,7 +224,7 @@ internal class InferenceEngineImpl private constructor(
             check(_state.value is InferenceEngine.State.ModelReady)
             val result=processSystemPrompt(systemPrompt)
             check(result==0){
-                "Qwen3 neural context reset failed, code "+result
+                "Gemma 3 neural context reset failed, code "+result
             }
         }
 
