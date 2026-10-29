@@ -48,6 +48,7 @@ object EmbeddedProfiles {
         id = "prefect_illustrious_v8",
         displayName = "prefect_illustrious_v8",
         sampler = "DPM++ 2M Karras",
+        lexicalReplacements = mapOf("dramatic illumination" to "dramatic lighting"),
     )
     private val illustriousV17 = supportedCheckpoint(
         id = "illustrious_v17",
@@ -154,13 +155,16 @@ object EmbeddedProfiles {
         ),
     )
 
-    private fun supportedCheckpoint(id: String, displayName: String, sampler: String): CheckpointProfile = CheckpointProfile(
+    private fun supportedCheckpoint(
+        id: String, displayName: String, sampler: String,
+        lexicalReplacements: Map<String,String> = emptyMap()
+    ): CheckpointProfile = CheckpointProfile(
         id = id,
         displayName = displayName,
         baseModelFamily = "SDXL",
         defaultParameters = GenerationParameters(1024, 1024, 30, 6.5, sampler),
         promptOptimization = checkpointOptimization(
-            lexicalReplacements = emptyMap(),
+            lexicalReplacements = lexicalReplacements,
             negativeTerms = listOf("lowres", "blurry", "watermark", "signature"),
         ),
     )
