@@ -30,7 +30,8 @@ class GenerationPlannerTest {
         val source=SourceEvidence("long-source",SheetRole.CHARACTER,
             mapOf("PRIMARY" to listOf(required)))
         val recipe=GenerationPlanner.compile(
-            listOf(source),RenderMode.ANIME,GeneratorSettings())
+            listOf(source)+sheets.filter{it.role!=SheetRole.CHARACTER},
+            RenderMode.ANIME,GeneratorSettings())
         assertTrue(recipe.passes.all { it.positive.contains(required.trim()) })
     }
 
