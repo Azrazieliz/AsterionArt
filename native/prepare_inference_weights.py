@@ -14,10 +14,10 @@ import urllib.request
 # The Gemma language GGUF is reused by both reasoning and image analysis.
 WEIGHTS = (
     ("google_gemma-3-4b-it-Q4_K_M.gguf",
-     "bartowski/google_gemma-3-4b-it-GGUF",None,
+     "bartowski/google_gemma-3-4b-it-GGUF",2489758112,
      "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94"),
     ("mmproj-google_gemma-3-4b-it-f16.gguf",
-     "bartowski/google_gemma-3-4b-it-GGUF",None,
+     "bartowski/google_gemma-3-4b-it-GGUF",851251104,
      "8c0fb064b019a6972856aaae2c7e4792858af3ca4561be2dbf649123ba6c40cb"),
 )
 
