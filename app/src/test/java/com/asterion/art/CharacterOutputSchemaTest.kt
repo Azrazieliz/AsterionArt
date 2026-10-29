@@ -104,6 +104,7 @@ class CharacterOutputSchemaTest {
             "Acid and Aberration form a beautiful color theme and mysterious aura.",
             "Aberration","Acid"))
         assertNull(CharacterOutputSchema.validNamedFusion(
-            fusion.replace("Acid","salt"),"Aberration","Acid"))
+            fusion.replace(Regex("Acid",RegexOption.IGNORE_CASE),"salt"),
+            "Aberration","Acid"))
     }
 }
