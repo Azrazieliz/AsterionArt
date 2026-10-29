@@ -7,7 +7,7 @@ import org.junit.Test
 
 class CompilationStrategyTest {
     @Test
-    fun `compact strategy keeps each generated pass within 77 tokens`() {
+    fun `compact strategy never discards authoritative visual descriptors`() {
         val graph = CompilationGraph((1..120).map { index ->
             CompilationGraphNode(
                 id = "node-$index",
@@ -24,7 +24,15 @@ class CompilationStrategyTest {
             EmbeddedProfiles.strategies.first { it.id == "compact-77" },
         ).single { it.type == PromptPassType.RENDERING }
 
-        assertTrue(pass.positivePrompt.split(Regex("\\s+")).count { it.isNotBlank() } <= 77)
+        // The legacy word budget cannot silently delete the later source
+        // descriptors; the real tokenizer capacity is checked by the QNN
+        // backend before diffusion, not guessed here.
+        for(index in 1..120) {
+            assertTrue("Descriptor "+index+" was discarded",
+                pass.positivePrompt.contains("descriptor "+index+" with several visual terms"))
+        }
+        assertTrue(pass.positivePrompt.split(Regex("\\s+"))
+            .count{it.isNotBlank()}>77)
     }
 
     @Test
