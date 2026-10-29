@@ -415,6 +415,11 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_countTokensNative(
     return static_cast<jint>(common_tokenize(g_context,value,false,false).size());
 }
 
+// The specialist author resets the chat for every independent answer. Reusing
+// identical SYSTEM KV tokens avoids redundant CPU prompt prefill, while removing
+// all user/assistant tokens so characters cannot leak into the next design.
+static std::string cached_system_text;
+
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_processSystemPrompt(
@@ -422,21 +427,33 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processSystemPrompt(
         jobject /*unused*/,
         jstring jsystem_prompt
 ) {
-    // Reset long-term & short-term states
+    if (!g_context || !jsystem_prompt) return 1;
+    const char *raw = env->GetStringUTFChars(jsystem_prompt, nullptr);
+    const std::string requested(raw);
+    env->ReleaseStringUTFChars(jsystem_prompt, raw);
+    const bool has_chat_template = common_chat_templates_was_explicit(g_chat_templates.get());
+    if (!cached_system_text.empty() && requested == cached_system_text &&
+        system_prompt_position > 0) {
+        const auto length = system_prompt_position;
+        if (llama_memory_seq_rm(llama_get_memory(g_context), 0, length, -1)) {
+            chat_msgs.clear();
+            if (g_sampler) common_sampler_reset(g_sampler);
+            reset_short_term_states();
+            current_position = length;
+            if (has_chat_template) chat_add_and_format(ROLE_SYSTEM, requested);
+            LOGi("%s: reused %d cached system tokens; cleared prior user KV", __func__, length);
+            return 0;
+        }
+        LOGw("%s: KV prefix retention unavailable; safely refilling system", __func__);
+    }
     reset_long_term_states();
     reset_short_term_states();
-
-    // Obtain system prompt from JEnv
-    const auto *system_prompt = env->GetStringUTFChars(jsystem_prompt, nullptr);
+    cached_system_text.clear();
     LOGd("%s: System prompt received", __func__);
-    std::string formatted_system_prompt(system_prompt);
-
-    // Format system prompt if applicable
-    const bool has_chat_template = common_chat_templates_was_explicit(g_chat_templates.get());
+    std::string formatted_system_prompt(requested);
     if (has_chat_template) {
-        formatted_system_prompt = chat_add_and_format(ROLE_SYSTEM, system_prompt);
+        formatted_system_prompt = chat_add_and_format(ROLE_SYSTEM, requested);
     }
-    env->ReleaseStringUTFChars(jsystem_prompt, system_prompt);
 
     // Tokenize system prompt
     const auto system_tokens = common_tokenize(g_context, formatted_system_prompt,
@@ -461,6 +478,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_processSystemPrompt(
 
     // Update position
     system_prompt_position = current_position = (int) system_tokens.size();
+    cached_system_text = requested;
     return 0;
 }
 
@@ -613,6 +631,7 @@ Java_com_arm_aichat_internal_InferenceEngineImpl_generateNextToken(
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_arm_aichat_internal_InferenceEngineImpl_unload(JNIEnv * /*unused*/, jobject /*unused*/) {
+    cached_system_text.clear();
     // Reset long-term & short-term states
     reset_long_term_states();
     reset_short_term_states();
