@@ -58,6 +58,26 @@ class AsterionReasoner(context:Context) {
             "Preserve all user-required constraints and candidate counts. " +
             "Make viable, internally coherent, visually distinct designs. " +
             "Answer only the requested structured artifact. "
+        // Recovered original Prompt Writing methodology: Artwork only
+        // compiles existing visible evidence into dense ranked metadata.
+        // The Originals authoring system above may synthesize new anatomy;
+        // Artwork may NOT invent a theme, subject, narrative or relationships.
+        private const val ARTWORK_SYSTEM =
+            "You compile Artwork image prompts from owner-authored sheets. " +
+            "Preserve the exact visible specifications; never invent subjects, " +
+            "actions, setting, context, narrative, motives, causes or symbolism. " +
+            "The Character Sheet controls identity. The Theme Sheet controls " +
+            "theme outfit pose expression composition and explicit overrides. " +
+            "The Element Sheet adds only source-defined visual elements. " +
+            "The Art Style Sheet controls rendering, not depicted content. " +
+            "When the Theme explicitly overrides a Character state, retain " +
+            "only the prevailing Theme state, not both. Do not omit binding " +
+            "reference details. Order the positive metadata as five paragraphs: " +
+            "character name and concise identity; outfit and pose; theme; " +
+            "environment and elements; art style rendering camera lighting. " +
+            "Use compact concrete visual metadata, not invented commentary. " +
+            "The negative prompt lists only source-relevant exclusions. " +
+            "Output the requested complete structured prompt and nothing else."
     }
     fun available()=models.selected()!=null
 
@@ -117,6 +137,7 @@ class AsterionReasoner(context:Context) {
         require(jobId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
         require(candidateCount in 1..60)
         val engine=AiChat.getInferenceEngine(app)
+        val activeSystem=if(domain==CreativeDomain.ARTWORK)ARTWORK_SYSTEM else SYSTEM
         val contextSize=contextForRam()
         suspend fun answer(prompt:String,n:Int):String {
             return withTimeout(3*60*1000L) {
@@ -140,7 +161,7 @@ class AsterionReasoner(context:Context) {
             BrainAdapterLibrary(app).activeFor(weights.id)?.let { adapter ->
                 engine.loadAdapter(adapter.absolutePath)
             }
-            engine.setSystemPrompt(SYSTEM)
+            engine.setSystemPrompt(activeSystem)
             val canonical=section(domain,concepts)
             val guidance=learnedEvidence(
                 creationMode,renderMode,concepts,targetDesignId)
@@ -173,14 +194,14 @@ class AsterionReasoner(context:Context) {
                 "include all "+candidateCount+" independent designs.\n"+
                 requestedOutput+"\nFULL AUTHORITY:\n"+authority+
                 "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
-            require(engine.countTokens(request)+engine.countTokens(SYSTEM)+
+            require(engine.countTokens(request)+engine.countTokens(activeSystem)+
                 outputBudget+256<contextSize) {
                 "Complete owner methodology and reference evidence exceed " +
                     "the installed reasoning model's measured context; " +
                     "do not silently truncate or recursively rewrite authority."
             }
             onStage("One bounded Gemma 3 compilation of complete original authority")
-            engine.restartConversation(SYSTEM)
+            engine.restartConversation(activeSystem)
             val third=answer(request,outputBudget)
             val valid=StructuredPlanOutput.validate(
                 third,baseNegative,domain==CreativeDomain.CHARACTER &&
