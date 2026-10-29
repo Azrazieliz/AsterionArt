@@ -172,22 +172,20 @@ internal class GenerationExecutor(
                     "reference-capable Qwen/Klein QNN model; source pixels cannot " +
                     "be silently discarded or replaced with text alone.")
             }
-            var recipe = compilerAttempt.getOrNull()
-            if (model == null || recipe == null) {
-                model = visualModel ?: error(
-                    "Text-only preferred model or authoritative text is unavailable and " +
-                        "no reference-aware Qwen/Klein model is installed.")
-                recipe = if(characterPlan!=null) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
-                        CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
-                else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
-                    job.mode,listOf(GenerationPass(1,job.designPrompt,
-                        job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
-                else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
-                    GenerationPlanner.compileConcepts(
-                        job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
-                else GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
-                    job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
+            // A failed Original/Artwork planning contract MUST remain a
+            // failure. Generic visual recompilation silently changes
+            // methodology, required input roles and output structure.
+            var recipe=compilerAttempt.getOrElse { original ->
+                throw IllegalArgumentException(
+                    "Original authoritative prompt compilation failed: "+
+                        (original.message ?: original.javaClass.simpleName),
+                    original)
+            }
+            if(model==null) {
+                model=visualModel ?: error(
+                    "No installed QNN image model accepts the requested "+
+                        job.mode.display+" output. The job was NOT replaced "+
+                        "with an unrelated generic model or prompt.")
             }
             // Additional user direction composes with, rather than replaces,
             // each reference authority. Originals retain their own method.
