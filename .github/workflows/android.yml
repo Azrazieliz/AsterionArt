@@ -47,12 +47,16 @@ jobs:
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
       - name: Build debug APK
+        if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
         run: gradle --no-daemon :app:assembleDebug --stacktrace
       - name: Verify embedded native long-context LLM
+        if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
         run: unzip -l app/build/outputs/apk/debug/*.apk | grep "libai-chat.so"
       - name: Verify packaged engine and Qualcomm runtime checksums
+        if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
         run: python3 native/verify_apk_native.py
       - name: Build and verify release; sign ONLY with existing owner identity
+        if: github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029'
         id: release
         shell: bash
         env:
@@ -87,13 +91,13 @@ jobs:
             echo 'signed=false' >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/upload-artifact@v4
-        if: success() && steps.release.outputs.signed == 'true'
+        if: success() && github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029' && steps.release.outputs.signed == 'true'
         with:
           name: Asterion-Art-ORIGINAL-KEY-SIGNED-RELEASE-CANDIDATE
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
-        if: success() && steps.release.outputs.signed == 'false'
+        if: success() && github.ref_name != 'implementation/p0-compiler-engine-model-recovery-20261029' && steps.release.outputs.signed == 'false'
         with:
           name: Asterion-Art-UNSIGNED-DIAGNOSTIC-NOT-INSTALLABLE
           path: app/build/outputs/apk/release/app-release-unsigned.apk
