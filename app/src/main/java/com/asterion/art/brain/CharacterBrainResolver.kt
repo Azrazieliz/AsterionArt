@@ -300,6 +300,25 @@ class CharacterBrainResolver(context:Context) {
                         val specification=group.joinToString("\n"){
                             (first,second)->first+" + "+second
                         }
+                        // One pair needs one explicit physical mechanism, not
+                        // a JSON array round trip plus a second repair call.
+                        // This is the common two-primary-concept Phase-1 path.
+                        if(group.size==1) {
+                            val (first,second)=group.single()
+                            val mechanism=answer(
+                                "Write ONLY one detailed 110+ character physical " +
+                                "fusion mechanism shared by "+first+" AND "+second+
+                                " in the SAME frozen anatomical character. " +
+                                "Specify joint, material or load-path integration " +
+                                "rather than ornaments or metaphor. Plain prose, " +
+                                "not JSON.\nIDENTITY:\n"+narrative+"\n/no_think",
+                                minOf(400,context/6),"pairwise_single")
+                            require(mechanism.length>=65) {
+                                selection.id+": unresolved physical fusion "+first+" + "+second
+                            }
+                            pairs+=PairwisePhysicalFusion(first,second,mechanism)
+                            continue
+                        }
                         val response=runCatching {
                             CharacterOutputSchema.parseObject(answer(
                                 "Return exactly one JSON object with key pairwise "+
