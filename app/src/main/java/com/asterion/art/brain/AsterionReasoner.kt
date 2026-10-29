@@ -35,7 +35,7 @@ data class NeuralDesignPlan(
 )
 
 /**
- * Real inference: Llama 3.2 GGUF is loaded in CPU memory and released BEFORE QNN.
+ * Real inference: Gemma 3 GGUF is loaded in CPU memory and released BEFORE QNN.
  *
  * One bounded inference receives the complete canonical input and user feedback.
  * Deterministic collection/validation occurs before native generation.
@@ -135,7 +135,7 @@ class AsterionReasoner(context:Context) {
             }
             onStage("Loading "+weights.label+" with "+contextSize+" tokens")
             engine.loadModel(weightFile.absolutePath,contextSize)
-            // LoRA is applied to a compatible Llama 3.2 base, never silently
+            // LoRA is applied to a compatible Gemma 3 base, never silently
             // substituted for an incompatible architecture.
             BrainAdapterLibrary(app).activeFor(weights.id)?.let { adapter ->
                 engine.loadAdapter(adapter.absolutePath)
@@ -153,7 +153,7 @@ class AsterionReasoner(context:Context) {
                 "NEGATIVE AUTHORITY:\n"+baseNegative
             ).joinToString("\n\n")
             // The compiler already has the canonical methodology, taxonomy,
-            // visual observations and owner feedback. No repeated Qwen evidence
+            // visual observations and owner feedback. No repeated Gemma evidence
             // summaries, consolidation loops or synthetic design-rewrite stages.
             // One bounded semantic compilation keeps the original authority intact.
             val outputBudget=if(candidateCount>=10)minOf(4200,contextSize/4)
@@ -179,7 +179,7 @@ class AsterionReasoner(context:Context) {
                     "the installed reasoning model's measured context; " +
                     "do not silently truncate or recursively rewrite authority."
             }
-            onStage("One bounded Llama 3.2 compilation of complete original authority")
+            onStage("One bounded Gemma 3 compilation of complete original authority")
             engine.restartConversation(SYSTEM)
             val third=answer(request,outputBudget)
             val sheets=(1..3).map{parsePart(third,"SHEET_"+it)}
