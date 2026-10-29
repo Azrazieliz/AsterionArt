@@ -32,7 +32,9 @@ class TestInferenceModelPins(unittest.TestCase):
             self.assertIn(filename.lower().replace("_",""),sources)
             self.assertRegex(sha,r"^[0-9a-f]{64}$")
             self.assertIn(sha.lower(),sources)
-            self.assertIsNone(size)  # bytes measured and bounded at download, SHA pinned
+            self.assertIsInstance(size,int)
+            self.assertGreater(size,100_000_000)
+            self.assertIn(str(size),sources)
 
 if __name__=="__main__":
     unittest.main()
