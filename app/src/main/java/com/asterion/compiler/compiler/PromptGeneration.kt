@@ -92,17 +92,15 @@ class DeterministicPromptGenerator {
         }
 
     private fun fitTokenBudget(descriptors: List<String>, strategy: CompilationStrategy): String {
-        val result = mutableListOf<String>()
-        var count = 0
-        descriptors.forEach { descriptor ->
-            val words = descriptor.trim().split(Regex("\\s+")).filter(String::isNotBlank)
-            if (words.isEmpty()) return@forEach
-            if (count + words.size <= strategy.maximumTokens) {
-                result += if (strategy.compactDescriptors) compactDescriptor(descriptor) else descriptor.trim()
-                count += words.size
-            }
-        }
-        return result.joinToString(", ")
+        // The owner's original Prompt Writing methodology forbids omitting
+        // authoritative visual metadata. A word-limit heuristic is NOT a
+        // tokenizer; it used to silently drop complete visual features.
+        // Preserve every distinct descriptor and validate the actual capacity
+        // using the selected native image encoder before any diffusion call.
+        return descriptors.map { descriptor ->
+            if(strategy.compactDescriptors)compactDescriptor(descriptor)
+            else descriptor.trim()
+        }.filter{it.isNotBlank()}.joinToString(", ")
     }
 
     private fun compactDescriptor(value: String): String = value
