@@ -216,7 +216,12 @@ internal class GenerationExecutor(
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
             val neural=AsterionReasoner(applicationContext)
-            val brainPlan=if(characterPlan!=null) null else if(neural.available()) {
+            // When the owner's original deterministic Compiler has already
+            // validated the structured sheets, do not re-author its prompt
+            // through a slow second language model. Optional manual edits
+            // are already included in the frozen generation authority.
+            val brainPlan=if(characterPlan!=null || restoredCompilation!=null)
+                null else if(neural.available()) {
                 foreground("Asterion Brain · interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
                 val spec=job.creationMode?.let {
