@@ -50,11 +50,16 @@ class BrainModelStore(context:Context) {
         }
         return File(root,model.filename)
     }
-    fun location(model:BrainWeights):File?=roots.map{File(it,model.filename)}
-        .firstOrNull{f-> f.isFile&&f.length()>100_000_000L&&
-            (model.bytes<=0L||f.length()==model.bytes)&&
-            File(f.path+".verified").takeIf{it.isFile}?.readText()?.trim()
-                ?.equals(model.sha256,true)==true}
+    fun location(model:BrainWeights):File? {
+        val externalVision=app.getExternalFilesDirs(null).filterNotNull()
+            .map{File(it,"asterion-vision-gemma3")}
+        val vision=File(app.filesDir,"asterion-vision-gemma3")
+        return (roots+externalVision+vision).map{File(it,model.filename)}
+            .firstOrNull{f->f.isFile&&f.length()>100_000_000L&&
+                (model.bytes<=0L||f.length()==model.bytes)&&
+                File(f.path+".verified").takeIf{it.isFile}?.readText()?.trim()
+                    ?.equals(model.sha256,true)==true}
+    }
     fun installed(): List<BrainWeights> = BrainCatalog.models.filter{location(it)!=null}
     fun selected():BrainWeights?=BrainCatalog.get(prefs.getString("selected","").orEmpty())
         ?.takeIf{location(it)!=null}?:installed().lastOrNull()
