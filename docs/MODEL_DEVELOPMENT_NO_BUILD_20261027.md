@@ -6,8 +6,8 @@ User constraints: EUR 0; GitHub-only operations; NO APK builds before all model 
 ## Implemented in source, not compiled
 
 - 32K native Qwen3 planning capacity and three reasoning stages. On-device correctness remains unverified.
-- Complete 455-concept taxonomy, native-tokenizer-based LOSSLESS sequential conditioning scheduler.
-- The native image encoder tensor limits HAVE NOT BEEN INCREASED. Sequential passes are not simultaneous long-context attention.
+- Complete 455-concept taxonomy index retained. The unapproved sequential native-image prompt-conditioning scheduler was removed on the architecture recovery branch.
+- The native image encoder tensor limits HAVE NOT BEEN INCREASED. Complete native image prompts must fit the actual image encoder; there is no sequential-pass workaround.
 - Keep/Reject actions and their text-only preference ranker are removed from active learning.
 - Advanced Grading now stores separately assessed dimensions, actual image/target cell/region evidence PNG + SHA256, explicit preserve/correct notes, and source identity.
 - A small offline per-mode, per-grading-axis pixel-feature model is retrained from explicit scores. This is real parameter training, NOT visual semantic understanding or a fine-tuned vision model.
