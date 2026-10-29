@@ -18,8 +18,10 @@ object SheetTextReader {
             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
             try {
                 val panels = linkedMapOf<String, MutableList<String>>()
-                sheet.sourceUris.forEachIndexed { index, uri ->
-                    val panel = sheet.referenceSlots.getOrNull(index) ?: "PRIMARY"
+                com.asterion.art.model.SheetReferenceAuthority.primary(sheet)
+                    .forEach { authority ->
+                    val uri=authority.uri
+                    val panel=authority.panel
                     require(SheetLayouts.isValid(sheet.role, panel)) {
                         "Sheet contains unknown panel " + panel
                     }
