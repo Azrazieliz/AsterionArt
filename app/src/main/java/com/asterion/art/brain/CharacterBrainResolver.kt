@@ -73,7 +73,7 @@ class CharacterBrainResolver(context:Context) {
             val engine=AiChat.getInferenceEngine(app)
             val context=memoryContext()
             val completed=plan.frozen.toMutableList()
-            val timings=GemmaStageTelemetry()
+            val timings=ReasoningStageTelemetry()
             var outcome="FAILED_OR_CANCELLED"
             suspend fun answer(question:String,maxOutput:Int,stage:String):String =
                 timings.measure(stage) {
