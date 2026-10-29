@@ -9,17 +9,14 @@ import unittest
 
 ROOT=Path(__file__).resolve().parent.parent
 PINS={
-    "Qwen_Qwen3-0.6B-Q5_K_M.gguf":
-        "2df7894c99ee7716f0ed3c7d454c2386a7ae976c4b0ad0e716d55399c1360648",
-    "Qwen3VL-2B-Instruct-Q4_K_M.gguf":
-        "089d75c52f4b7ffc56ba998ffc50aae89fcafc755f9e7208aacca281dca6c2ae",
-    "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf":
-        "f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82",
+    "google_gemma-3-4b-it-Q4_K_M.gguf":
+        "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94",
+    "mmproj-google_gemma-3-4b-it-f16.gguf":
+        "8c0fb064b019a6972856aaae2c7e4792858af3ca4561be2dbf649123ba6c40cb",
 }
 XET={
-    "9d017e676272ce914f9dc65d959db574bedf71c2b4bfb882eb620f6fcc48ec17",
-    "06fb8948e506b2e751a0f81f6e365382a3b9ea5f304ade3c77a814adc9543109",
-    "df4d5f12ac5349b780b8a2d5033e9b529c14a82a30c5b69bbdcef52b79a56ff3",
+    "72813ef7237ca81bbc8df7d72eb6c08ade6be3f815f46ca41a1b6a04ddf92fe6",
+    "4f9a08744613d05f86991776e31a3385d8f0c4c8b33fb105f22edb5e24863c1e",
 }
 
 class InferenceModelPinTests(unittest.TestCase):
@@ -36,9 +33,9 @@ class InferenceModelPinTests(unittest.TestCase):
     def test_catalogues_agree_with_release_bundle(self):
         brain=(ROOT/"app/src/main/java/com/asterion/art/brain/BrainModelStore.kt").read_text()
         vision=(ROOT/"app/src/main/java/com/asterion/art/vision/VisionModelStore.kt").read_text()
-        self.assertIn(PINS["Qwen_Qwen3-0.6B-Q5_K_M.gguf"],brain)
-        for filename in ("Qwen3VL-2B-Instruct-Q4_K_M.gguf",
-                         "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf"):
+        self.assertIn(PINS["google_gemma-3-4b-it-Q4_K_M.gguf"],brain)
+        for filename in ("google_gemma-3-4b-it-Q4_K_M.gguf",
+                         "mmproj-google_gemma-3-4b-it-f16.gguf"):
             self.assertIn(PINS[filename],vision)
         self.assertTrue(all(bad not in brain+vision for bad in XET))
 
