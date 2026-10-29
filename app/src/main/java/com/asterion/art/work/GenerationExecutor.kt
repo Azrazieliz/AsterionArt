@@ -145,7 +145,14 @@ internal class GenerationExecutor(
                 else if(job.creationMode in listOf(CreationMode.CHARACTER,CreationMode.CREATURE))
                     GenerationPlanner.compileConcepts(
                         job.concepts,requireNotNull(job.creationMode),job.mode,job.settings,taxonomy)
-                else GenerationPlanner.compile(evidence,job.mode,job.settings,
+                else if(evidence.any{it.all().isEmpty()}) {
+                    // A legitimate image reference can have no OCR text.
+                    // Select the reference-conditioned methodology compiler
+                    // EXPLICITLY from the actual evidence type, not as a
+                    // catch-all fallback after an arbitrary compiler failure.
+                    GenerationPlanner.compileVisual(evidence,job.mode,job.settings,
+                        job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
+                } else GenerationPlanner.compile(evidence,job.mode,job.settings,
                     job.creationMode,job.concepts,job.sourceImageUri!=null,taxonomy)
             }
             val engine = EmbeddedEngineFactory.open(applicationContext)
