@@ -21,7 +21,7 @@ import java.net.URL
 class VisionDownloadWorker(context:Context,params:WorkerParameters):
     CoroutineWorker(context,params) {
     companion object {
-        const val UNIQUE="asterion-local-qwen3vl-install"
+        const val UNIQUE="asterion-local-gemma3-install"
         private const val CHANNEL="asterion-vision-download"
         fun enqueue(context:Context) {
             val request=OneTimeWorkRequestBuilder<VisionDownloadWorker>()
