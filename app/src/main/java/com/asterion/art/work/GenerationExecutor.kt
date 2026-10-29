@@ -237,7 +237,16 @@ internal class GenerationExecutor(
                 .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
             repo.updateTaskProgress(taskId,0,0,"Loading QNN model · "+model.name)
             foreground("Loading " + model.name)
+            val loadStarted=android.os.SystemClock.elapsedRealtime()
             engine.prepare(model, resolution.first, resolution.second) { stopped() }
+            val loadElapsed=android.os.SystemClock.elapsedRealtime()-loadStarted
+            if(characterPlan!=null) {
+                GeneratedImagePublisher.atomicWrite(File(applicationContext.filesDir,
+                    "generation-checkpoints/"+job.id+"/model-load-ms.txt"),
+                    loadElapsed.toString().toByteArray())
+                repo.updateTaskProgress(taskId,0,0,
+                    "QNN model ready after "+loadElapsed+" ms")
+            }
             // Character Creation prompts are per-sheet and must be checked AFTER
             // the actual five blueprint descriptions are compiled.
             val capacityCheck = runCatching {
@@ -387,7 +396,7 @@ internal class GenerationExecutor(
                         val d=characterPlan.frozen[(candidate-1)*5+cell]
                         val checkpoint=File(intermediate,
                             "sheet_"+candidate+"_"+d.id+"_triptych.png")
-                        if(checkpoint.isFile && checkpoint.length()>1024L) {
+                        val triptych=if(checkpoint.isFile && checkpoint.length()>1024L) {
                             val existing=checkpoint.readBytes()
                             check(TechnicalImageScorer.score(existing).score.isFinite())
                             existing
@@ -447,6 +456,7 @@ internal class GenerationExecutor(
                                     " · identity "+d.id+
                                     " · conditioning "+part.index+"/"+conditioning.chunks.size
                                 foreground(progressStage)
+                                val passStarted=android.os.SystemClock.elapsedRealtime()
                                 val result=engine.generate(pass,nativeSettings,
                                     resolution.first,resolution.second,previous,
                                     seed+cell*104729L+part.index,
@@ -461,6 +471,12 @@ internal class GenerationExecutor(
                                 // advancing the next diffusion pass. A restart
                                 // now resumes from this exact verified image.
                                 GeneratedImagePublisher.atomicWrite(passCheckpoint,result.png)
+                                val duration=android.os.SystemClock.elapsedRealtime()-passStarted
+                                val metrics=File(intermediate,"native-pass-timings.tsv")
+                                GeneratedImagePublisher.atomicWrite(metrics,
+                                    (metrics.takeIf{it.exists()}?.readText().orEmpty()+
+                                        d.id+"\t"+part.index+"\t"+duration+"\n")
+                                        .toByteArray(Charsets.UTF_8))
                                 previous=result.png
                             }
                             val completed=previous?:
@@ -468,6 +484,23 @@ internal class GenerationExecutor(
                             GeneratedImagePublisher.atomicWrite(checkpoint,completed)
                             completed
                         }
+                        val published=File(intermediate,
+                            "sheet_"+candidate+"_"+d.id+"_preview.uri")
+                        if(!published.isFile) {
+                            // Progressive gallery output: expose each completed,
+                            // newly generated triptych before the full five-
+                            // character sheet is assembled. Never crop an input.
+                            val uri=GeneratedImagePublisher.publish(applicationContext,
+                                "triptych-"+job.id+"-"+d.id,1,triptych)
+                            GeneratedImagePublisher.atomicWrite(published,
+                                uri.toString().toByteArray(Charsets.UTF_8))
+                            repo.registerAsset(uri.toString(),sourceJobId=job.id)
+                        }
+                        repo.updateTaskProgress(taskId,
+                            (candidate-1)*5+cell+1,count*5,
+                            "Rendered original "+d.id+" · "+
+                                (cell+1)+"/5 triptychs checkpointed")
+                        triptych
                     }
                     CharacterSheetComposer.assemble(tiles)
                 } else {
