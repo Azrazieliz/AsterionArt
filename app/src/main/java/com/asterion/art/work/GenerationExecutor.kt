@@ -204,15 +204,16 @@ internal class GenerationExecutor(
                         job.mode.display+" output. The job was NOT replaced "+
                         "with an unrelated generic model or prompt.")
             }
-            // Additional user direction composes with, rather than replaces,
-            // each reference authority. Originals retain their own method.
-            if(job.creationMode==null &&
-                (job.userScenePrompt.isNotBlank()||job.userNegativePrompt.isNotBlank())) {
+            // Owner-authored additions compose with every approved image
+            // methodology. Manual adjustments never silently replace the
+            // original method, required sheet roles or its output count.
+            if((job.userScenePrompt.isNotBlank()||
+                job.userNegativePrompt.isNotBlank()) && characterPlan==null) {
                 recipe=recipe.copy(passes=recipe.passes.map {pass ->
                     pass.copy(
                         positive=pass.positive+
                             if(job.userScenePrompt.isBlank())"" else
-                                "\n\nUSER SCENE DIRECTION (PRESERVE CANONICAL REFERENCES):\n"+
+                                "\n\nUSER-APPROVED ADDITIONAL DIRECTION (PRESERVE ORIGINAL METHODOLOGY):\n"+
                                     job.userScenePrompt,
                         negative=pass.negative+
                             if(job.userNegativePrompt.isBlank())"" else
