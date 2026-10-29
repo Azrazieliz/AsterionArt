@@ -1,4 +1,4 @@
-# Asterion Art — source prompt retrieval (29 October 2026)
+# Asterion Art â€” source prompt retrieval (29 October 2026)
 
 Repository source commit: 20cc9900c6f42dc6b61bb5455ca9cf1abe45bf05
 
@@ -135,7 +135,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  171 |                     fun authorityFor(evidence:List<String>)=buildString{
  172 |                         append("AUTHOR COMPLETE CHARACTER ").append(selection.id)
  173 |                         append("\nRESOLVED FIXED CONCEPTS: ")
- 174 |                         append(selection.names.joinToString(" × "))
+ 174 |                         append(selection.names.joinToString(" Ã— "))
  175 |                         append("\n").append(CharacterPhaseOne.AUTHORING)
  176 |                         append("\nDRAWING: ").append(CharacterPhaseOne.DRAWING)
  177 |                         append("\nPRIMARY CANONICAL CONCEPT EVIDENCE:\n")
@@ -182,7 +182,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  218 |                     // decoding and truncated JSON on the phone.
  219 |                     val outputLimit=minOf(1400,context/3)
  220 |                     fun inputFor(evidence:String)=format+"\nCHARACTER "+selection.id+
- 221 |                         "\nPRIMARY: "+selection.names.joinToString(" × ")+
+ 221 |                         "\nPRIMARY: "+selection.names.joinToString(" Ã— ")+
  222 |                         "\n"+CharacterPhaseOne.DRAWING+
  223 |                         "\nDESIGN EVIDENCE:\n"+evidence+"\n/no_think"
  224 |                     suspend fun fits(evidence:String):Boolean =
@@ -230,7 +230,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  266 |                                 "specific independent construction; use 600+ characters "+
  267 |                                 "for render_description. No nested objects. "+
  268 |                                 "PRIOR OUTPUT:\n"+raw.take(4500)+
- 269 |                                 "\nPRIMARY: "+selection.names.joinToString(" × ")+
+ 269 |                                 "\nPRIMARY: "+selection.names.joinToString(" Ã— ")+
  270 |                                 "\n/no_think",outputLimit,"identity_json_recovery"))
  271 |                         }
  272 |                     }
@@ -264,7 +264,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  300 |                                     "details. Both values must physically embody "+
  301 |                                     "all primary concepts, not decorative "+
  302 |                                     "references. No nested data or commentary."+
- 303 |                                     "\nPRIMARY: "+selection.names.joinToString(" × ")+
+ 303 |                                     "\nPRIMARY: "+selection.names.joinToString(" Ã— ")+
  304 |                                     "\nRETAINED DESIGN:\n"+retained+
  305 |                                     "\nBINDING STUDY:\n"+study.take(1800)+
  306 |                                     "\n/no_think",
@@ -299,7 +299,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  335 |                             "Use every primary concept in physically meaningful "+
  336 |                             "anatomy, not ornament; preserve the already designed "+
  337 |                             "identity. No JSON, no fields besides "+field+
- 338 |                             ".\nPRIMARY: "+selection.names.joinToString(" × ")+
+ 338 |                             ".\nPRIMARY: "+selection.names.joinToString(" Ã— ")+
  339 |                             "\nRETAINED DESIGN:\n"+others+
  340 |                             "\nBINDING STUDY:\n"+study.take(2400)+
  341 |                             "\n/no_think",
@@ -382,7 +382,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  418 |                         "consequential higher-order structure which physically "+
  419 |                         "requires ALL the primary concepts together, not merely "+
  420 |                         "pairwise associations. Same frozen identity. "+
- 421 |                         "PRIMARY: "+selection.names.joinToString(" × ")+
+ 421 |                         "PRIMARY: "+selection.names.joinToString(" Ã— ")+
  422 |                         "\nDESIGN:\n"+narrative+"\n/no_think",
  423 |                         minOf(500,context/6),"higher_order")
 ~~~
@@ -471,7 +471,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
 
 ~~~kotlin
    1 | package com.asterion.art.engine
-   2 | 
+   2 |
    3 | /**
    4 |  * Lossless prompt scheduling for real, bounded native text encoders.
    5 |  *
@@ -488,12 +488,12 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
   16 |     val sourceCharacters:Int, val emittedCharacters:Int,
   17 |     val chunks:List<ConditioningChunk>, val mode:String="sequential_passes"
   18 | )
-  19 | 
+  19 |
   20 | object ConditioningSchedule {
   21 |     private const val HEADER="Asterion design continuation. Preserve all previously established " +
   22 |         "identity, anatomy, composition, materials and visual anchors. Add or correct the following " +
   23 |         "required details without deleting previously rendered content:\n"
-  24 | 
+  24 |
   25 |     /**
   26 |      * tokenizer MUST count with the selected native model; don't use word estimates.
   27 |      * No backend model supports arbitrarily large simultaneous cross attention.
@@ -686,7 +686,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  326 |             val originalImage=originalSource?.let {
  327 |                 SourceReferenceEncoder.encodeUris(applicationContext,listOf(it)).single()
  328 |             }
- 329 | 
+ 329 |
  330 |             val intermediate = File(applicationContext.filesDir,
  331 |                 "generation-checkpoints/" + job.id).also { it.mkdirs() }
  332 |             if(characterPlan!=null) {
@@ -726,7 +726,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  366 |             val turboAuto=com.asterion.art.nativeengine.NativeTurboDefaults
  367 |                 .applies(job.settings,model)
  368 |             if(turboAuto)repo.updateTaskProgress(taskId,0,0,
- 369 |                 "Anima Turbo · optimized for on-device NPU: 8 steps, CFG 1")
+ 369 |                 "Anima Turbo Â· optimized for on-device NPU: 8 steps, CFG 1")
  370 |             val count = com.asterion.art.engine.OriginalOutputPolicy.imageCount(
  371 |                 job.creationMode,!job.designPrompt.isNullOrBlank(),
  372 |                 characterPlan?.sheets,tunedSettings.batch)
@@ -775,7 +775,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
   67 |             OutputGeometry("16:9",5,3,5,1,frontAndRearViews=true),
   68 |             OutputGeometry("9:16",1,1,1,1,frontAndRearViews=true),
   69 |             emptySet(),setOf("Original body architecture","Face","Hair","Concept fusion"),
-  70 |             "Character Creation Phase 1 ONLY. User chooses 1–5 sheets; each is a continuous 16:9 clinical unclothed anatomy sheet of exactly five independently authored premium 2D anime/manhwa female characters, each with an uncropped large true front, smaller exact 90-degree profile and direct rear of the SAME body. All five times selected sheet count must be fully resolved, independently differentiated and frozen BEFORE rendering. Every concept is physically embodied in each original character; pairwise and higher-order shared fusion is mandatory. All characters require coherent skeletal and appendage roots, uniquely authored bodies, face/eyes/hair, palette/material logic, flagship aesthetic quality and specific line-led illustrated 2D rendering grammar. No clothes, anatomical covering underlayers, fashion presentation, props or scenes. Genuine skin and concept-derived body substrates remain visible anatomical matter, never garments. There are no Design Directions, secondary sub-concepts, Outfit/Weapon phases or Final Assembly within Character Creation. The user authorizes rendering using Validate and generate.",
+  70 |             "Character Creation Phase 1 ONLY. User chooses 1â€“5 sheets; each is a continuous 16:9 clinical unclothed anatomy sheet of exactly five independently authored premium 2D anime/manhwa female characters, each with an uncropped large true front, smaller exact 90-degree profile and direct rear of the SAME body. All five times selected sheet count must be fully resolved, independently differentiated and frozen BEFORE rendering. Every concept is physically embodied in each original character; pairwise and higher-order shared fusion is mandatory. All characters require coherent skeletal and appendage roots, uniquely authored bodies, face/eyes/hair, palette/material logic, flagship aesthetic quality and specific line-led illustrated 2D rendering grammar. No clothes, anatomical covering underlayers, fashion presentation, props or scenes. Genuine skin and concept-derived body substrates remain visible anatomical matter, never garments. There are no Design Directions, secondary sub-concepts, Outfit/Weapon phases or Final Assembly within Character Creation. The user authorizes rendering using Validate and generate.",
   71 |             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW),
   72 |             mustFreezeBeforeNextPhase=true
   73 |         ),
@@ -853,7 +853,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  145 |             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW)
  146 |         )
  147 |     ).associateBy { it.mode }
- 148 | 
+ 148 |
 ~~~
 
 ## General artwork, source-image and multimodal prompt builders
@@ -867,9 +867,9 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
   36 |         words.map { it.trim().replace(Regex("\\s+"), " ") }
   37 |             .filter { it.length in 3..280 && alphaNum.matches(it) }
   38 |             .distinct()
-  39 | 
+  39 |
   40 |     private fun join(words: List<String>) = clean(words).joinToString(", ")
-  41 | 
+  41 |
   42 |     private fun enforceRoles(sources: List<SourceEvidence>, creation: CreationMode?,
   43 |                              concepts: List<String>, sourceIllustration: Boolean) {
   44 |         val selected = sources.groupingBy { it.role }.eachCount()
@@ -887,7 +887,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
   56 |         if (creation == null) "" else MethodologyRegistry.compileDirective(
   57 |             creation,sources.groupingBy { it.role }.eachCount(),
   58 |             concepts.size,sourceIllustration)
-  59 | 
+  59 |
   60 |     fun compile(
   61 |         sources: List<SourceEvidence>,
   62 |         mode: RenderMode,
@@ -906,11 +906,11 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
   75 |         val themes = sources.filter { it.role == SheetRole.THEME }
   76 |         val styles = sources.filter { it.role == SheetRole.ART_STYLE }
   77 |         val elements = sources.filter { it.role == SheetRole.ELEMENT }
-  78 | 
+  78 |
   79 |         fun pieces(items: List<SourceEvidence>, vararg slots: String): List<String> =
   80 |             items.flatMap { it.select(*slots) }
   81 |         fun everything(items: List<SourceEvidence>): List<String> = items.flatMap { it.all() }
-  82 | 
+  82 |
   83 |         // Visual metadata in the authoritative order:
   84 |         // identity, outfit+pose, theme, environment+elements, style+render+camera+lighting.
   85 |         val character = join(pieces(characters, "PRIMARY", "FACE", "EYES", "HAIR"))
@@ -931,7 +931,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  100 |             environmentAndElements, appearance)
  101 |             .filter { it.isNotBlank() }.joinToString("\n\n")
  102 |         require(core.isNotBlank()) { "No interpretable prompt content in selected reference images." }
- 103 | 
+ 103 |
  104 |         val positiveDetails = listOf(
  105 |             pieces(characters, "FACE", "EYES", "HAIR", "BODY", "OUTFIT"),
  106 |             pieces(styles, "MATERIAL", "LIGHT", "COLOR") +
@@ -946,7 +946,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  115 |                 pieces(themes, "NEGATIVE") +
  116 |                 pieces(elements, "NEGATIVE")
  117 |         )
- 118 | 
+ 118 |
  119 |         val denoise = listOf(1f, 0.48f, 0.32f, 0.22f, 0.13f)
  120 |         val passes = (1..5).map { n ->
  121 |             val extra = if (n == 1) emptyList() else positiveDetails[n - 2]
@@ -957,7 +957,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  126 |             GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings),
  127 |             creation,concepts,sources,resolver)
  128 |     }
- 129 | 
+ 129 |
  130 |     /**
  131 |      * One-source artwork: the actual image remains the neural img2img input.
  132 |      * This is not a prompt-only substitute and requires source pixels in the
@@ -988,7 +988,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  157 |             GenerationPass(i+1,base+" "+detail,"",strength[i])
  158 |         },emptyList(),settings)
  159 |     }
- 160 | 
+ 160 |
  161 |     /**
  162 |      * Real multimodal alternative for Qwen/FLUX reference-editing engines.
  163 |      * Blank OCR does not imply blank reference images. No characteristics are
@@ -1047,8 +1047,8 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  216 |             GenerationRecipe(mode,passes,sources.map { it.sheetId },settings),
  217 |             creation,concepts,sources,resolver)
  218 |     }
- 219 | 
- 220 | 
+ 219 |
+ 220 |
  221 |     /**
  222 |      * Character Creation v3 and original Creature Creation start without sheets.
  223 |      * The selected, frozen user concepts are the authoritative task input.
@@ -1059,7 +1059,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  228 |         require(creation==CreationMode.CHARACTER || creation==CreationMode.CREATURE)
  229 |         enforceRoles(emptyList(),creation,concepts,false)
  230 |         val specification=MethodologyRegistry.modes.getValue(creation)
- 231 |         val frozen=concepts.distinct().joinToString(" × ")
+ 231 |         val frozen=concepts.distinct().joinToString(" Ã— ")
  232 |         val base=specification.directive+"\nPrimary concepts: "+frozen+
  233 |             "\nProduce a faithful 2D visual output. Follow exact framing and candidate count."+
  234 |             " No unrelated environmental scenery or textual labels except the specified candidate numbers."
@@ -1075,7 +1075,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  244 |             GenerationRecipe(mode,passes,emptyList(),settings),
  245 |             creation,concepts,emptyList(),resolver)
  246 |     }
- 247 | 
+ 247 |
  248 |     fun selectModelId(models: List<Pair<String, String>>, mode: RenderMode): String? {
  249 |         // One automatic route shown to the user; the ranking operates internally.
  250 |         // This is NOT a claim of checkpoint weight fusion.
@@ -1107,7 +1107,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
 
 ~~~kotlin
    1 | package com.asterion.art.work
-   2 | 
+   2 |
    3 | import android.app.Notification
    4 | import android.app.NotificationChannel
    5 | import android.app.NotificationManager
@@ -1135,7 +1135,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
   27 | import java.io.ByteArrayOutputStream
   28 | import java.util.concurrent.CancellationException
   29 | import kotlin.math.abs
-  30 | 
+  30 |
   31 | /**
   32 |  * Native, reference-conditioned master-sheet generation from ONE source image by default.
   33 |  * No per-panel crop copying, no multi-photo requirement, no artificial success.
@@ -1225,7 +1225,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  117 |                 require(abs(resolution.first.toDouble()/resolution.second-9.0/16.0)<0.16) {
  118 |                     "The selected DiT model does not support a 9:16 canvas"
  119 |                 }
- 120 |             foreground("Loading local QNN model · "+primary.name)
+ 120 |             foreground("Loading local QNN model Â· "+primary.name)
  121 |             engine.prepare(primary,resolution.first,resolution.second){isStopped}
  122 |             // The authoritative Character Sheet V5 calls for one complete
  123 |             // reference-conditioned image, not multiple partially repainted
@@ -1269,7 +1269,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  161 |             val output=if(positive!=null) {
  162 |                 engine.verifyText(positive)
  163 |                 if(negative.isNotBlank())engine.verifyText(negative)
- 164 |                 foreground("Reconstructing complete 9:16 sheet · one image",false)
+ 164 |                 foreground("Reconstructing complete 9:16 sheet Â· one image",false)
  165 |                 engine.generate(
  166 |                     GenerationPass(1,positive,negative,
  167 |                         if(previous==null)1.0f else 0.78f),
@@ -1278,7 +1278,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  170 |                     {done,total->
  171 |                         repo.updateTaskProgress(task,done.coerceAtLeast(0),
  172 |                             total.coerceAtLeast(0),
- 173 |                             "One complete image · native diffusion "+
+ 173 |                             "One complete image Â· native diffusion "+
  174 |                             done+"/"+total.coerceAtLeast(1))
  175 |                     },referencePngs=referencePixels).png
  176 |             } else {
@@ -1297,7 +1297,7 @@ Original: https://github.com/Azrazieliz/AsterionCompiler/blob/20cc9900c6f42dc6b6
  189 |             BitmapFactory.decodeByteArray(output,0,output.size,info)
  190 |             require(info.outWidth>0&&info.outHeight>0){"Native model returned invalid image"}
  191 |             require(abs(info.outWidth.toDouble()/info.outHeight-9.0/16.0)<0.06) {
- 192 |                 "The QNN pipeline returned "+info.outWidth+"×"+info.outHeight+
+ 192 |                 "The QNN pipeline returned "+info.outWidth+"Ã—"+info.outHeight+
  193 |                     " instead of the required 9:16 sheet. A model with an "+
  194 |                     "operational aspect-ratio VAE encoder is needed; the "+
  195 |                     "square output will not be incorrectly saved as a sheet."
