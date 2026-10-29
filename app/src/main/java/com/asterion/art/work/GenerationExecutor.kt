@@ -663,9 +663,10 @@ internal class GenerationExecutor(
                 put("schema", "asterion.generation.v1")
                 put("job_id", job.id)
                 put("model_id", model.id)
-                put("five_real_passes", !oneShotCharacterSheet)
-                put("one_shot_master_sheet_methodology", characterPlan==null&&
-                    oneShotCharacterSheet)
+                put("five_real_passes",job.creationMode==null &&
+                    !oneShotCharacterSheet && stageSequence.size==5)
+                put("one_shot_master_sheet_methodology", job.creationMode!=null&&
+                    characterPlan==null && stageSequence.size==1)
                 put("character_render_method",if(characterPlan!=null)
                     "five_separate_frozen_identity_triptychs_composited_white_16_9"
                     else JSONObject.NULL)
