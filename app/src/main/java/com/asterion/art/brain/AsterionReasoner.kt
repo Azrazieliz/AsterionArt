@@ -182,15 +182,12 @@ class AsterionReasoner(context:Context) {
             onStage("One bounded Gemma 3 compilation of complete original authority")
             engine.restartConversation(SYSTEM)
             val third=answer(request,outputBudget)
-            val sheets=(1..3).map{parsePart(third,"SHEET_"+it)}
-                .filter{it.isNotBlank()}
-            val positive=parsePart(third,"POSITIVE").ifBlank {
-                if(sheets.isNotEmpty())sheets.joinToString("\n\n") else third
-            }
-            require(positive.isNotBlank()) { "No complete generation prompt returned" }
+            val valid=StructuredPlanOutput.validate(
+                third,baseNegative,domain==CreativeDomain.CHARACTER &&
+                    candidateCount==15)
             val result=NeuralDesignPlan(
                 weights.id,contextSize,domain,authority,third,
-                positive,parsePart(third,"NEGATIVE").ifBlank{baseNegative},sheets)
+                valid.positive,valid.negative,valid.sheetPrompts)
             val path=File(app.filesDir,"generation-plans/"+jobId+"-brain.json")
             val source=JSONObject().apply {
                 put("schema","asterion.neural-planning.v1")
