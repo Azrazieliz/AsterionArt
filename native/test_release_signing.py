@@ -27,7 +27,7 @@ class OwnerReleaseSigningTests(unittest.TestCase):
         self.assertEqual(digest,digest_from_apksigner(output))
         v3=output.replace(
             "Verified using v2 scheme (APK Signature Scheme v2): true",
-            "Verified using v2 scheme (APK Signature Scheme v2): false\\n"
+            "Verified using v2 scheme (APK Signature Scheme v2): false\n"
             "Verified using v3 scheme (APK Signature Scheme v3): true")
         self.assertEqual(digest,digest_from_apksigner(v3))
         with self.assertRaises(ValueError):
