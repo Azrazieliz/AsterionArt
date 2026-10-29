@@ -215,6 +215,7 @@ internal class GenerationExecutor(
             // Perform true neural interpretation/synthesis/prompt compilation
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
+            val preRenderStart=android.os.SystemClock.elapsedRealtime()
             val neural=AsterionReasoner(applicationContext)
             val requiresAutoCompilation=characterPlan==null &&
                 restoredCompilation==null && job.designPrompt.isNullOrBlank()
@@ -270,6 +271,7 @@ internal class GenerationExecutor(
                             .filter { it.isNotBlank() }.distinct().joinToString(", "))
                 })
             }
+            val preRenderElapsed=android.os.SystemClock.elapsedRealtime()-preRenderStart
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
@@ -417,6 +419,7 @@ internal class GenerationExecutor(
                 // prohibitively expensive unconditional guidance path.
                 val candidateSettings = if(turboAuto)tunedSettings else
                     PreferenceLearning.candidate(tunedSettings,candidate - 1)
+                val candidateRenderStart=android.os.SystemClock.elapsedRealtime()
                 val image:ByteArray=if(characterPlan!=null) {
                     // Five independent Character Creation triptychs use a
                     // 16:45 output crop. Anima/SDXL still load their fixed
@@ -545,7 +548,13 @@ internal class GenerationExecutor(
                 }
                 com.asterion.art.engine.RenderFidelityGate.requireValidImage(
                     image,"Generated candidate "+candidate)
+                val nativeRenderElapsed=android.os.SystemClock.elapsedRealtime()-candidateRenderStart
                 val technical = TechnicalImageScorer.score(image)
+                val decodedBounds=android.graphics.BitmapFactory.Options().apply{
+                    inJustDecodeBounds=true
+                }
+                android.graphics.BitmapFactory.decodeByteArray(
+                    image,0,image.size,decodedBounds)
                 if (technical.score > technicalLeaderScore) {
                     technicalLeaderScore = technical.score
                     technicalLeader = image
@@ -653,6 +662,22 @@ internal class GenerationExecutor(
                         else if(characterPlan!=null)
                         CharacterPhaseOne.NEGATIVE
                         else stageSequence.joinToString("\n\n") { it.negative })
+                    put("pre_render_elapsed_ms",preRenderElapsed)
+                    put("model_load_elapsed_ms",loadElapsed)
+                    put("native_render_elapsed_ms",nativeRenderElapsed)
+                    put("output_width",decodedBounds.outWidth)
+                    put("output_height",decodedBounds.outHeight)
+                    put("native_pass_count",if(characterPlan!=null)5 else stageSequence.size)
+                    put("native_prompt_token_count",if(characterPlan!=null)
+                        JSONObject.NULL
+                        else runCatching {
+                            engine.inspectText(stageSequence.last().positive).count
+                        }.getOrNull()?:JSONObject.NULL)
+                    put("native_prompt_token_limit",if(characterPlan!=null)
+                        JSONObject.NULL
+                        else runCatching {
+                            engine.inspectText(stageSequence.last().positive).limit
+                        }.getOrNull()?:JSONObject.NULL)
                     put("technical_score", technical.score)
                     put("contrast", technical.contrast)
                     put("detail", technical.detail)
