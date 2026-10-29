@@ -192,6 +192,26 @@ internal class GenerationExecutor(
                                 ", "+job.userNegativePrompt)
                 })
             }
+            // Recover and execute the original deterministic compiler for
+            // compatible approved Artwork worksheets (never for Originals).
+            // Invalid/non-structured PNGs are not misrepresented as compiled.
+            val restoredCompilation=if(job.creationMode==null && sheets.isNotEmpty())
+                runCatching {
+                    com.asterion.art.engine.OriginalCompilerBridge.compile(
+                        applicationContext,sheets)
+                }.getOrNull() else null
+            if(restoredCompilation!=null) {
+                recipe=recipe.copy(passes=recipe.passes.map { stage ->
+                    stage.copy(
+                        positive=stage.positive+"\n\nORIGINAL VALIDATED COMPILER:\n"+
+                            restoredCompilation.text,
+                        negative=listOf(stage.negative,restoredCompilation.negatives)
+                            .filter{it.isNotBlank()}.distinct().joinToString(", ")
+                    )
+                })
+                foreground("Original deterministic worksheet compiler: "+
+                    restoredCompilation.passNames.joinToString(", "))
+            }
             // Perform true neural interpretation/synthesis/prompt compilation
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
