@@ -67,7 +67,7 @@ def train(args, examples):
     from peft import LoraConfig, TaskType, get_peft_model
     from transformers import AutoTokenizer, AutoModelForCausalLM
 
-    if args.model not in ("Llama/Llama 3.2-0.6B", "Llama/Llama 3.2-1.7B"):
+    if args.model != "meta-llama/Llama-3.2-3B-Instruct":
         raise ValueError("Unsupported Llama 3.2 adapter base")
     torch.manual_seed(20261027)
     on_gpu = torch.cuda.is_available()
@@ -151,7 +151,7 @@ def train(args, examples):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=Path, required=True)
-    parser.add_argument("--model", default="Llama/Llama 3.2-0.6B")
+    parser.add_argument("--model", default="meta-llama/Llama-3.2-3B-Instruct")
     parser.add_argument("--output", type=Path, default=Path("grade-lora-output"))
     parser.add_argument("--max-examples", type=int, default=2500)
     parser.add_argument("--context", type=int, default=2048)
