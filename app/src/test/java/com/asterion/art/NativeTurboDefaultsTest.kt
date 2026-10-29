@@ -15,7 +15,7 @@ class NativeTurboDefaultsTest {
             model("rin_flanime_v1_turbo_qnn228_8gen3"),freeArtwork=true)
         assertEquals(8,chosen.steps)
         assertEquals(1f,chosen.cfg,0f)
-        assertEquals(1,chosen.batch)
+        assertEquals(3,chosen.batch)
         assertEquals("Euler",chosen.scheduler)
     }
     @Test fun originalSheetCountsAreNotReduced() {
