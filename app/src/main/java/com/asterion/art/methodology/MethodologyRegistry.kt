@@ -24,7 +24,7 @@ object MethodologyRegistry {
             emptySet(),2,false,false,true,DefaultLayout("16:9",15,3,5,1),
             "Character Creation Phase 1 is an independent, model-authored "+
                 "clinical anatomical female character population. The user selects "+
-                "1–30 exact 16:9 sheets, five independent identities per sheet, "+
+                "1–5 exact 16:9 sheets, five independent identities per sheet, "+
                 "with FIFTEEN full-body depictions per sheet: five identities each with "+
                 "full-body true-front, exact 90-degree side profile and direct rear "+
                 "for every anatomy-frozen identity. All characters must be fully "+

@@ -12,12 +12,14 @@ class OriginalOutputPolicyTest {
         }
     }
     @Test fun characterPhaseOneRespectsChosenSheetCount() {
-        assertEquals(30,OriginalOutputPolicy.imageCount(
-            CreationMode.CHARACTER,false,30,3))
+        assertEquals(5,OriginalOutputPolicy.imageCount(
+            CreationMode.CHARACTER,false,5,3))
         assertEquals(1,OriginalOutputPolicy.imageCount(
             CreationMode.CHARACTER,false,1,3))
         assertTrue(runCatching{OriginalOutputPolicy.imageCount(
             CreationMode.CHARACTER,false,null,3)}.isFailure)
+        assertTrue(runCatching{OriginalOutputPolicy.imageCount(
+            CreationMode.CHARACTER,false,6,3)}.isFailure)
     }
     @Test fun artworkRetainsBatchWhileSelectedDesignGetsOneImage() {
         assertEquals(5,OriginalOutputPolicy.imageCount(null,false,null,5))

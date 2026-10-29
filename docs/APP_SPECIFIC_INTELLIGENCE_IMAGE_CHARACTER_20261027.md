@@ -23,7 +23,7 @@ Owner scope: (1) app-specific visual intelligence/self-learning, (2) improved im
 
 ## (3) Character Creation Phase 1
 
-- 1–30 sheets selected by user; five original anatomical identities per sheet, all independently authored and frozen before the user authorizes any image generation.
+- 1–5 sheets selected by user; five original anatomical identities per sheet, all independently authored and frozen before the user authorizes any image generation.
 - Full physical pairwise concept fusion, higher-order fusion for three-plus concepts, independent female character authorship, clinical unclothed anatomy, distinct design, aesthetic quality, specific hand-illustrated 2D anime/manhwa language and true-front/exact-profile/direct-rear references remain mandatory.
 - Character-specific frozen prompts remain available for optional inspection; Validate & Generate directly authorizes rendering without requiring an extra approval dialogue.
 - Design Direction, sub-concepts and former character outfit/weapon/assembly phases remain absent. Outfit and Weapon are separate modes.

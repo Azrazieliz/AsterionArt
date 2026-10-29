@@ -19,8 +19,9 @@ class DesignBlueprintEngineTest {
     @Test fun variableSheetCountReallyMeansFiveCharactersPerSheet() {
         assertEquals(5,CharacterPhaseOne.count(1))
         assertEquals(15,CharacterPhaseOne.count(3))
-        assertEquals(150,CharacterPhaseOne.count(30))
-        assertTrue(runCatching{CharacterPhaseOne.count(31)}.isFailure)
+        assertEquals(25,CharacterPhaseOne.count(5))
+        assertEquals(150,CharacterPhaseOne.countStored(30))
+        assertTrue(runCatching{CharacterPhaseOne.count(6)}.isFailure)
         assertEquals("D150",CharacterPhaseOne.label(150))
     }
     @Test fun wildcardIsResolvedIndependentlyFromCanonicalLeaves() {

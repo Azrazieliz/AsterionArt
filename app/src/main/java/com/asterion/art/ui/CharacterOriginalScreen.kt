@@ -191,7 +191,8 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     Slider(
                         value=sheets.toFloat(),
                         onValueChange={if(!locked)sheets=it.roundToInt()},
-                        valueRange=1f..30f,steps=28,enabled=!locked)
+                        valueRange=1f..CharacterPhaseOne.MAX_SHEETS.toFloat(),
+                        steps=CharacterPhaseOne.MAX_SHEETS-2,enabled=!locked)
                     Text("All characters are designed before any image call. "+
                         "Each sheet contains five exact front/profile/rear triples. "+
                         "Larger populations require proportionally more local reasoning time.",

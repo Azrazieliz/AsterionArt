@@ -23,7 +23,7 @@ data class CharacterPhaseOnePlan(
     val authorizedJobId:String?=null,
     val progressStage:String=""
 ) {
-    val total:Int get()=CharacterPhaseOne.count(sheets)
+    val total:Int get()=CharacterPhaseOne.countStored(sheets)
     val ready:Boolean get()=status=="READY"||status=="AUTHORIZED"
     fun assertComplete() {
         require(ready){"Character design has not finished"}

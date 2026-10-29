@@ -7,7 +7,7 @@ import java.util.Random
 object CharacterPhaseOne {
     const val PER_SHEET=5
     const val DEFAULT_SHEETS=3
-    const val MAX_SHEETS=30
+    const val MAX_SHEETS=5
     const val MAX_SLOTS=8
     const val NEGATIVE=
         "clothes, garment, lingerie, underwear, uniform, fabric underlayer, " +
@@ -55,6 +55,11 @@ object CharacterPhaseOne {
         "phase, no Design Direction, no supplementary sub-concepts."
     fun count(sheets:Int):Int {
         require(sheets in 1..MAX_SHEETS){"Sheets must be 1.."+MAX_SHEETS}
+        return sheets*PER_SHEET
+    }
+    /** Historical populations are readable without allowing new >5-sheet jobs. */
+    fun countStored(sheets:Int):Int {
+        require(sheets in 1..30){"Historical sheet count is invalid"}
         return sheets*PER_SHEET
     }
     fun label(number:Int):String {
@@ -223,7 +228,7 @@ object CharacterSheetCompiler {
         }
     }
     fun audit(roster:List<FrozenCharacter>,sheets:Int):List<String> {
-        require(roster.size==CharacterPhaseOne.count(sheets))
+        require(roster.size==CharacterPhaseOne.countStored(sheets))
         val errors=mutableListOf<String>()
         val known=mutableMapOf<String,String>()
         roster.forEachIndexed{index,identity->

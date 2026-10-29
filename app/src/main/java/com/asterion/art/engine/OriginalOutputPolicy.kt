@@ -5,15 +5,15 @@ import com.asterion.art.model.CreationMode
 /**
  * An Original catalogue counts DESIGN CANDIDATES inside its prescribed image,
  * not independent copies of the same catalogue. Only Character v3 uses the
- * user-chosen 1..30 sheet population; free Artwork keeps its batch setting.
+ * user-chosen 1..5 sheet population; free Artwork keeps its batch setting.
  */
 object OriginalOutputPolicy {
     fun imageCount(mode:CreationMode?,individualPrompt:Boolean,
         characterPhaseOneSheets:Int?,artworkBatch:Int):Int {
         if(individualPrompt)return 1
         if(mode==CreationMode.CHARACTER) {
-            require(characterPhaseOneSheets in 1..30) {
-                "Character v3 requires a frozen 1–30 sheet plan"
+            require(characterPhaseOneSheets in 1..5) {
+                "Character v3 requires a frozen 1–5 sheet plan"
             }
             return requireNotNull(characterPhaseOneSheets)
         }

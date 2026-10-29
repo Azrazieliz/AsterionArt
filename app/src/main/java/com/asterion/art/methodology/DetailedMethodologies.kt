@@ -67,7 +67,7 @@ object DetailedMethodologies {
             OutputGeometry("16:9",5,3,5,1,frontAndRearViews=true),
             OutputGeometry("9:16",1,1,1,1,frontAndRearViews=true),
             emptySet(),setOf("Original body architecture","Face","Hair","Concept fusion"),
-            "Character Creation Phase 1 ONLY. User chooses 1–30 sheets; each is a continuous 16:9 clinical unclothed anatomy sheet of exactly five independently authored premium 2D anime/manhwa female characters, each with an uncropped large true front, smaller exact 90-degree profile and direct rear of the SAME body. All five times selected sheet count must be fully resolved, independently differentiated and frozen BEFORE rendering. Every concept is physically embodied in each original character; pairwise and higher-order shared fusion is mandatory. All characters require coherent skeletal and appendage roots, uniquely authored bodies, face/eyes/hair, palette/material logic, flagship aesthetic quality and specific line-led illustrated 2D rendering grammar. No clothes, anatomical covering underlayers, fashion presentation, props or scenes. Genuine skin and concept-derived body substrates remain visible anatomical matter, never garments. There are no Design Directions, secondary sub-concepts, Outfit/Weapon phases or Final Assembly within Character Creation. The user authorizes rendering using Validate and generate.",
+            "Character Creation Phase 1 ONLY. User chooses 1–5 sheets; each is a continuous 16:9 clinical unclothed anatomy sheet of exactly five independently authored premium 2D anime/manhwa female characters, each with an uncropped large true front, smaller exact 90-degree profile and direct rear of the SAME body. All five times selected sheet count must be fully resolved, independently differentiated and frozen BEFORE rendering. Every concept is physically embodied in each original character; pairwise and higher-order shared fusion is mandatory. All characters require coherent skeletal and appendage roots, uniquely authored bodies, face/eyes/hair, palette/material logic, flagship aesthetic quality and specific line-led illustrated 2D rendering grammar. No clothes, anatomical covering underlayers, fashion presentation, props or scenes. Genuine skin and concept-derived body substrates remain visible anatomical matter, never garments. There are no Design Directions, secondary sub-concepts, Outfit/Weapon phases or Final Assembly within Character Creation. The user authorizes rendering using Validate and generate.",
             setOf(StageAction.CATALOGUE,StageAction.SINGLE_PREVIEW),
             mustFreezeBeforeNextPhase=true
         ),
@@ -149,7 +149,7 @@ object DetailedMethodologies {
     fun geometry(request:MethodologyRequest):OutputGeometry {
         val contract=all.getValue(request.mode)
         return if(request.mode==CreationMode.CHARACTER && request.action==StageAction.CATALOGUE) {
-            require(request.characterSheets in 1..30)
+            require(request.characterSheets in 1..5)
             contract.catalogue.copy(imageCount=request.characterSheets)
         } else if(request.action==StageAction.SINGLE_PREVIEW) contract.preview
         else if(request.mode==CreationMode.CHARACTER && request.action==StageAction.ASSEMBLY)
@@ -168,8 +168,8 @@ object DetailedMethodologies {
                     SheetRole.CHARACTER !in request.sheetRoles) add("Source character illustration or Character Sheet required")
                 SourcePolicy.NONE,SourcePolicy.OPTIONAL -> Unit
             }
-            if(request.mode==CreationMode.CHARACTER && request.characterSheets !in 1..30)
-                add("Choose 1–30 character sheets")
+            if(request.mode==CreationMode.CHARACTER && request.characterSheets !in 1..5)
+                add("Choose 1–5 character sheets")
             if(request.conceptIds.distinct().size<contract.minimumConceptSlots)
                 add("Select at least "+contract.minimumConceptSlots+" distinct canonical concept slots")
             if(request.action !in contract.commands)
