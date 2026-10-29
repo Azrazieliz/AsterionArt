@@ -110,7 +110,12 @@ class DeterministicVisualSpecificationAssembler : VisualSpecificationAssembler {
         }
 
         return ArtStyleVisualSpecification(
-            medium = fields.optionalValue("medium", "medium"),
+            medium = fields.optionalValue("medium", "medium").also {
+                // Optional Art Style media are part of the canonical
+                // rendering grammar, not an unclassified extra field.
+                if (fields.containsKey("medium" to "medium"))
+                    consumed += "medium.medium"
+            },
             aestheticDescriptors = values("rendering", "descriptors"),
             renderingMethod = value("rendering", "method"),
             lighting = value("lighting", "lighting"),
