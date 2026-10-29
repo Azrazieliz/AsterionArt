@@ -260,6 +260,50 @@ class CharacterBrainResolver(context:Context) {
                         }
                     }
                     val names=CharacterOutputSchema.identityFields
+                    // Recover several omitted fields in bounded pairs, not one
+                    // expensive prompt-prefill/model call for every omitted key.
+                    // Preserve the valid fields from the original response.
+                    val omitted=CharacterOutputSchema.missingFields(data)
+                    if(omitted.size>=3) {
+                        for(group in omitted.chunked(2)) {
+                            if(group.size<2)continue
+                            progress(index,plan.total,"Recovering "+
+                                group.joinToString(" + ")+" for "+selection.id)
+                            val retained=names.mapNotNull{key->
+                                (data.opt(key) as? String)?.takeIf{value->
+                                    value.length>=CharacterOutputSchema.minimumLength(key)
+                                }?.let{key+": "+it.take(260)}
+                            }.joinToString("\n")
+                            val keys=group.joinToString(", ")
+                            val requirements=group.joinToString("; "){field->
+                                field+" minimum "+CharacterOutputSchema.minimumLength(field)+
+                                    " characters"
+                            }
+                            val batch=runCatching {
+                                CharacterOutputSchema.parseOrRecover(answer(
+                                    "Return ONLY one FLAT JSON object with EXACTLY "+
+                                    "these two prose STRING keys: "+keys+
+                                    ". "+requirements+". SAME independent "+
+                                    "character "+selection.id+
+                                    "; preserve the already frozen design "+
+                                    "details. Both values must physically embody "+
+                                    "all primary concepts, not decorative "+
+                                    "references. No nested data or commentary."+
+                                    "\nPRIMARY: "+selection.names.joinToString(" × ")+
+                                    "\nRETAINED DESIGN:\n"+retained+
+                                    "\nBINDING STUDY:\n"+study.take(1800)+
+                                    "\n/no_think",
+                                    minOf(1900,context/3),"field_repair_batch"))
+                            }.getOrNull()
+                            for(field in group) {
+                                val value=batch?.optString(field)?.trim().orEmpty()
+                                if(value.length>=CharacterOutputSchema.minimumLength(field))
+                                    data.put(field,value)
+                            }
+                        }
+                    }
+                    // Repair only fields still absent after the batch. Never
+                    // redo a complete character or overwrite a valid field.
                     for(field in names) {
                         val existing=data.opt(field)
                         val minimum=CharacterOutputSchema.minimumLength(field)
