@@ -20,11 +20,16 @@ class OwnerReleaseSigningTests(unittest.TestCase):
             h[i:i+2].upper() for i in range(0,64,2))+"\n"
         self.assertEqual(h,digest_from_keytool(sample))
         with self.assertRaises(ValueError):digest_from_keytool("SHA256: n/a")
-    def test_apksigner_requires_verified_v2_and_exactly_one_signer(self):
+    def test_apksigner_requires_verified_v2_or_v3_and_exactly_one_signer(self):
         digest="ca"*32
         output=("Verified using v2 scheme (APK Signature Scheme v2): true\n"+
                 "Signer #1 certificate SHA-256 digest: "+digest+"\n")
         self.assertEqual(digest,digest_from_apksigner(output))
+        v3=output.replace(
+            "Verified using v2 scheme (APK Signature Scheme v2): true",
+            "Verified using v2 scheme (APK Signature Scheme v2): false\\n"
+            "Verified using v3 scheme (APK Signature Scheme v3): true")
+        self.assertEqual(digest,digest_from_apksigner(v3))
         with self.assertRaises(ValueError):
             digest_from_apksigner("Signer #1 certificate SHA-256 digest: "+digest)
         with self.assertRaises(ValueError):
