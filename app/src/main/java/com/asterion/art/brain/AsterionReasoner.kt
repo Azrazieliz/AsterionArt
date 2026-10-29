@@ -35,7 +35,7 @@ data class NeuralDesignPlan(
 )
 
 /**
- * Real inference: Qwen3 GGUF is loaded in CPU memory and released BEFORE QNN.
+ * Real inference: Llama 3.2 GGUF is loaded in CPU memory and released BEFORE QNN.
  *
  * One bounded inference receives the complete canonical input and user feedback.
  * Deterministic collection/validation occurs before native generation.
@@ -57,7 +57,7 @@ class AsterionReasoner(context:Context) {
             "modify the others; never replace physical integration with theme stickers. " +
             "Preserve all user-required constraints and candidate counts. " +
             "Make viable, internally coherent, visually distinct designs. " +
-            "Answer only the requested structured artifact. /no_think"
+            "Answer only the requested structured artifact. "
     }
     fun available()=models.selected()!=null
 
@@ -119,7 +119,7 @@ class AsterionReasoner(context:Context) {
         val engine=AiChat.getInferenceEngine(app)
         val contextSize=contextForRam()
         suspend fun answer(prompt:String,n:Int):String {
-            return withTimeout(6*60*1000L) {
+            return withTimeout(3*60*1000L) {
                 engine.sendUserPrompt(prompt,n).toList().joinToString("").trim()
             }.also { require(it.isNotBlank()) { "Neural planner generated no text" } }
         }
@@ -135,7 +135,7 @@ class AsterionReasoner(context:Context) {
             }
             onStage("Loading "+weights.label+" with "+contextSize+" tokens")
             engine.loadModel(weightFile.absolutePath,contextSize)
-            // LoRA is applied to a compatible Qwen3 base, never silently
+            // LoRA is applied to a compatible Llama 3.2 base, never silently
             // substituted for an incompatible architecture.
             BrainAdapterLibrary(app).activeFor(weights.id)?.let { adapter ->
                 engine.loadAdapter(adapter.absolutePath)
@@ -172,14 +172,14 @@ class AsterionReasoner(context:Context) {
                 "Do not invent additional methodology stages. For distinct outputs " +
                 "include all "+candidateCount+" independent designs.\n"+
                 requestedOutput+"\nFULL AUTHORITY:\n"+authority+
-                "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n/no_think"
+                "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
             require(engine.countTokens(request)+engine.countTokens(SYSTEM)+
                 outputBudget+256<contextSize) {
                 "Complete owner methodology and reference evidence exceed " +
                     "the installed reasoning model's measured context; " +
                     "do not silently truncate or recursively rewrite authority."
             }
-            onStage("One bounded Qwen3 compilation of complete original authority")
+            onStage("One bounded Llama 3.2 compilation of complete original authority")
             engine.restartConversation(SYSTEM)
             val third=answer(request,outputBudget)
             val sheets=(1..3).map{parsePart(third,"SHEET_"+it)}
