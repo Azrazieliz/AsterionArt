@@ -99,9 +99,21 @@ static llama_context *init_context(llama_model *model, const int n_ctx = DEFAULT
     ctx_params.n_ubatch = BATCH_SIZE;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads;
-    auto *context = llama_init_from_model(g_model, ctx_params);
+    // Long-context Qwen3 on a 12 GB phone otherwise allocates ~1.75 GiB
+    // of F16 KV memory at 16K tokens, on top of weights and compute buffers.
+    // Q8 KV retains the user's chosen context and canonical source evidence.
+    // Fall back to the original F16 path if the active backend rejects Q8 KV.
+    ctx_params.type_k = GGML_TYPE_Q8_0;
+    ctx_params.type_v = GGML_TYPE_Q8_0;
+    auto *context = llama_init_from_model(model, ctx_params);
     if (context == nullptr) {
-        LOGe("%s: llama_new_context_with_model() returned null)", __func__);
+        LOGw("%s: Q8 KV unavailable; retrying original F16 KV", __func__);
+        ctx_params.type_k = GGML_TYPE_F16;
+        ctx_params.type_v = GGML_TYPE_F16;
+        context = llama_init_from_model(model, ctx_params);
+    }
+    if (context == nullptr) {
+        LOGe("%s: llama_init_from_model() returned null)", __func__);
     }
     return context;
 }
