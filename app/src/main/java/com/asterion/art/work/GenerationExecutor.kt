@@ -216,6 +216,13 @@ internal class GenerationExecutor(
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
             val neural=AsterionReasoner(applicationContext)
+            val requiresAutoCompilation=characterPlan==null &&
+                restoredCompilation==null && job.designPrompt.isNullOrBlank()
+            require(!requiresAutoCompilation || neural.available()) {
+                "The approved pre-render compilation is unavailable: no verified "+
+                    "adaptable reasoning model is installed. Cannot skip it and "+
+                    "pretend an uncompiled image prompt is the requested result."
+            }
             // When the owner's original deterministic Compiler has already
             // validated the structured sheets, do not re-author its prompt
             // through a slow second language model. Optional manual edits
@@ -249,6 +256,10 @@ internal class GenerationExecutor(
                     targetDesignId=job.parentDesignIds.singleOrNull()
                 )
             } else null
+            require(!requiresAutoCompilation || brainPlan!=null) {
+                "The mandatory complete pre-render compilation did not produce "+
+                    "a verified design specification; native generation blocked."
+            }
             if(brainPlan!=null &&
                 !(job.creationMode==CreationMode.CHARACTER && job.designPrompt==null)) {
                 recipe=recipe.copy(passes=recipe.passes.map { pass ->
