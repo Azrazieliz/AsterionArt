@@ -88,6 +88,24 @@ internal object CharacterOutputSchema {
             names.drop(index+1).map{second->first to second}
         }
 
+    /**
+     * Two-concept characters can use their model-authored fusion field as
+     * the required physical pair mechanism. A decorative or unnamed fusion
+     * never qualifies; those designs still require a separate Qwen call.
+     */
+    fun validNamedFusion(fusion:String, first:String, second:String):String? {
+        val prose=fusion.trim()
+        if(prose.length<110 || first.isBlank() || second.isBlank())return null
+        if(!prose.contains(first,ignoreCase=true) ||
+            !prose.contains(second,ignoreCase=true))return null
+        val material=Regex(
+            "joint|skeleton|bone|tendon|load|root|dermis|tissue|membrane|muscle|"+
+            "cartilage|chitin|mass|vascular|structure|anatom|graft",
+            RegexOption.IGNORE_CASE)
+        if(!material.containsMatchIn(prose))return null
+        return prose
+    }
+
     /** Exact conceptual pair, either order; reject absent/short mechanisms. */
     fun validMechanism(items:JSONArray?,first:String,second:String):String? {
         if(items==null)return null
