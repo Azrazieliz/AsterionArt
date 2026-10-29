@@ -29,6 +29,9 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service android:name=".work.GenerationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProcessing|dataSync"/>
         <service android:name=".work.CharacterPreparationService"
             android:exported="false"
             android:foregroundServiceType="mediaProcessing|dataSync"/>

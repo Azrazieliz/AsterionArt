@@ -101,7 +101,11 @@ import com.asterion.art.enhancement.EmbeddedRealSr
 import com.asterion.art.work.SheetRenderWorker
 import com.asterion.art.work.SheetMasterGenerationWorker
 import com.asterion.art.work.GenerationWorker
+import com.asterion.art.work.GenerationForegroundService
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.asterion.art.learning.UserPreferenceStore
 import com.asterion.art.integrations.InstalledImageEnhancers
 import com.asterion.art.methodology.MethodologyRegistry
@@ -821,6 +825,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
 @Composable
 private fun QueueScreen(repo: ArtRepository) {
     val context = LocalContext.current
+    val scope=androidx.compose.runtime.rememberCoroutineScope()
     val active = repo.tasks.any { it.status == TaskStatus.QUEUED ||
         it.status == TaskStatus.RUNNING }
     LaunchedEffect(active) {
@@ -831,7 +836,7 @@ private fun QueueScreen(repo: ArtRepository) {
     }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("Background processing", "Job history",
-            "Import, image, sheet, edit and video jobs persist through WorkManager and the local task catalog.") }
+            "Import, image, sheet, edit and video tasks persist. Native character rendering runs in a direct foreground service to avoid Android JobScheduler timeouts.") }
         if (repo.tasks.isEmpty()) item { Text("No jobs submitted yet.", color = Mist) }
         items(repo.tasks.sortedByDescending { it.createdAt }) { task ->
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
@@ -861,6 +866,37 @@ private fun QueueScreen(repo: ArtRepository) {
                     }
                     if (task.error != null) Text(task.error, color = Red)
                     Text(task.id.take(13), style = MaterialTheme.typography.bodySmall, color = Mist)
+                    val resumableCharacter=remember(task.targetId) {
+                        runCatching {
+                            val job=GenerationJobStore(context).load(task.targetId)
+                            job.creationMode==CreationMode.CHARACTER &&
+                                job.designPrompt.isNullOrBlank()
+                        }.getOrDefault(false)
+                    }
+                    if(resumableCharacter && task.status!=TaskStatus.COMPLETED &&
+                        task.status!=TaskStatus.CANCELLED) {
+                        OutlinedButton(onClick={
+                            scope.launch {
+                                try {
+                                    withContext(Dispatchers.IO) {
+                                        // Wait for legacy job cancellation before
+                                        // using the same checkpoint files and NPU.
+                                        androidx.work.WorkManager.getInstance(context)
+                                            .cancelAllWorkByTag("asterion-job-"+task.targetId)
+                                            .result.get()
+                                    }
+                                    GenerationForegroundService.enqueue(
+                                        context,task.targetId,task.id)
+                                    repo.updateTask(task.id,TaskStatus.QUEUED)
+                                    repo.reload()
+                                }catch(e:Exception) {
+                                    repo.updateTask(task.id,TaskStatus.FAILED,
+                                        "Cannot resume foreground render: "+
+                                        (e.message?:e.javaClass.simpleName))
+                                }
+                            }
+                        }){ Text("Resume original with protected checkpoints") }
+                    }
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
                         OutlinedButton(onClick = {
                             val wm=androidx.work.WorkManager.getInstance(context)
@@ -874,8 +910,14 @@ private fun QueueScreen(repo: ArtRepository) {
                                         if(task.targetId.startsWith("join_"))
                                             "asterion-video-join-"+task.targetId
                                         else "asterion-video-"+task.targetId)
-                                task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT) ->
+                                task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT) -> {
                                     wm.cancelAllWorkByTag("asterion-job-"+task.targetId)
+                                    if(resumableCharacter)
+                                        runCatching {
+                                            GenerationForegroundService.cancel(
+                                                context,task.targetId)
+                                        }
+                                }
                                 task.kind==TaskKind.SHEET_RENDER ->
                                     wm.cancelUniqueWork("asterion-sheet-"+task.targetId)
                                 task.kind==TaskKind.MODEL_IMPORT ->
