@@ -516,7 +516,7 @@ internal class GenerationExecutor(
                     thermalGate()
                     val stageLabel = "Image " + candidate + "/" + count +
                         (if(oneShotCharacterSheet) " · one-shot master sheet"
-                         else " · pass " + stage.number + "/5")
+                         else " · native pass " + stage.number + "/" + stageSequence.size)
                     repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
@@ -747,6 +747,7 @@ internal class GenerationExecutor(
                 put("character_render_method",if(characterPlan!=null)
                     "five_separate_frozen_identity_triptychs_composited_white_16_9"
                     else JSONObject.NULL)
+                put("owner_artwork_five_phase_contract_verified",false)
                 put("native_image_encoder_expanded",false)
                 put("methodology_certified", false)
                 put("reference_sheet_ids", JSONArray(job.sheetIds))
