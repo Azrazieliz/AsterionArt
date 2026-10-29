@@ -40,4 +40,17 @@ class QwenStageTelemetryTest {
         assertEquals(25L,data.getJSONObject("stages")
             .getJSONObject("pairwise_batch").getLong("elapsed_ms"))
     }
+
+    @Test fun neuralFirstTokenAndStreamingLatencyAreTrackedSeparately() {
+        val meter=QwenStageTelemetry{0L}
+        meter.recordDuration("identity_json_ttft",41_200_000_000L)
+        meter.recordDuration("identity_json_stream",181_000_000_000L)
+        meter.recordDuration("identity_json_ttft",-12L)
+        val stages=meter.snapshot("plan-example","COMPLETE").getJSONObject("stages")
+        assertEquals(41_200L,stages.getJSONObject("identity_json_ttft")
+            .getLong("elapsed_ms"))
+        assertEquals(2,stages.getJSONObject("identity_json_ttft").getInt("calls"))
+        assertEquals(181_000L,stages.getJSONObject("identity_json_stream")
+            .getLong("elapsed_ms"))
+    }
 }
