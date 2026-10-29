@@ -107,11 +107,14 @@ object GenerationPlanner {
         require(core.isNotBlank()) { "No interpretable prompt content in selected reference images." }
 
         val positiveDetails = listOf(
-            pieces(characters, "FACE", "EYES", "HAIR", "BODY", "OUTFIT"),
+            pieces(characters, "FACE", "EYES", "HAIR", "BODY", "OUTFIT") +
+                pieces(themes, "POSE", "VIEW", "INTERACTION", "CONTACT") +
+                pieces(elements, "PLACEMENT", "STRUCTURE"),
             pieces(styles, "MATERIAL", "LIGHT", "COLOR") +
                 pieces(themes, "LIGHT", "ENVIRONMENT"),
-            pieces(characters, "DISTINCTIVE", "DIAGNOSTIC") +
-                pieces(elements, "STRUCTURE", "PLACEMENT", "VARIATIONS", "MATERIAL", "COLOR"),
+            pieces(characters, "FACE", "EYES", "HAIR", "DISTINCTIVE", "DIAGNOSTIC") +
+                pieces(styles, "LINEWORK", "DETAIL", "TEXTURE") +
+                pieces(elements, "STRUCTURE", "VARIATIONS", "MATERIAL", "COLOR"),
             pieces(styles, "FINGERPRINT", "COMPOSITION") +
                 pieces(themes, "VIEW")
         )
@@ -129,6 +132,7 @@ object GenerationPlanner {
             GenerationPass(n, full, negative, denoise[n - 1])
         } else listOf(GenerationPass(1, core, negative,
             if (creation == CreationMode.STYLE_CORRECTION) settings.denoise else 1f))
+        if(creation==null)ArtworkFivePhaseContract.validate(passes)
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode, passes, sources.map { it.sheetId }, settings),
             creation,concepts,sources,resolver)
@@ -219,6 +223,7 @@ object GenerationPlanner {
         val passes=if(creation==null)(1..5).map { index ->
             GenerationPass(index,base+" "+modifiers[index-1],"",denoise[index-1])
         } else listOf(GenerationPass(1,base,"",denoise.first()))
+        if(creation==null)ArtworkFivePhaseContract.validate(passes)
         return UniversalCreativePlanner.enrich(
             GenerationRecipe(mode,passes,sources.map { it.sheetId },settings),
             creation,concepts,sources,resolver)
