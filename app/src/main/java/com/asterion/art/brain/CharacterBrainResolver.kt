@@ -193,9 +193,14 @@ class CharacterBrainResolver(context:Context) {
                         "eight STRING keys: anatomy, face_eyes_hair, topology, " +
                         "fusion, materials, differentiation, render_description, " +
                         "audit_evidence. All values must be prose strings, NEVER " +
-                        "nested JSON or arrays. Each string must be at least 60 " +
-                        "characters; render_description must be 600+ characters. " +
-                        "Fully design one original anatomical character, with " +
+                        "nested JSON or arrays. Complete ALL eight fields " +
+                        "before the token budget expires. Budget characters per " +
+                        "field: anatomy 250-520, face_eyes_hair 160-450, " +
+                        "topology 160-450, fusion 160-450, materials 160-400, " +
+                        "differentiation 160-400, render_description 600-1100, " +
+                        "audit_evidence 120-350. Do not spend the response " +
+                        "on the first field. Fully design one original " +
+                        "anatomical character, with " +
                         "complete feminine silhouette, original face/eyes/hair, " +
                         "rooted appendages, consequential integration of EVERY " +
                         "named primary concept, materials, identity-specific 2D " +
