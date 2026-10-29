@@ -34,7 +34,10 @@ object GenerationPlanner {
     private val alphaNum = Regex(".*[\\p{L}\\p{N}].*")
     private fun clean(words: List<String>): List<String> =
         words.map { it.trim().replace(Regex("\\s+"), " ") }
-            .filter { it.length in 3..280 && alphaNum.matches(it) }
+            // Source authority must not vanish merely because a user-supplied
+            // field exceeds a guessed short prompt-fragment length.
+            // Native capacity is validated AFTER complete compilation.
+            .filter { it.length >= 3 && alphaNum.matches(it) }
             .distinct()
 
     private fun join(words: List<String>) = clean(words).joinToString(", ")
