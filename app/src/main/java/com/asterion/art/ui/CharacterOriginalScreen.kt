@@ -42,6 +42,9 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     val drafts=remember(context){RequestDraftStore(context)}
     val initial=remember(context){drafts.load("original-character")}
     val catalog=remember{ConceptCatalog.load(context)}
+    var route by remember{mutableStateOf(
+        initial.optString("route","A").takeIf{it in setOf("A","B")} ?: "A"
+    )}
     var slots by remember{mutableStateOf(
         RequestDraftStore.readStrings(initial,"slots")
     )}
@@ -53,6 +56,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     var openLiteral by remember{mutableStateOf(initial.optString("literal"))}
     SideEffect {
         drafts.save("original-character",JSONObject().apply{
+            put("route",route)
             put("slots",RequestDraftStore.strings(slots))
             put("sheets",sheets)
             put("search",search)
@@ -118,7 +122,11 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                 "Select and install an approved reasoning model under " +
                     "Models before resolving Character Creation designs."
             }
-            val created=store.create(slots,sheets,System.currentTimeMillis())
+            // Route B is strictly one finished image at a time: exactly
+            // five independently generated designs in that image. Route A
+            // retains the existing approved 1–5-sheet batch behavior.
+            val imageCount=if(route=="B")1 else sheets
+            val created=store.create(slots,imageCount,System.currentTimeMillis())
             activePlanId=created.id
             plan=created
             error=null
@@ -201,11 +209,29 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(14.dp),
                     verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                    Text("DESIGN EXECUTION ROUTE",color=Gold)
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected=route=="A",enabled=!locked,
+                            onClick={route="A"},label={Text("A · Direct")})
+                        FilterChip(selected=route=="B",enabled=!locked,
+                            onClick={route="B";sheets=1},
+                            label={Text("B · Edit first")})
+                    }
+                    Text(if(route=="B")
+                        "One text-first flow = one 16:9 output image. "+
+                        "Resolve exactly five independently authored designs, "+
+                        "edit each complete character record, then explicitly "+
+                        "bridge the approved full sheet to native generation."
+                        else "Existing direct inference and image-generation "+
+                        "workflow. Approved 1–5-sheet population remains "+
+                        "available.",color=Mist,
+                        style=MaterialTheme.typography.bodySmall)
                     Text("SHEET POPULATION",color=Gold)
-                    Text(sheets.toString()+" sheet(s) · "+
-                        (sheets*5)+" independent characters · "+
-                        (sheets*15)+" full-body views")
-                    Slider(
+                    val chosen=if(route=="B")1 else sheets
+                    Text(chosen.toString()+" sheet(s) · "+
+                        (chosen*5)+" independent characters · "+
+                        (chosen*15)+" full-body views")
+                    if(route=="A") Slider(
                         value=sheets.toFloat(),
                         onValueChange={if(!locked)sheets=it.roundToInt()},
                         valueRange=1f..CharacterPhaseOne.MAX_SHEETS.toFloat(),
@@ -296,10 +322,18 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                     Text("Full frozen roster and "+plan?.prompts?.size+
                         " self-contained sheet context(s) ready for review.",color=Mist)
                     val ready=requireNotNull(plan)
-                    ready.frozen.forEach{identity->
-                        Text(identity.id+" · "+
-                            identity.primary.joinToString(" × "){it.name},
-                            style=MaterialTheme.typography.bodySmall)
+                    if(route=="B" && ready.sheets==1 &&
+                        ready.status=="READY") {
+                        CharacterDesignBoard(
+                            ready,store,
+                            onUpdated={revised->plan=revised;error=null}
+                        )
+                    } else {
+                        ready.frozen.forEach{identity->
+                            Text(identity.id+" · "+
+                                identity.primary.joinToString(" × "){it.name},
+                                style=MaterialTheme.typography.bodySmall)
+                        }
                     }
                     Button(
                         enabled=ready.status=="READY",
@@ -307,6 +341,8 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                         onClick=::authorizeGeneration){
                         Text(if(ready.status=="AUTHORIZED")
                             "Generation already authorized"
+                            else if(route=="B" && ready.sheets==1)
+                                "Bridge finalized five-character sheet to generation"
                             else "Validate & Generate "+ready.sheets+" sheet(s)")
                     }
                     if(ready.status=="READY") {
