@@ -239,10 +239,9 @@ internal class GenerationExecutor(
                             .merge(pass.negative,job.userNegativePrompt))
                 })
             }
-            // Owner-defined intensity v2 is a frozen creation authority,
-            // not a display-only slider. It participates in direct Route A
-            // reasoning and in every native Artwork phase / Original render.
-            if(job.intensities.isNotEmpty()) {
+            // Theme-only creative parameters are never attached to
+            // Artwork or another Original; keep historical snapshots readable.
+            if(job.themeTextPlanId!=null && job.intensities.isNotEmpty()) {
                 val directives=com.asterion.art.engine.CreativeIntensity
                     .description(job.intensities)
                 recipe=recipe.copy(passes=recipe.passes.map{stage->
