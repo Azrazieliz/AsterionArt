@@ -70,7 +70,7 @@ object SheetMasterPrompts {
     }
     fun positive(role:SheetRole,evidence:String="",
         original:CreationMode?=null):String {
-        val study=if(original!=null)specific(original) else when(role) {
+        val study=when(role) {
             SheetRole.CHARACTER ->
                 "ONE finished character master sheet generated in ONE image. "+
                 "The provided character is the SOLE canonical identity in EVERY panel. "+
@@ -81,8 +81,14 @@ object SheetMasterPrompts {
                 "neutral full body at front, exact left profile, three-quarter and "+
                 "direct rear. Retain the same identity, body morphology, species "+
                 "features, hair, eyes and proportions across all views. "+
-                "DEFAULT OUTFIT CONSTRUCTION: full-body outfit front, exact "+
-                "side, rear with accurate fabric, layers, closures and accessories. "+
+                (if(original==CreationMode.CHARACTER)
+                    "UNCLAD ORIGINAL PHASE-1 FORM: do not invent an outfit, armor, "+
+                    "weapon or costume panels. Use this space for accurate "+
+                    "body morphology, structural concept-fusion, appendage roots "+
+                    "and full front/profile/rear identity reference. "
+                 else
+                    "DEFAULT OUTFIT CONSTRUCTION: full-body outfit front, exact "+
+                    "side, rear with accurate fabric, layers, closures and accessories. ")+
                 "Compact accurate PHYSICAL and OUTFIT COLOR PALETTE with material "+
                 "swatches. Optional crucial weapon/detail callouts only. "+
                 "No repetition, filler, lore, unrelated characters or arbitrary "+
@@ -116,7 +122,12 @@ object SheetMasterPrompts {
                 "compositional weight and clear prohibitions. "+
                 "Do not graft a separate floating foreign object onto a character."
         }
-        return PREFIX+study+(if(evidence.isBlank())"" else
+        // An Original is SOURCE authority for a new role-specific sheet.
+        // It must augment the full sheet contract, never replace the
+        // canonical Character/Theme/Art Style/Element requirements.
+        val originalAuthority=if(original==null)"" else
+            " ORIGINAL-SPECIFIC SOURCE CONSTRAINTS: "+specific(original)
+        return PREFIX+study+originalAuthority+(if(evidence.isBlank())"" else
             " UNVERIFIED MACHINE OBSERVATIONS (CHECK AGAINST SOURCE PIXELS): "+evidence)
     }
     fun negative(role:SheetRole):String {
