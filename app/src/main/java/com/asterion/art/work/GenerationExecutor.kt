@@ -876,7 +876,13 @@ internal class GenerationExecutor(
             foreground("Generation completed")
             true
         } catch (cancel: CancellationException) {
-            repo.updateTask(taskId, TaskStatus.FAILED, "Generation cancelled")
+            // Android can stop a foreground worker/service even though the
+            // owner has not cancelled. Preserve the plan, images and durable
+            // queue so the next launch can continue from saved checkpoints.
+            // An explicitly cancelled task is already CANCELLED and the
+            // repository correctly refuses to overwrite a terminal status.
+            repo.updateTask(taskId, TaskStatus.QUEUED,
+                "Interrupted by Android; native checkpoints are retained")
             false
         } catch (e: Exception) {
             repo.updateTask(taskId, TaskStatus.FAILED, e.message ?: "Generation failed")
