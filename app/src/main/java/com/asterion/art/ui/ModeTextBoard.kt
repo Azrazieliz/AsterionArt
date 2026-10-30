@@ -36,6 +36,7 @@ fun ModeTextBoard(
     direction:String,
     exclusions:String,
     directReferences:Map<SheetRole,List<String>> = emptyMap(),
+    intensities:Map<String,String> = emptyMap(),
     eligible:Boolean,
     onImageQueued:()->Unit
 ) {
@@ -67,7 +68,8 @@ fun ModeTextBoard(
         runCatching {
             require(eligible){"Complete all required input references first"}
             val p=store.create(mode,renderMode,sheetIds,
-                sourceUri,concepts,direction,exclusions,directReferences)
+                sourceUri,concepts,direction,exclusions,
+                directReferences,intensities)
             ModeTextWorker.enqueue(context,p.id)
             active=p.id
             plan=p
@@ -143,7 +145,8 @@ fun ModeTextBoard(
                                 designPrompt=p.rendererAuthority(),
                                 designNegative=p.exclusions,
                                 directReferenceUris=p.directReferences,
-                                methodologyTextPlanId=p.id)
+                                methodologyTextPlanId=p.id,
+                                intensities=p.intensities)
                             store.authorize(p.id,job.id)
                             val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
                             GenerationWorker.enqueue(context,job.id,task.id)
