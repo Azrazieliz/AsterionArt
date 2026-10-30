@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.asterion.art.data.ArtRepository
+import com.asterion.art.data.RequestDraftStore
+import org.json.JSONObject
 import com.asterion.art.model.TaskKind
 import com.asterion.art.video.MotionPreset
 import com.asterion.art.video.WanVideoModelPack
@@ -61,6 +64,8 @@ import kotlin.math.roundToInt
 @Composable
 fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
     val context=LocalContext.current
+    val drafts=remember(context){RequestDraftStore(context)}
+    val initial=remember(context){drafts.load("video")}
     val taxonomy=remember { com.asterion.art.engine.ConceptTaxonomy(context) }
     var modelReady by remember { mutableStateOf(WanVideoModelPack.ready(context)!=null) }
     var modelParts by remember { mutableStateOf(
@@ -75,14 +80,33 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         }
     }
     var diagnostic by remember { mutableStateOf<String?>(null) }
-    var images by remember { mutableStateOf<List<String>>(emptyList()) }
-    var preset by remember { mutableStateOf(MotionPreset.CINEMATIC) }
-    var seconds by remember { mutableStateOf(5) }
-    var repeatSegments by remember { mutableStateOf(2) }
-    var customMotion by remember { mutableStateOf("") }
+    var images by remember { mutableStateOf(
+        RequestDraftStore.readStrings(initial,"images")
+    ) }
+    var preset by remember { mutableStateOf(
+        runCatching { MotionPreset.valueOf(initial.optString("preset","CINEMATIC")) }
+            .getOrDefault(MotionPreset.CINEMATIC)
+    ) }
+    var seconds by remember { mutableStateOf(initial.optInt("seconds",5).coerceIn(1,5)) }
+    var repeatSegments by remember {
+        mutableStateOf(initial.optInt("repeat",2).coerceIn(1,8))
+    }
+    var customMotion by remember { mutableStateOf(initial.optString("motion")) }
     var showPromptReview by remember { mutableStateOf(false) }
     var resultsNonce by remember { mutableStateOf(0) }
-    var localClips by remember { mutableStateOf<List<String>>(emptyList()) }
+    var localClips by remember { mutableStateOf(
+        RequestDraftStore.readStrings(initial,"clips")
+    ) }
+    SideEffect {
+        drafts.save("video",JSONObject().apply{
+            put("images",RequestDraftStore.strings(images))
+            put("preset",preset.name)
+            put("seconds",seconds)
+            put("repeat",repeatSegments)
+            put("motion",customMotion)
+            put("clips",RequestDraftStore.strings(localClips))
+        })
+    }
     val scope=rememberCoroutineScope()
 
     val picker=rememberLauncherForActivityResult(
