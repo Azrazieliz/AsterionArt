@@ -66,6 +66,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +83,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
+import com.asterion.art.data.RequestDraftStore
+import org.json.JSONObject
 import com.asterion.art.model.ArtPolicies
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
@@ -120,6 +123,15 @@ private enum class Page(val label: String) {
 @Composable
 fun AsterionArtApp(repo: ArtRepository) {
     AsterionArtTheme {
+        val context=LocalContext.current
+        LaunchedEffect(Unit) {
+            runCatching {
+                GenerationForegroundService.revivePending(context)
+            }.onFailure {
+                android.util.Log.w("AsterionArt",
+                    "A saved native render remains queued for recovery",it)
+            }
+        }
         var current by rememberSaveable { mutableStateOf(Page.HOME) }
         var editingAsset by remember { mutableStateOf<GradedAsset?>(null) }
         var selectedDefault by remember { mutableStateOf(CreationMode.CHARACTER) }
@@ -360,11 +372,40 @@ private fun SummaryCard(label: String, count: String, modifier: Modifier) {
 
 @Composable
 private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+
     val context = LocalContext.current
-    var kind by remember { mutableStateOf(SheetRole.CHARACTER) }
-    var sources by remember { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
-    var activeSlot by remember { mutableStateOf("PRIMARY") }
+    val drafts = remember(context) { RequestDraftStore(context) }
+    val initial = remember(context) { drafts.load("sheet-builder") }
+    var kind by remember { mutableStateOf(runCatching {
+        SheetRole.valueOf(initial.optString("role","CHARACTER"))
+    }.getOrDefault(SheetRole.CHARACTER)) }
+    var sources by remember { mutableStateOf(
+        initial.optJSONArray("sources")?.let { arr ->
+            (0 until arr.length()).mapNotNull { index ->
+                val item=arr.optJSONObject(index) ?: return@mapNotNull null
+                val uri=item.optString("uri")
+                val slot=item.optString("slot")
+                (uri to slot).takeIf { uri.isNotBlank() &&
+                    SheetLayouts.isValid(kind,slot) }
+            }
+        }.orEmpty()
+    ) }
+    var activeSlot by remember { mutableStateOf(
+        initial.optString("slot","PRIMARY").takeIf{
+            SheetLayouts.isValid(kind,it)
+        } ?: "PRIMARY"
+    ) }
     var note by remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        drafts.save("sheet-builder",JSONObject().apply {
+            put("role",kind.name);put("slot",activeSlot)
+            put("sources",org.json.JSONArray().apply {
+                sources.forEach { (uri,slot) ->
+                    put(JSONObject().put("uri",uri).put("slot",slot))
+                }
+            })
+        })
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             val remaining = SheetRenderer.MAX_REFS - sources.size
@@ -602,16 +643,52 @@ private fun SheetGalleryCard(sheet: SheetRecord) {
 
 @Composable
 private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+
     val context = LocalContext.current
-    var mode by remember { mutableStateOf(RenderMode.ANIME) }
-    var creationMode by remember { mutableStateOf<CreationMode?>(null) }
-    var sourceArtwork by remember { mutableStateOf<String?>(null) }
-    var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val drafts = remember(context) { RequestDraftStore(context) }
+    val initial = remember(context) { drafts.load("artwork") }
+    var mode by remember { mutableStateOf(runCatching {
+        RenderMode.valueOf(initial.optString("mode","ANIME"))
+    }.getOrDefault(RenderMode.ANIME)) }
+    var creationMode by remember { mutableStateOf<CreationMode?>(
+        initial.optString("creation_mode").takeIf{it.isNotBlank()}?.let{
+            runCatching{CreationMode.valueOf(it)}.getOrNull()
+        }
+    ) }
+    var sourceArtwork by remember { mutableStateOf(
+        initial.optString("source_image").takeIf { it.isNotBlank() }
+    ) }
+    var selected by remember { mutableStateOf(
+        RequestDraftStore.readStrings(initial,"sheet_ids").toSet()
+    ) }
     var sourceWarning by remember { mutableStateOf<String?>(null) }
-    var userScenePrompt by rememberSaveable { mutableStateOf("") }
-    var userNegativePrompt by rememberSaveable { mutableStateOf("") }
+    var userScenePrompt by remember { mutableStateOf(
+        initial.optString("user_scene")
+    ) }
+    var userNegativePrompt by remember { mutableStateOf(
+        initial.optString("user_negative")
+    ) }
     var directReferenceRole by remember { mutableStateOf(SheetRole.CHARACTER) }
-    var directReferences by remember { mutableStateOf<Map<SheetRole,List<String>>>(emptyMap()) }
+    var directReferences by remember { mutableStateOf(
+        RequestDraftStore.readRoleSources(initial,"direct_refs")
+            .mapNotNull { (role,uris) ->
+                runCatching{SheetRole.valueOf(role)}.getOrNull()?.let{
+                    it to uris
+                }
+            }.toMap()
+    ) }
+    SideEffect {
+        drafts.save("artwork",JSONObject().apply {
+            put("mode",mode.name)
+            put("creation_mode",creationMode?.name ?: "")
+            put("source_image",sourceArtwork ?: "")
+            put("sheet_ids",RequestDraftStore.strings(selected.sorted()))
+            put("user_scene",userScenePrompt)
+            put("user_negative",userNegativePrompt)
+            put("direct_refs",RequestDraftStore.roleSources(
+                directReferences.mapKeys{it.key.name}))
+        })
+    }
     val directReferencePicker=rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if(uris.isNotEmpty()) {
@@ -838,7 +915,7 @@ private fun QueueScreen(repo: ArtRepository) {
     }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("Background processing", "Job history",
-            "Import, image, sheet, edit and video tasks persist. Native character rendering runs in a direct foreground service to avoid Android JobScheduler timeouts.") }
+            "Import, image, sheet, edit and video tasks persist. Native still-image generation continues in a durable foreground-service queue after the app closes.") }
         if (repo.tasks.isEmpty()) item { Text("No jobs submitted yet.", color = Mist) }
         items(repo.tasks.sortedByDescending { it.createdAt }) { task ->
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
@@ -875,7 +952,8 @@ private fun QueueScreen(repo: ArtRepository) {
                                 job.designPrompt.isNullOrBlank()
                         }.getOrDefault(false)
                     }
-                    if(resumableCharacter && task.status!=TaskStatus.COMPLETED &&
+                    if(task.kind==TaskKind.STILL_IMAGE &&
+                        task.status!=TaskStatus.COMPLETED &&
                         task.status!=TaskStatus.CANCELLED) {
                         OutlinedButton(onClick={
                             scope.launch {
@@ -887,9 +965,9 @@ private fun QueueScreen(repo: ArtRepository) {
                                             .cancelAllWorkByTag("asterion-job-"+task.targetId)
                                             .result.get()
                                     }
+                                    repo.requeueStillImageTask(task.id)
                                     GenerationForegroundService.enqueue(
                                         context,task.targetId,task.id)
-                                    repo.updateTask(task.id,TaskStatus.QUEUED)
                                     repo.reload()
                                 }catch(e:Exception) {
                                     repo.updateTask(task.id,TaskStatus.FAILED,
@@ -897,7 +975,7 @@ private fun QueueScreen(repo: ArtRepository) {
                                         (e.message?:e.javaClass.simpleName))
                                 }
                             }
-                        }){ Text("Resume original with protected checkpoints") }
+                        }){ Text("Resume image from saved checkpoints") }
                     }
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
                         OutlinedButton(onClick = {
@@ -914,11 +992,10 @@ private fun QueueScreen(repo: ArtRepository) {
                                         else "asterion-video-"+task.targetId)
                                 task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT) -> {
                                     wm.cancelAllWorkByTag("asterion-job-"+task.targetId)
-                                    if(resumableCharacter)
-                                        runCatching {
-                                            GenerationForegroundService.cancel(
-                                                context,task.targetId)
-                                        }
+                                    runCatching {
+                                        GenerationForegroundService.cancel(
+                                            context,task.targetId)
+                                    }
                                 }
                                 task.kind==TaskKind.SHEET_RENDER ->
                                     wm.cancelUniqueWork("asterion-sheet-"+task.targetId)

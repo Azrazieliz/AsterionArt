@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
+import com.asterion.art.data.RequestDraftStore
+import org.json.JSONObject
 import com.asterion.art.methodology.CharacterPhaseOne
 import com.asterion.art.methodology.CharacterSheetCompiler
 import com.asterion.art.methodology.CharacterPlanStore
@@ -37,12 +39,27 @@ import kotlin.math.roundToInt
 fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     val context=LocalContext.current
     val store=remember{CharacterPlanStore(context)}
+    val drafts=remember(context){RequestDraftStore(context)}
+    val initial=remember(context){drafts.load("original-character")}
     val catalog=remember{ConceptCatalog.load(context)}
-    var slots by remember{mutableStateOf(listOf<String>())}
-    var sheets by rememberSaveable{mutableIntStateOf(CharacterPhaseOne.DEFAULT_SHEETS)}
-    var search by remember{mutableStateOf("")}
-    var query by remember{mutableStateOf("")}
-    var openLiteral by remember{mutableStateOf("")}
+    var slots by remember{mutableStateOf(
+        RequestDraftStore.readStrings(initial,"slots")
+    )}
+    var sheets by rememberSaveable{mutableIntStateOf(
+        initial.optInt("sheets",CharacterPhaseOne.DEFAULT_SHEETS).coerceIn(1,5)
+    )}
+    var search by remember{mutableStateOf(initial.optString("search"))}
+    var query by remember{mutableStateOf(initial.optString("query"))}
+    var openLiteral by remember{mutableStateOf(initial.optString("literal"))}
+    SideEffect {
+        drafts.save("original-character",JSONObject().apply{
+            put("slots",RequestDraftStore.strings(slots))
+            put("sheets",sheets)
+            put("search",search)
+            put("query",query)
+            put("literal",openLiteral)
+        })
+    }
     var activePlanId by rememberSaveable{mutableStateOf<String?>(null)}
     var attempt by rememberSaveable{mutableIntStateOf(0)}
     var plan by remember{mutableStateOf<CharacterPhaseOnePlan?>(null)}
@@ -98,7 +115,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
         runCatching {
             CharacterPhaseOne.validateSlots(slots)
             require(model!=null) {
-                "Select and install the selected adaptable Gemma 3 reasoning model under " +
+                "Select and install an approved reasoning model under " +
                     "Models before resolving Character Creation designs."
             }
             val created=store.create(slots,sheets,System.currentTimeMillis())
