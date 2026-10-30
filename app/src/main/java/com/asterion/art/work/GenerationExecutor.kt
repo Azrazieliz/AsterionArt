@@ -146,6 +146,25 @@ internal class GenerationExecutor(
                 if(characterPlan!=null) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
                         CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
+                else if(job.methodologyTextPlanId!=null &&
+                    job.creationMode==null) {
+                    // Route B Artwork remains Artwork: all five recovered
+                    // owner phases execute. The approved complete design text
+                    // remains authoritative throughout every stage.
+                    val strengths=listOf(1f,0.48f,0.32f,0.22f,0.13f)
+                    val stages=(1..5).map { number ->
+                        GenerationPass(number,
+                            requireNotNull(job.designPrompt)+
+                                "\nARTWORK QUALITY PHASE: "+
+                                com.asterion.art.engine.ArtworkFivePhaseContract
+                                    .at(number).name,
+                            job.designNegative.orEmpty(),
+                            strengths[number-1])
+                    }
+                    com.asterion.art.engine.ArtworkFivePhaseContract
+                        .validate(stages)
+                    GenerationRecipe(job.mode,stages,job.sheetIds,job.settings)
+                }
                 else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,job.designPrompt,
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
@@ -177,7 +196,8 @@ internal class GenerationExecutor(
             var model = models.firstOrNull { it.id == preferredId }
             val imageSourceCount=(
                 com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
-                job.designReferenceUris+listOfNotNull(job.sourceImageUri)
+                job.designReferenceUris+job.directReferenceUris.values.flatten()+
+                listOfNotNull(job.sourceImageUri)
             ).distinct().size
             require(imageSourceCount<=10){
                 "More than 10 source images; select a bounded visual reference set"
@@ -254,7 +274,11 @@ internal class GenerationExecutor(
             // validated the structured sheets, do not re-author its prompt
             // through a slow second language model. Optional manual edits
             // are already included in the frozen generation authority.
-            val brainPlan=if(characterPlan!=null || restoredCompilation!=null)
+            // An owner-edited Route B or approved Theme text already IS the
+            // frozen model-facing specification. Never overwrite it through
+            // another unrelated neural design step after the bridge.
+            val brainPlan=if(characterPlan!=null || restoredCompilation!=null ||
+                !job.designPrompt.isNullOrBlank())
                 null else if(neural.available()) {
                 foreground("Asterion Brain · interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
@@ -392,7 +416,8 @@ internal class GenerationExecutor(
             val combinedSourceUris=(
                 com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
                 listOfNotNull(extraOriginal?.sourceUris?.firstOrNull())+
-                job.designReferenceUris
+                job.designReferenceUris+
+                job.directReferenceUris.values.flatten()
             ).distinct()
             val referenceInputs = if (model.ditKind == "qwen21" ||
                 model.ditKind == "klein") {
@@ -462,7 +487,10 @@ internal class GenerationExecutor(
                 characterPlan?.sheets,tunedSettings.batch)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
-            val oneShotCharacterSheet = !job.designPrompt.isNullOrBlank() ||
+            val oneShotCharacterSheet =
+                (!job.designPrompt.isNullOrBlank() &&
+                    !(job.methodologyTextPlanId!=null &&
+                        job.creationMode==null)) ||
                 characterPlan!=null
             val stageSequence = if (oneShotCharacterSheet)
                 listOf(recipe.passes.first()) else recipe.passes
@@ -679,17 +707,35 @@ internal class GenerationExecutor(
                 if (technical.score == technicalLeaderScore) technicalLeaderUri = uri
                 repo.registerAsset(uri.toString(), sourceSheetId = null,
                     autoScore = technical.score, sourceJobId = job.id)
+                // An approved text Theme becomes a real reusable Theme Sheet
+                // only after its native image has passed the fidelity gate.
+                job.themeTextPlanId?.let { textId ->
+                    val approved=com.asterion.art.methodology.ThemeTextStore(
+                        applicationContext).load(textId)
+                    require(approved.renderJobId==job.id &&
+                        approved.approved!=null) {
+                        "Theme render lacks a matching authorized text plan"
+                    }
+                    repo.finishThemeTextSheet(textId,
+                        requireNotNull(approved.approved).name,uri.toString())
+                }
                 // Every design is independently selectable, including catalogue
                 // slots from sheets produced by any Creative Studio. The sheet
                 // remains a reference until separately regenerated as one image.
-                val perSheet=if(job.designPrompt!=null) 1
+                val perSheet=if(job.methodologyTextPlanId!=null)
+                    job.creationMode?.let {
+                        DetailedMethodologies.all[it]?.catalogue?.designsPerImage
+                    } ?: 1
+                    else if(job.designPrompt!=null) 1
                     else if(characterPlan!=null) CharacterPhaseOne.PER_SHEET
                     else job.creationMode?.let {
                         DetailedMethodologies.all[it]?.catalogue?.designsPerImage
                     } ?: 1
                 val memory=CreativeMemoryStore(applicationContext)
-                val layout=if(job.designPrompt!=null) null else job.creationMode?.let {
-                    DetailedMethodologies.all[it]?.catalogue }
+                val layout=if(job.designPrompt!=null &&
+                    job.methodologyTextPlanId==null) null
+                    else job.creationMode?.let {
+                        DetailedMethodologies.all[it]?.catalogue }
                 val columns=layout?.columns ?: 1
                 val rows=layout?.rows ?: 1
                 val frozen=characterPlan?.frozen.orEmpty()

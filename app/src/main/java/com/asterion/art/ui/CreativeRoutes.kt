@@ -101,7 +101,8 @@ fun CreativeGateway(openImage:()->Unit,openAnimation:()->Unit) {
 }
 
 @Composable
-fun ImageGateway(openArtwork:()->Unit,openDefaults:()->Unit,openSheets:()->Unit) {
+fun ImageGateway(openArtwork:()->Unit,openDefaults:()->Unit,
+    openSheets:()->Unit,openThemes:()->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),
         verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { Text("IMAGE",color=Gold,style=MaterialTheme.typography.labelMedium) }
@@ -112,6 +113,8 @@ fun ImageGateway(openArtwork:()->Unit,openDefaults:()->Unit,openSheets:()->Unit)
             Icons.Default.AutoAwesome,openDefaults) }
         item { DestinationCard("Sheet creation","Build normalized Character, Art Style, Theme and Element reference sheets",
             Icons.Default.Image,openSheets) }
+        item { DestinationCard("Theme creation · text","B/E/T, keywords, independent theme roulette, editing and approved Theme Sheet bridge",
+            Icons.Default.AutoAwesome,openThemes) }
     }
 }
 

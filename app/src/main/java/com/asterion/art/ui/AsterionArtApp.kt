@@ -115,7 +115,7 @@ import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), TOOLBOX("Toolbox"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), THEME_TEXT("Theme creator"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), TOOLBOX("Toolbox"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), TEST("Testing"), SETTINGS("Parameters")
 }
 
@@ -149,7 +149,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         if (current != Page.HOME) IconButton(onClick = {
                             current = when(current) {
                                 Page.DEFAULT_STUDIO -> Page.DEFAULTS
-                                Page.DEFAULTS,Page.ARTWORK,Page.SHEET -> Page.IMAGE_GATE
+                                Page.DEFAULTS,Page.ARTWORK,Page.SHEET,Page.THEME_TEXT -> Page.IMAGE_GATE
                                 Page.IMAGE_GATE,Page.VIDEO -> Page.CREATE
                                 else -> Page.HOME
                             }
@@ -175,7 +175,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         NavigationBarItem(
                             selected = if(page==Page.CREATE)
                                 current in setOf(Page.CREATE,Page.IMAGE_GATE,Page.ARTWORK,
-                                    Page.DEFAULTS,Page.DEFAULT_STUDIO,Page.VIDEO)
+                                    Page.DEFAULTS,Page.DEFAULT_STUDIO,Page.THEME_TEXT,Page.VIDEO)
                                 else current == page,
                             onClick = { current = page },
                             icon = { Icon(icon, contentDescription = text) },
@@ -194,7 +194,8 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.IMAGE_GATE -> ImageGateway(
                         openArtwork={ current=Page.ARTWORK },
                         openDefaults={ current=Page.DEFAULTS },
-                        openSheets={ current=Page.SHEET })
+                        openSheets={ current=Page.SHEET },
+                        openThemes={ current=Page.THEME_TEXT })
                     Page.ARTWORK -> CreationScreen(repo) { current=it }
                     Page.DEFAULTS -> MethodologyGateway { method ->
                         selectedDefault=method
@@ -207,6 +208,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         openParameters={ current=Page.SETTINGS },
                         onQueued={ current=Page.HOME })
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
+                    Page.THEME_TEXT -> ThemeTextStudio(repo) { current=Page.JOBS }
                     Page.CORE -> CoreSheetBrowser(repo) { current = Page.HOME }
                     Page.VIDEO -> VideoWorkspace(repo) { current = Page.HOME }
                     Page.MODELS -> NativeModelLibraryScreen()
@@ -647,6 +649,9 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     val context = LocalContext.current
     val drafts = remember(context) { RequestDraftStore(context) }
     val initial = remember(context) { drafts.load("artwork") }
+    var route by remember { mutableStateOf(
+        initial.optString("route","A").takeIf{it in setOf("A","B")} ?: "A"
+    ) }
     var mode by remember { mutableStateOf(runCatching {
         RenderMode.valueOf(initial.optString("mode","ANIME"))
     }.getOrDefault(RenderMode.ANIME)) }
@@ -679,6 +684,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     ) }
     SideEffect {
         drafts.save("artwork",JSONObject().apply {
+            put("route",route)
             put("mode",mode.name)
             put("creation_mode",creationMode?.name ?: "")
             put("source_image",sourceArtwork ?: "")
@@ -742,6 +748,12 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             Header("Image generator", "Artwork creation",
                 "Use Character, Theme and Art Style sheets, with an optional Element sheet. "+
                     "Create sheets from individual references in Sheet Creation.")
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                FilterChip(selected=route=="A",onClick={route="A"},
+                    label={Text("A · Direct")})
+                FilterChip(selected=route=="B",onClick={route="B"},
+                    label={Text("B · Text design first")})
+            }
         }
         item {
             OutlinedButton(onClick={
@@ -864,7 +876,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                         Spacer(Modifier.width(8.dp))
                         Text("Configure parameters")
                     }
-                    Button(
+                    if(route=="A") Button(
                         enabled = ready && mode != RenderMode.ANIMATION &&
                             repo.sheets.filter { it.id in selected }.all { it.outputUri != null },
                         onClick = {
@@ -889,6 +901,17 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                     }
                 }
             }
+        }
+        if(route=="B") item {
+            ModeTextBoard(
+                repo=repo,mode=null,renderMode=mode,
+                sheetIds=selected.toList(),sourceUri=sourceArtwork,
+                concepts=emptyList(),direction=userScenePrompt,
+                exclusions=userNegativePrompt,
+                directReferences=directReferences.filterValues{it.isNotEmpty()},
+                eligible=ready && creationMode==null &&
+                    repo.sheets.filter{it.id in selected}.all{it.outputUri!=null},
+                onImageQueued={navigate(Page.JOBS)})
         }
         item {
             Text("Requires a compatible installed on-device QNN model. " +
