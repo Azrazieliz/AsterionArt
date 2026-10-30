@@ -175,6 +175,7 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                 }
             }
         }
+        item { CreativeTaxonomyStudio() }
         if(history.isNotEmpty())item {
             Text("PRESERVED TEXT THEME PLANS",color=Gold)
             history.take(12).forEach{old->
