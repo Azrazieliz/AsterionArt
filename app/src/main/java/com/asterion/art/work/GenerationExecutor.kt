@@ -316,7 +316,9 @@ internal class GenerationExecutor(
                     onStage={ stage -> repo.updateTaskProgress(taskId,0,0,stage) },
                     creationMode=job.creationMode,
                     renderMode=job.mode,
-                    targetDesignId=job.parentDesignIds.singleOrNull()
+                    targetDesignId=job.parentDesignIds.singleOrNull(),
+                    ownerDirection=job.userScenePrompt,
+                    ownerExclusions=job.userNegativePrompt
                 )
             } else null
             require(!requiresAutoCompilation || brainPlan!=null) {

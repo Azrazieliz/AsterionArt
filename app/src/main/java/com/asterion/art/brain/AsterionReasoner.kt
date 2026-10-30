@@ -130,7 +130,9 @@ class AsterionReasoner(context:Context) {
         onStage:(String)->Unit={},
         creationMode:CreationMode?=null,
         renderMode:RenderMode?=null,
-        targetDesignId:String?=null
+        targetDesignId:String?=null,
+        ownerDirection:String="",
+        ownerExclusions:String=""
     ):NeuralDesignPlan?=nativeMutex.withLock {
         val weights=models.selected()?:return@withLock null
         val weightFile=models.location(weights)?:return@withLock null
@@ -191,6 +193,8 @@ class AsterionReasoner(context:Context) {
             "BINDING CONCEPT PHYSICS:\n"+creativeEvidence+"\n"+
             "SOURCE OBSERVATIONS:\n"+sheetSources.joinToString("\n")+"\n"+
             "OWNER GRADING:\n"+guidance+"\n"+
+            "CURRENT OWNER DIRECTION:\n"+ownerDirection+"\n"+
+            "CURRENT OWNER EXCLUSIONS:\n"+ownerExclusions+"\n"+
             "Generate exactly "+candidateCount+" independently designed "+
                 "subjects as one coherent image specification. Do not "+
                 "invent or change methodology, design count, framing or "+
