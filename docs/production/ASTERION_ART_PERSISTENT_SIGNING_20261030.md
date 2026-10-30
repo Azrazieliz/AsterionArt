@@ -12,7 +12,7 @@ Date: 2026-10-30. **Owner-requested action executed**: generate a new key and sa
 - Encrypted password: `D:\AsterionArtSigning\identity-20261030\release-password.dpapi`
 - Public certificate: `D:\AsterionArtSigning\identity-20261030\public-signing-certificate.pem`
 - Local manifest and tested verifier: `identity.json`, `verify-saved-key.ps1`.
-- Restricted-permission, checksum-verified **second local copy**: `C:\Users\mimim\Documents\ASTERION-PRIVATE-SIGNING-BACKUP\identity-20261030` (5 preserved files).
+- Restricted-permission, checksum-verified **second local copy**: `%USERPROFILE%\Documents\ASTERION-PRIVATE-SIGNING-BACKUP\identity-20261030` (5 preserved files).
 - Verification performed after creation: decrypt saved Windows-protected password, open persisted keystore through keytool, verify exact alias, certificate fingerprint and keystore hash. PASS.
 - The previous `D:\AsterionArtSigning\asterion-art-release.p12` and `release-pass.dpapi` were not modified or replaced.
 
