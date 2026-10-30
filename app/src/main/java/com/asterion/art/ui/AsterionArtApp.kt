@@ -1118,11 +1118,11 @@ private fun ParametersScreen(repo: ArtRepository) {
                 valueRange = 0f..20f, onValueChangeFinished = { repo.saveSettings(local) })
         }
         item {
-            Text("Batch / variations per survivor: " + local.batch, color = Gold)
-            Text("Artwork only: three best images survive each of five phases. "+
-                "This setting determines how many refinements are rendered "+
-                "from each surviving image in phases 2–5; the final result "+
-                "is one winner. Other creation modes retain their normal batch behavior.",
+            Text("Batch / candidates per Artwork phase: " + local.batch, color = Gold)
+            Text("Artwork: generate "+local.batch+" candidates at each of the five phases; "+
+                "keep ONLY ONE best image at every phase. "+
+                "Total: "+(local.batch*5)+" image generations, then "+
+                "enhance the final winner. Other modes keep their own batch behavior.",
                 color=Mist,style=MaterialTheme.typography.bodySmall)
             Slider(value = local.batch.toFloat(), onValueChange = {
                 local = local.copy(batch = it.roundToInt())
