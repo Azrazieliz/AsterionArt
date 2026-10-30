@@ -49,7 +49,7 @@ class BrainAdapterLibrary(context:Context) {
                     require(BrainCatalog.get(base)!=null)
                     InstalledBrainAdapter(v.getString("id"),base,file,
                         v.getString("sha256"),v.getLong("bytes"),
-                        v.optBoolean("enabled",false),v.optString("mode_key").ifBlank{null})
+                        v.optBoolean("enabled",false),v.optString("mode_key").takeIf{it.isNotBlank()})
                 }.getOrNull()
             }
 
