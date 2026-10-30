@@ -45,11 +45,6 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     var route by remember{mutableStateOf(
         initial.optString("route","A").takeIf{it in setOf("A","B")} ?: "A"
     )}
-    var intensity by remember{
-        mutableStateOf(com.asterion.art.engine.CreativeIntensity.defaults+
-            com.asterion.art.engine.CreativeIntensity.fromJson(
-                initial.optJSONObject("intensity_v2")))
-    }
     var slots by remember{mutableStateOf(
         RequestDraftStore.readStrings(initial,"slots")
     )}
@@ -63,9 +58,6 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
         drafts.save("original-character",JSONObject().apply{
             put("route",route)
             put("slots",RequestDraftStore.strings(slots))
-            put("intensity_v2",
-                com.asterion.art.engine.CreativeIntensity.json(
-                    intensity.filterValues{it.isNotBlank()}))
             put("sheets",sheets)
             put("search",search)
             put("query",query)
@@ -135,7 +127,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
             // retains the existing approved 1–5-sheet batch behavior.
             val imageCount=if(route=="B")1 else sheets
             val created=store.create(slots,imageCount,
-                System.currentTimeMillis(),intensity)
+                System.currentTimeMillis())
             activePlanId=created.id
             plan=created
             error=null
@@ -156,8 +148,7 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                 RenderMode.ANIME,emptyList(),settings,
                 creationMode=CreationMode.CHARACTER,
                 concepts=ready.slots,
-                characterPlanId=ready.id,
-                intensities=ready.intensities)
+                characterPlanId=ready.id)
             store.authorize(ready.id,job.id)
             val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
             GenerationWorker.enqueue(context,job.id,task.id)
@@ -214,9 +205,6 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                 "Clinical, unclothed anatomical references with complete "+
                 "concept-driven body construction and original 2D anime/manhwa drawing.",
                 color=Mist)
-        }
-        item {
-            CreativeIntensityEditor(intensity){intensity=it}
         }
         item {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
