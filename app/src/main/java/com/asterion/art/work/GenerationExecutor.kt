@@ -694,14 +694,20 @@ internal class GenerationExecutor(
                 // Every design is independently selectable, including catalogue
                 // slots from sheets produced by any Creative Studio. The sheet
                 // remains a reference until separately regenerated as one image.
-                val perSheet=if(job.designPrompt!=null) 1
+                val perSheet=if(job.methodologyTextPlanId!=null)
+                    job.creationMode?.let {
+                        DetailedMethodologies.all[it]?.catalogue?.designsPerImage
+                    } ?: 1
+                    else if(job.designPrompt!=null) 1
                     else if(characterPlan!=null) CharacterPhaseOne.PER_SHEET
                     else job.creationMode?.let {
                         DetailedMethodologies.all[it]?.catalogue?.designsPerImage
                     } ?: 1
                 val memory=CreativeMemoryStore(applicationContext)
-                val layout=if(job.designPrompt!=null) null else job.creationMode?.let {
-                    DetailedMethodologies.all[it]?.catalogue }
+                val layout=if(job.designPrompt!=null &&
+                    job.methodologyTextPlanId==null) null
+                    else job.creationMode?.let {
+                        DetailedMethodologies.all[it]?.catalogue }
                 val columns=layout?.columns ?: 1
                 val rows=layout?.rows ?: 1
                 val frozen=characterPlan?.frozen.orEmpty()
