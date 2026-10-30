@@ -16,6 +16,7 @@ import java.math.BigDecimal
  */
 object CreativeIntensity {
     const val VERSION=2
+    val defaults=mapOf("B" to "1","E" to "1","T" to "1")
     val grades=linkedMapOf(
         0 to "not requested",
         1 to "prominent",
