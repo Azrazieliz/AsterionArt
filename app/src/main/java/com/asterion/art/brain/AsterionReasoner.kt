@@ -170,8 +170,12 @@ class AsterionReasoner(context:Context) {
             "include all "+candidateCount+" independent designs.\n"+
             requestedOutput+"\nFULL AUTHORITY:\n"+authority+
             "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
+        val selectedAdapter=BrainAdapterLibrary(app).activeFor(weights.id)
+        val adapterVersion=selectedAdapter?.let {
+            it.absolutePath+":"+it.length()+":"+it.lastModified()
+        }.orEmpty()
         val signature=java.security.MessageDigest.getInstance("SHA-256")
-            .digest((weights.id+"\n"+contextSize+"\n"+activeSystem+"\n"+request)
+            .digest((weights.id+"\n"+adapterVersion+"\n"+contextSize+"\n"+activeSystem+"\n"+request)
                 .toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
         val checkpoint=File(app.filesDir,"generation-plans/"+jobId+"-brain.json")
@@ -216,7 +220,7 @@ class AsterionReasoner(context:Context) {
             engine.loadModel(weightFile.absolutePath,contextSize)
             // LoRA is applied to a compatible Gemma 3 base, never silently
             // substituted for an incompatible architecture.
-            BrainAdapterLibrary(app).activeFor(weights.id)?.let { adapter ->
+            selectedAdapter?.let { adapter ->
                 engine.loadAdapter(adapter.absolutePath)
             }
             engine.setSystemPrompt(activeSystem)
