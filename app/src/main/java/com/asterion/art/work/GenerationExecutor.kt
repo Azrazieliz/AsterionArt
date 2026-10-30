@@ -523,20 +523,17 @@ internal class GenerationExecutor(
                     PreferenceLearning.candidate(tunedSettings,candidate - 1)
                 val candidateRenderStart=android.os.SystemClock.elapsedRealtime()
                 val image:ByteArray=if(artworkBeam) {
-                    // The owner requires that THREE highest-ranked actual
-                    // images survive every one of Artwork's five phases.
-                    // Phase 1: 3 foundations; phases 2–5: 3 variants from
-                    // each of the preceding three survivors, retain top 3.
-                    // Only the single best final-phase result is published
-                    // as the Artwork winner, then automatically enhanced.
+                    // ONE highest-ranked image survives every stage.
+                    // Each stage renders only the user-selected batch count,
+                    // never batch × number of previously retained candidates.
                     val beams=com.asterion.art.engine.ArtworkBeamRunner(
-                        File(intermediate,"owner30-artwork-beam-v1"))
+                        File(intermediate,"owner30-artwork-best-one-v2"))
                     val result=beams.execute(
                         stages=stageSequence,
                         baseSeed=seed,
                         initialPng=originalImage,
                         modelId=model.id,
-                        variationsPerSurvivor=tunedSettings.batch,
+                        candidatesPerPhase=tunedSettings.batch,
                         stopped=stopped,
                         render={pass,parent,childSeed,child,total,parentId->
                             thermalGate()
@@ -585,7 +582,7 @@ internal class GenerationExecutor(
                         },
                         onStage={number,survivors->
                             repo.updateTaskProgress(taskId,number*100,700,
-                                "Retained three best Artwork "+
+                                "Retained single best Artwork "+
                                     com.asterion.art.engine.ArtworkFivePhaseContract
                                         .at(number).name+" outputs")
                             taskProgress(candidate,number)
@@ -594,10 +591,10 @@ internal class GenerationExecutor(
                     GeneratedImagePublisher.atomicWrite(
                         File(intermediate,"owner30-artwork-beam-summary.json"),
                         JSONObject().apply{
-                            put("schema","asterion.artwork.top3.v1")
+                            put("schema","asterion.artwork.best1.v2")
                             put("phases",5)
-                            put("retained_per_phase",3)
-                            put("variations_per_survivor",tunedSettings.batch)
+                            put("retained_per_phase",1)
+                            put("candidates_per_phase",tunedSettings.batch)
                             put("generated_per_phase",
                                 JSONArray(result.generatedPerPhase))
                             put("total_native_invocations",
