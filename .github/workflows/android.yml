@@ -1,7 +1,7 @@
 name: Asterion Art Android integration and APK
 on:
   push:
-    branches: ['research/model-capabilities-no-build-20261027', 'implementation/p0-compiler-engine-model-recovery-20261029', 'implementation/reference-driven-reusable-sheets-20261030', 'implementation/durable-drafts-background-20261030', 'implementation/methodology-driven-route-b-20261030', 'implementation/theme-text-and-routes-20261030']
+    branches: ['research/model-capabilities-no-build-20261027', 'implementation/p0-compiler-engine-model-recovery-20261029', 'implementation/reference-driven-reusable-sheets-20261030', 'implementation/durable-drafts-background-20261030', 'implementation/methodology-driven-route-b-20261030', 'implementation/theme-text-and-routes-20261030', 'implementation/owner-intensity-taxonomy-phase-beam-20261030']
   workflow_dispatch:
 concurrency:
   group: asterion-android-${{ github.ref }}
