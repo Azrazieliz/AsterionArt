@@ -120,31 +120,13 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                     var current=store.load(id)
                     val sets=if(current.frozenAtomSets.size==5)current.frozenAtomSets
                         else {
-                            store.stage(id,"Independent roulette: selecting five atom sets")
+                            store.stage(id,"Seeded independent roulette: five frozen atom sets")
                             show("Selecting five unrelated visual atom sets")
-                            val roulette=call(
-                                "INDEPENDENT FIVE-SET ATOMIC ROULETTE. SEED "+
-                                    current.seed+". Exactly five DIFFERENT sets "+
-                                    "each with 3 to 6 ORDINARY ONE-WORD atoms. "+
-                                    "Choose broadly and unpredictably from physical, "+
-                                    "historical, technical, fictional, natural, "+
-                                    "surreal, architectural and structural concepts. "+
-                                    "Each atom is one standalone visual word; "+
-                                    "do not output compound phrases, narrative, "+
-                                    "camera variants or predetermined stories. "+
-                                    "Do NOT derive the atoms from user keywords "+
-                                    "or score parameters: they are intentionally "+
-                                    "not given in this step. Output JSON only: "+
-                                    "{\"sets\":[[\"word\",\"word\",\"word\"], "+
-                                    "four further independent arrays]}.",1200)
-                            val array=roulette.getJSONArray("sets")
-                            require(array.length()==5) {
-                                "Five separate frozen roulette results required"
-                            }
-                            val chosen=(0 until 5).map { index ->
-                                val group=array.getJSONArray(index)
-                                (0 until group.length()).map{group.getString(it).trim()}
-                            }
+                            // The independent atom roulette is seeded native
+                            // logic, not a costly LLM request. It is independent
+                            // from keywords and B/E/T by construction.
+                            val chosen=com.asterion.art.methodology
+                                .AtomicThemeRoulette.generate(current.seed)
                             store.freezeAtoms(id,chosen)
                             chosen
                         }
@@ -220,6 +202,9 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
             }
             Result.success()
         } catch(e:Exception) {
+            android.util.Log.e("AsterionThemeText",
+                "Text-theme generation failed at "+
+                    runCatching{store.load(id).stage}.getOrDefault("unknown"),e)
             store.fail(id,e.message?:"Text theme generation incomplete")
             Result.failure()
         }
