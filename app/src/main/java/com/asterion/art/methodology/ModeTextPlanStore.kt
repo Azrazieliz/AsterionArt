@@ -141,6 +141,7 @@ data class ModeTextPlan(
     val renderMode:RenderMode,
     val sheetIds:List<String>,
     val sourceImageUri:String?,
+    val directReferences:Map<SheetRole,List<String>>,
     val concepts:List<String>,
     val userDirection:String,
     val exclusions:String,
@@ -166,6 +167,10 @@ data class ModeTextPlan(
             append("SOURCE IMAGE: ").append(sourceImageUri?:"none").append("\n")
             append("SOURCE SHEET IDS: ").append(sheetIds.joinToString(", "))
                 .append("\n")
+            directReferences.forEach{(role,uris)->
+                append("DIRECT ").append(role.name).append(" REFERENCES: ")
+                    .append(uris.joinToString("; ")).append("\n")
+            }
             designs.forEach{design->
                 append("DESIGN ").append(design.ordinal)
                     .append(" · ").append(design.name).append("\n")
@@ -189,10 +194,11 @@ class ModeTextPlanStore(context:Context) {
     }
     @Synchronized fun create(mode:CreationMode?,renderMode:RenderMode,
         sheets:List<String>,sourceUri:String?,concepts:List<String>,
-        direction:String,exclusions:String):ModeTextPlan {
+        direction:String,exclusions:String,
+        directReferences:Map<SheetRole,List<String>> = emptyMap()):ModeTextPlan {
         val plan=ModeTextPlan(UUID.randomUUID().toString(),
             System.currentTimeMillis(),mode,renderMode,sheets.distinct(),
-            sourceUri,concepts,direction,exclusions)
+            sourceUri,directReferences,concepts,direction,exclusions)
         persist(plan)
         return plan
     }
@@ -205,6 +211,11 @@ class ModeTextPlanStore(context:Context) {
             put("render",plan.renderMode.name)
             put("sheets",JSONArray(plan.sheetIds))
             put("source",plan.sourceImageUri?:JSONObject.NULL)
+            put("direct_references",JSONObject().apply{
+                plan.directReferences.forEach{(role,uris)->
+                    put(role.name,JSONArray(uris))
+                }
+            })
             put("concepts",JSONArray(plan.concepts))
             put("direction",plan.userDirection);put("exclusions",plan.exclusions)
             put("status",plan.status);put("stage",plan.stage)
@@ -229,8 +240,15 @@ class ModeTextPlanStore(context:Context) {
         return ModeTextPlan(j.getString("id"),j.getLong("created"),
             str("mode")?.let(CreationMode::valueOf),
             RenderMode.valueOf(j.getString("render")),
-            arr("sheets"),str("source"),arr("concepts"),
-            j.getString("direction"),j.getString("exclusions"),
+            arr("sheets"),str("source"),
+            j.optJSONObject("direct_references")?.let {obj->
+                SheetRole.entries.mapNotNull{role->
+                    obj.optJSONArray(role.name)?.let{array->
+                        role to (0 until array.length()).map{array.getString(it)}
+                    }
+                }.toMap()
+            }.orEmpty(),
+            arr("concepts"),j.getString("direction"),j.getString("exclusions"),
             j.getString("status"),j.optString("stage"),
             (0 until records.length()).map{idx->
                 val d=records.getJSONObject(idx)
