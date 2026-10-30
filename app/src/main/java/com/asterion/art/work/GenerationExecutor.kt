@@ -536,6 +536,7 @@ internal class GenerationExecutor(
                         baseSeed=seed,
                         initialPng=originalImage,
                         modelId=model.id,
+                        variationsPerSurvivor=tunedSettings.batch,
                         stopped=stopped,
                         render={pass,parent,childSeed,child,total,parentId->
                             thermalGate()
@@ -596,6 +597,7 @@ internal class GenerationExecutor(
                             put("schema","asterion.artwork.top3.v1")
                             put("phases",5)
                             put("retained_per_phase",3)
+                            put("variations_per_survivor",tunedSettings.batch)
                             put("generated_per_phase",
                                 JSONArray(result.generatedPerPhase))
                             put("total_native_invocations",
