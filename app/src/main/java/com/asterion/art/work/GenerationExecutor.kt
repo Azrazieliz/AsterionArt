@@ -482,9 +482,13 @@ internal class GenerationExecutor(
                 .applies(job.settings,model)
             if(turboAuto)repo.updateTaskProgress(taskId,0,0,
                 "Anima Turbo · optimized for on-device NPU: 8 steps, CFG 1")
-            val count = com.asterion.art.engine.OriginalOutputPolicy.imageCount(
-                job.creationMode,!job.designPrompt.isNullOrBlank(),
-                characterPlan?.sheets,tunedSettings.batch)
+            val artworkBeam=job.creationMode==null &&
+                (job.designPrompt.isNullOrBlank() ||
+                    job.methodologyTextPlanId!=null)
+            val count = if(artworkBeam) 1 else
+                com.asterion.art.engine.OriginalOutputPolicy.imageCount(
+                    job.creationMode,!job.designPrompt.isNullOrBlank(),
+                    characterPlan?.sheets,tunedSettings.batch)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
             val oneShotCharacterSheet =
@@ -507,7 +511,90 @@ internal class GenerationExecutor(
                 val candidateSettings = if(turboAuto)tunedSettings else
                     PreferenceLearning.candidate(tunedSettings,candidate - 1)
                 val candidateRenderStart=android.os.SystemClock.elapsedRealtime()
-                val image:ByteArray=if(characterPlan!=null) {
+                val image:ByteArray=if(artworkBeam) {
+                    // The owner requires that THREE highest-ranked actual
+                    // images survive every one of Artwork's five phases.
+                    // Phase 1: 3 foundations; phases 2–5: 3 variants from
+                    // each of the preceding three survivors, retain top 3.
+                    // Only the single best final-phase result is published
+                    // as the Artwork winner, then automatically enhanced.
+                    val beams=com.asterion.art.engine.ArtworkBeamRunner(
+                        File(intermediate,"owner30-artwork-beam-v1"))
+                    val result=beams.execute(
+                        stages=stageSequence,
+                        baseSeed=seed,
+                        initialPng=originalImage,
+                        modelId=model.id,
+                        stopped=stopped,
+                        render={pass,parent,childSeed,child,total,parentId->
+                            thermalGate()
+                            val label="Artwork "+
+                                com.asterion.art.engine.ArtworkFivePhaseContract
+                                    .at(pass.number).name+
+                                " · variation "+child+"/"+total
+                            foreground(label)
+                            val applied=if(pass.number==1 && parent!=null &&
+                                model.ditKind !in listOf("qwen21","klein"))
+                                pass.copy(denoise=candidateSettings.denoise)
+                            else pass
+                            val trace=File(intermediate,
+                                "actual-native-stage-inputs.jsonl")
+                            val invocation=JSONObject().apply{
+                                put("candidate",candidate)
+                                put("stage",pass.number)
+                                put("child",child)
+                                put("parent_id",parentId?:JSONObject.NULL)
+                                put("model",model.id)
+                                put("positive",applied.positive)
+                                put("negative",applied.negative)
+                                put("denoise",applied.denoise.toDouble())
+                                put("seed",childSeed)
+                            }
+                            GeneratedImagePublisher.atomicWrite(trace,
+                                (trace.takeIf{it.exists()}?.readText().orEmpty()+
+                                    invocation.toString()+"\\n")
+                                    .toByteArray(Charsets.UTF_8))
+                            engine.verifyText(applied.positive)
+                            if(applied.negative.isNotBlank())
+                                engine.verifyText(applied.negative)
+                            val generated=engine.generate(
+                                applied,candidateSettings.copy(batch=1),
+                                resolution.first,resolution.second,
+                                parent,childSeed,{stopped()},
+                                {step,totalSteps->
+                                    if(totalSteps>0 && step>=0 && step%3==0)
+                                        repo.updateTaskProgress(taskId,
+                                            (pass.number-1)*100+
+                                                (child-1)*100/total+
+                                                (step*100/totalSteps)/total,
+                                            700,label)
+                                },referencePngs=referenceInputs)
+                            generated.png
+                        },
+                        onStage={number,survivors->
+                            repo.updateTaskProgress(taskId,number*100,700,
+                                "Retained three best Artwork "+
+                                    com.asterion.art.engine.ArtworkFivePhaseContract
+                                        .at(number).name+" outputs")
+                            taskProgress(candidate,number)
+                        }
+                    )
+                    GeneratedImagePublisher.atomicWrite(
+                        File(intermediate,"owner30-artwork-beam-summary.json"),
+                        JSONObject().apply{
+                            put("schema","asterion.artwork.top3.v1")
+                            put("phases",5)
+                            put("retained_per_phase",3)
+                            put("generated_per_phase",
+                                JSONArray(result.generatedPerPhase))
+                            put("total_native_invocations",
+                                result.totalInvocations)
+                            put("winner",result.winner.id)
+                            put("winner_seed",result.winner.seed)
+                            put("ranked_by","technical image score; not owner-grade")
+                        }.toString(2).toByteArray(Charsets.UTF_8))
+                    result.winner.png
+                } else if(characterPlan!=null) {
                     // Five independent Character Creation triptychs use a
                     // 16:45 output crop. Anima/SDXL still load their fixed
                     // 1024-square QNN CANVAS; the native server crops 16:45.
