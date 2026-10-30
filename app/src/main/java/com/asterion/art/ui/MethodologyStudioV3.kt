@@ -86,8 +86,9 @@ fun MethodologyStudioV3(
         mutableStateOf(initial.optString("owner_negative"))
     }
     var intensity by remember(method) {
-        mutableStateOf(com.asterion.art.engine.CreativeIntensity.fromJson(
-            initial.optJSONObject("intensity_v2")))
+        mutableStateOf(com.asterion.art.engine.CreativeIntensity.defaults+
+            com.asterion.art.engine.CreativeIntensity.fromJson(
+                initial.optJSONObject("intensity_v2")))
     }
     val picturePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
