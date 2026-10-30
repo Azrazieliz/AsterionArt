@@ -46,7 +46,7 @@ fun DesignLibraryScreen(repo:ArtRepository) {
                 val old=VideoPlanStore(context).load(design.jobId)
                 val plan=VideoPlanStore(context).create(
                     old.imageUris,old.preset,old.secondsPerSegment,
-                    design.prompt)
+                    design.prompt,old.totalSegments)
                 val task=repo.recordTask(plan.id,TaskKind.VIDEO)
                 VideoGenerationWorker.enqueue(context,plan.id,task.id)
             } else {
