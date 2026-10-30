@@ -9,11 +9,10 @@ import java.security.MessageDigest
 /**
  * Owner Artwork-only five-phase beam search.
  *
- * Phase 1 creates three complete foundations. Each later phase generates
- * three alternatives from EACH of the previous phase's three best images.
- * Nine resulting images are quality-screened, then only the best THREE
- * continue into the next phase. The final phase ranks its nine images and
- * selects ONE result for automatic enhancement.
+ * Each of five phases generates the selected number of candidates.
+ * Keep exactly ONE best image per phase; only that winner is fed into
+ * the next phase. After phase five, enhance its single winner.
+ * With the default batch of three, this is 5 × 3 = 15 native images.
  *
  * Intermediate native pixels, lineage, exact prompts, scores and seeds are
  * checkpointed atomically. No new inference/model selection is introduced.
@@ -35,16 +34,16 @@ data class ArtworkBeamResult(
     val totalInvocations:Int get()=generatedPerPhase.sum()
 }
 object ArtworkBeamPolicy {
-    const val survivors=3
-    const val defaultVariationsPerSurvivor=3
+    const val survivors=1
+    const val defaultCandidatesPerPhase=3
     fun <T> top(items:List<T>,value:(T)->Double):List<T> =
         items.sortedWith(compareByDescending<T>{value(it)}).take(survivors)
     fun schedule(parentCount:Int,phase:Int,
-        variationsPerSurvivor:Int=defaultVariationsPerSurvivor):Int {
+        candidatesPerPhase:Int=defaultCandidatesPerPhase):Int {
         require(phase in 1..5)
-        require(variationsPerSurvivor>=1)
-        require(parentCount==if(phase==1)0 else survivors)
-        return if(phase==1)survivors else parentCount*variationsPerSurvivor
+        require(candidatesPerPhase>=1)
+        require(parentCount==if(phase==1)0 else 1)
+        return candidatesPerPhase
     }
 }
 
@@ -65,7 +64,7 @@ class ArtworkBeamRunner(private val checkpointRoot:File) {
         baseSeed:Long,
         initialPng:ByteArray?,
         modelId:String,
-        variationsPerSurvivor:Int=ArtworkBeamPolicy.defaultVariationsPerSurvivor,
+        candidatesPerPhase:Int=ArtworkBeamPolicy.defaultCandidatesPerPhase,
         stopped:()->Boolean,
         render:suspend (pass:GenerationPass,parent:ByteArray?,
             seed:Long,child:Int,total:Int,parentId:String?)->ByteArray,
@@ -83,10 +82,9 @@ class ArtworkBeamRunner(private val checkpointRoot:File) {
                 else parents.map{it.id to it.png}
             val candidates=mutableListOf<ArtworkBeamNode>()
             val total=ArtworkBeamPolicy.schedule(
-                parents.size,stage.number,variationsPerSurvivor)
+                parents.size,stage.number,candidatesPerPhase)
             for((parentIndex,parent) in inputs.withIndex()) {
-                val children=if(stage.number==1)ArtworkBeamPolicy.survivors
-                    else variationsPerSurvivor
+                val children=candidatesPerPhase
                 for(branch in 0 until children) {
                     if(stopped())throw java.util.concurrent.CancellationException(
                         "Artwork rendering interrupted")
@@ -133,7 +131,7 @@ class ArtworkBeamRunner(private val checkpointRoot:File) {
             generated+=candidates.size
             require(candidates.size==total){"Incomplete phase candidate population"}
             parents=ArtworkBeamPolicy.top(candidates){it.score}
-            require(parents.size==ArtworkBeamPolicy.survivors)
+            require(parents.size==1)
             history+=parents
             GeneratedImagePublisher.atomicWrite(
                 File(checkpointRoot,"beam_phase_"+stage.number+"_survivors.json"),
