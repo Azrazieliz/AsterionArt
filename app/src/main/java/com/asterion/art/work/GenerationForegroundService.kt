@@ -114,7 +114,7 @@ class GenerationForegroundService:Service() {
         val queue=ForegroundRenderQueueStore(applicationContext)
         val first=queue.next()
         if(first==null) {
-            if(running?.isActive!=true)stopSelfResult(startId)
+            if(running?.isActive!=true)stopSelf()
             return START_NOT_STICKY
         }
         beginForeground("Reading saved image-generation queue")
@@ -165,23 +165,30 @@ class GenerationForegroundService:Service() {
             } finally {
                 // If Android kills this process before here, the durable
                 // FIFO entry survives and its checkpoints remain recoverable.
-                queue.remove(jobId)
+                val wasInterrupted=!ctx.isActive
+                val persistedStatus=ArtRepository(applicationContext).tasks
+                    .firstOrNull{it.id==taskId}?.status
+                if(persistedStatus in setOf(
+                        TaskStatus.COMPLETED,TaskStatus.CANCELLED,TaskStatus.FAILED))
+                    queue.remove(jobId)
                 releaseWakeLock()
                 mainHandler.post {
                     running=null
                     activeJob=null
                     activeTask=null
-                    if(queue.next()!=null) {
+                    val pending=queue.next()
+                    if(pending!=null && !wasInterrupted) {
                         // Continue other explicitly requested renders while
                         // the user is no longer viewing this Activity.
-                        val pending=queue.next()!!
                         onStartCommand(Intent(applicationContext,
                             GenerationForegroundService::class.java)
                             .putExtra(JOB_ID,pending.jobId)
                             .putExtra(TASK_ID,pending.taskId),0,startId)
                     } else {
+                        // Interrupted entries stay durable until next launch
+                        // or OS foreground-service redelivery.
                         stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelfResult(startId)
+                        stopSelf()
                     }
                 }
             }
