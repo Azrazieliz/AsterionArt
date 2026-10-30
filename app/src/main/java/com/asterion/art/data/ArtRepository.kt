@@ -181,6 +181,34 @@ class ArtRepository(context: Context) {
         }
     }
 
+    /**
+     * Explicit user-requested continuation of an image job that failed or
+     * was interrupted. Keep its original job ID and native checkpoints.
+     * An already completed or cancelled task is never silently restarted.
+     */
+    @Synchronized fun requeueStillImageTask(id:String) {
+        synchronized(CATALOG_LOCK) {
+            val current=readPersistedTasks()
+            val previous=current.firstOrNull { it.id==id }
+                ?: error("Saved image request not found")
+            require(previous.kind==TaskKind.STILL_IMAGE) {
+                "This task cannot be resumed through native image rendering"
+            }
+            require(previous.status!=TaskStatus.COMPLETED &&
+                previous.status!=TaskStatus.CANCELLED) {
+                "Completed or cancelled jobs cannot be resumed implicitly"
+            }
+            val updated=current.map {
+                if(it.id==id)it.copy(
+                    status=TaskStatus.QUEUED,error=null,
+                    stage="Resuming from saved native checkpoints")
+                else it
+            }
+            check(prefs.edit().putString("tasks",encodeTasks(updated)).commit())
+            tasks=updated
+        }
+    }
+
     @Synchronized fun updateTaskProgress(id: String, current: Int, total: Int,
                                          stage: String, bytes: Long = 0L,
                                          bytesTotal: Long = 0L) {
