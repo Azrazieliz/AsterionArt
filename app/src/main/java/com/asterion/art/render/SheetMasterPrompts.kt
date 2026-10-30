@@ -9,9 +9,32 @@ import com.asterion.art.model.CreationMode
  * Other sheet roles retain distinct documented visual evidence authorities.
  */
 object SheetMasterPrompts {
-    const val PREFIX="Professional 9:16 portrait reference master sheet, clean "+
-        "precisely aligned analytical layout, white-blue paper, thin restrained "+
-        "dividers, serif main title, legible small section labels, generous whitespace. "
+    private fun presentation(role:SheetRole):String=when(role) {
+        SheetRole.CHARACTER ->
+            "Professional 9:16 portrait Character Master Sheet. Clean "+
+            "Francesca/Artoria-level analytical hierarchy: dominant full-body "+
+            "identity, readable face and eye closeups, consistent hair and "+
+            "anatomical viewpoints, outfit or source-appropriate structural "+
+            "construction, small material callouts and precise palette. "+
+            "Neutral pale paper, fine dividers, restrained labels and whitespace. "
+        SheetRole.THEME ->
+            "Professional 9:16 portrait THEME ENGINEERING BOARD. Source-driven "+
+            "light or dark presentation, never fixed white-blue character-sheet "+
+            "styling. One dominant canonical composition and clearly organized "+
+            "camera, subject hierarchy, physical interactions, material behavior, "+
+            "environment, lighting, palette and constraints. Visual facts and "+
+            "source-theme relationships outweigh decorative text. "
+        SheetRole.ART_STYLE ->
+            "Professional 9:16 ART STYLE ANALYSIS BOARD. Source-calibrated "+
+            "presentation with clean aligned visual examples, genuine "+
+            "linework/shading/material/morphology comparisons and deliberate "+
+            "palette; no imported character identity. "
+        SheetRole.ELEMENT ->
+            "Professional 9:16 ELEMENT CONSTRUCTION BOARD. Clear dominant "+
+            "element, structural projections, material interfaces, functional "+
+            "placement, variations and palette. Source-driven colors and "+
+            "readable anatomical/physical diagrams, not a character-sheet clone. "
+    }
     private fun specific(original:CreationMode):String=when(original) {
         CreationMode.CHARACTER ->
             "ORIGINAL CHARACTER identity reference. Reconstruct same frozen "+
@@ -127,7 +150,7 @@ object SheetMasterPrompts {
         // canonical Character/Theme/Art Style/Element requirements.
         val originalAuthority=if(original==null)"" else
             " ORIGINAL-SPECIFIC SOURCE CONSTRAINTS: "+specific(original)
-        return PREFIX+study+originalAuthority+(if(evidence.isBlank())"" else
+        return presentation(role)+study+originalAuthority+(if(evidence.isBlank())"" else
             " UNVERIFIED MACHINE OBSERVATIONS (CHECK AGAINST SOURCE PIXELS): "+evidence)
     }
     fun negative(role:SheetRole):String {
