@@ -1,26 +1,48 @@
-# Owner-approved intensity, taxonomy and five-phase Artwork execution — 2026-10-30
+# Corrected owner authority — 2026-10-30
 
-Authority: owner instructions 30 October 2026 and prior canonical architecture. Supplements, not replaces prior sources.
+This document supersedes this branch's earlier, inaccurate taxonomy and
+"top three survive" statements. The owner corrected those misunderstandings
+explicitly. The older original master and owner-authored methodologies remain
+the creative authorities.
 
-## Owner decisions
-- Preserve B = Badassness, E = Eroticity, T = Contextual Tension and expand both subaxes and independent variables.
-- Numeric v2 is open-ended: 0 off, 1 already PROMINENT, positive values may increase indefinitely. Prominent B=1, E=1, T=1 is the default for new requests. Do not destructively convert historical 0–200 plans.
-- Theme atoms are an independent, expandable taxonomy, not a renamed SC concept registry. Existing character IDs are untouched.
-- A separate deterministic independent roulette generates five frozen distinct 3–6-atom sets before keywords and parameters influence textual molecular synthesis.
-- Artwork ONLY: run original five phases FOUNDATION, IDENTITY_GEOMETRY, MATERIAL_LIGHT, FINE_CONSTRUCTION, FINAL_COHERENCE. Retain the three highest-ranked actual images after EACH stage and use their pixels in subsequent phase. Select ONE final winner after phase five. Preserve lineage, seeds, prompts and checkpoints.
-- The app's existing Batch setting controls variations per survivor for later Artwork stages; normal batch semantics in Originals remain unchanged. No hidden mandatory extra image quantity.
-- Unattended enhancement AFTER the final Artwork selection: release the large QNN model, run in-app RealSR neural SR when available and automatic Image Toolbox finishing. Keep original and intermediate pixels. Installed SuperImage Pro only has an Intent-share handoff, not a verified autonomous API, so do not claim it ran.
-- Finish implementation BEFORE optimizing inference or tailoring AI. Do not train or change weights until on-device image behavior has been observed. No signing changes, phone data deletion, unapproved merges or device installs.
+## Parameters
+- Preserve the original B/E/T concepts as existing inputs, but the final
+  enlarged parameter catalogue is NOT yet defined or owner-approved.
+- Both internal subparameters and independent parameters are allowed as
+  extensions. Their names, descriptions and operational meanings must be
+  individually approved before any are made canonical.
+- Scale is CONTINUOUS and OPEN ENDED, not a discrete 1–10 rating. Zero means
+  off; 1 already means prominent; positive decimals and values above ten
+  remain possible with no upper cap. Store exact values.
+- Preserve existing user-authored parameter values and historical 0–200 data;
+  never recode saved projects destructively.
+- New definitions require owner approval. No hardcoded invented "B.power",
+  "E.sensuality", "T.stakes" or unrelated top-level axes are approved.
 
-## Integrity and evidence
-- Technical contrast/detail rank is NOT verified visual fidelity to identity, anatomy, artistic theme or user preferences. On-device testing required.
-- The stage checkpoints are fingerprinted by the model, stage, seed, input image and prompt authority. An incompatible result cannot be silently reused.
-- All separate mode-specific Original methodologies, Character Creation five-design structure, reference sources, saved models and identity files remain authoritative and unchanged unless explicitly approved.
-- The new controls create frozen, owner-visible parameter snapshots for both direct and text-first image workflows.
-- Compilation and test success cannot certify visual image quality or remote/proprietary-app enhancement capabilities.
+## Taxonomies
+- The owner has NOT defined the proposed new taxonomies or their contents.
+- Do not create/seed/rename/expand/change any taxonomy until that specification
+  is provided and approved. Preserve the existing original concept taxonomy.
+- This PR removes its premature CreativeTaxonomyRegistry/Studio, invented
+  categories and embedded sample atom lists, without deleting original data.
+- Theme Creation's earlier text-only roulette mechanism remains as a
+  temporary existing implementation, not an approved taxonomy solution.
 
-## Work implemented on this branch
-CreativeIntensity and CreativeIntensityEditor; persistent image-level axis values; separate CreativeTaxonomyRegistry and CreativeTaxonomyStudio; deterministic Theme roulette; ArtworkBeamRunner and automatic RealSR → in-app Image Toolbox final enhancement; explicit provenance and contract tests.
+## Artwork: exact single-survivor pipeline
+- Exactly five original Artwork phases are preserved.
+- At each phase generate the configured batch count of candidates.
+- **Keep exactly ONE best candidate** and send only that candidate into the
+  next phase. Never expand from three previous images.
+- Default three candidates per phase -> exactly 15 native generation calls,
+  not 39. Batch N -> 5*N calls; every phase has N candidates.
+- One final winner after phase five proceeds to the already-implemented
+  unattended enhancement path; keep checkpoints and provenance.
+- Current automated technical ranking is not proof of artistic or identity
+  quality. Model selection, tuning and training remain postponed until
+  the owner can test real on-device results.
 
-## Remaining gates
-Native device output, full owner-methodology fidelity, sophisticated artistic ranking, actual enhancement effects on device, background reliability and release signing are unverified. Model training and inference optimization remain deferred.
+## Approval and status
+Keep the PR in draft. Do not merge, install an APK, alter signing, delete
+models or user data, optimize inference, train models or invent further
+parameters and taxonomy definitions.
+Compilation and tests are separate from device verification.
