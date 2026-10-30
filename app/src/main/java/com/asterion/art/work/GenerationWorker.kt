@@ -26,12 +26,19 @@ class GenerationWorker(context: Context, params: WorkerParameters):
         private const val JOB = "job_id"
         private const val TASK = "task_id"
         fun enqueue(context: Context, jobId: String, taskId: String) {
-            val plan=GenerationJobStore(context).load(jobId)
-            if(plan.creationMode==CreationMode.CHARACTER &&
-                plan.designPrompt.isNullOrBlank()) {
+            // All user-started native image generations run in an independent
+            // foreground service, not an Activity. Requests are persisted
+            // before service startup and executed sequentially.
+            GenerationJobStore(context).load(jobId)
+            val started=runCatching {
                 GenerationForegroundService.enqueue(context,jobId,taskId)
-                return
-            }
+            }.onFailure { error ->
+                Log.w("AsterionGenerator","Foreground launch denied; using durable WorkManager",error)
+                // WorkManager owns the fallback, avoiding two executors using
+                // the same QNN and checkpoint directory after app reopening.
+                ForegroundRenderQueueStore(context).remove(jobId)
+            }.isSuccess
+            if(started)return
             val data = Data.Builder().putString(JOB, jobId).putString(TASK, taskId).build()
             val work = OneTimeWorkRequestBuilder<GenerationWorker>()
                 .setInputData(data)
@@ -66,7 +73,7 @@ class GenerationWorker(context: Context, params: WorkerParameters):
                     .putInt("pass",pass).build())
             }
         ).execute(jobId,taskId)
-        return if(complete)Result.success() else Result.failure()
+        return if(complete)Result.success() else if(isStopped)Result.retry() else Result.failure()
     }
 
     private suspend fun foreground(message: String) {
