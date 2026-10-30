@@ -16,6 +16,8 @@ import com.asterion.art.data.GenerationJobStore
 import com.asterion.art.learning.CreativeMemoryStore
 import com.asterion.art.learning.DesignReferenceSelection
 import com.asterion.art.learning.SavedDesign
+import com.asterion.art.learning.OriginalSheetReuse
+import com.asterion.art.model.SheetRole
 import com.asterion.art.model.RenderMode
 import com.asterion.art.model.TaskKind
 import com.asterion.art.work.GenerationWorker
@@ -33,6 +35,8 @@ fun DesignLibraryScreen(repo:ArtRepository) {
     var instructions by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<SavedDesign?>(null) }
+    var pendingSheet by remember { mutableStateOf<SavedDesign?>(null) }
+    var sheetRole by remember { mutableStateOf(SheetRole.CHARACTER) }
     val marked=records.filter { it.id in selected }
 
     fun refresh() { revision++ }
@@ -93,6 +97,43 @@ fun DesignLibraryScreen(repo:ArtRepository) {
         dismissButton={TextButton(onClick={pending=null}) { Text("Cancel") }}
     )
 
+    if(pendingSheet!=null) AlertDialog(
+        onDismissRequest={pendingSheet=null},
+        title={Text("Create reusable reference sheet")},
+        text={
+            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("Create a newly reconstructed reference master from the selected design's actual saved pixels. The Original and its source stay unchanged.")
+                Text("Sheet role",style=MaterialTheme.typography.titleSmall)
+                SheetRole.entries.forEach { role ->
+                    Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+                        RadioButton(
+                            selected=sheetRole==role,
+                            onClick={sheetRole=role}
+                        )
+                        Text(role.display,style=MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        },
+        confirmButton={
+            TextButton(onClick={
+                val design=pendingSheet
+                if(design!=null) {
+                    runCatching {
+                        OriginalSheetReuse.create(context,repo,design,sheetRole)
+                    }.onSuccess { sheet ->
+                        message="Reusable "+sheet.role.display+" Sheet registered. Reconstruction progress is on Home."
+                        pendingSheet=null
+                    }.onFailure { error ->
+                        message=error.message ?: "Unable to create reference sheet"
+                        pendingSheet=null
+                    }
+                }
+            }) { Text("Generate sheet") }
+        },
+        dismissButton={TextButton(onClick={pendingSheet=null}) { Text("Cancel") }}
+    )
+
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(14.dp),
         verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item {
@@ -143,6 +184,13 @@ fun DesignLibraryScreen(repo:ArtRepository) {
                     if(marked.size==1) {
                         OutlinedButton(onClick={pending=marked.single()}) {
                             Text("Regenerate")
+                        }
+                        OutlinedButton(onClick={
+                            val design=marked.single()
+                            sheetRole=OriginalSheetReuse.suggestedRole(design)
+                            pendingSheet=design
+                        }) {
+                            Text("Create reference sheet")
                         }
                     }
                 }
