@@ -308,7 +308,8 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                                         mode=requireNotNull(sheetMode),
                                         sheets=emptyList(),settings=settings,
                                         designPrompt=current.renderAuthority(),
-                                        themeTextPlanId=current.id)
+                                        themeTextPlanId=current.id,
+                                        intensities=current.intensityV2)
                                     store.recordRender(current.id,job.id)
                                     val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
                                     GenerationWorker.enqueue(context,job.id,task.id)
