@@ -77,8 +77,8 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
     var diagnostic by remember { mutableStateOf<String?>(null) }
     var images by remember { mutableStateOf<List<String>>(emptyList()) }
     var preset by remember { mutableStateOf(MotionPreset.CINEMATIC) }
-    var seconds by remember { mutableStateOf(2) }
-    var repeatSegments by remember { mutableStateOf(1) }
+    var seconds by remember { mutableStateOf(5) }
+    var repeatSegments by remember { mutableStateOf(2) }
     var customMotion by remember { mutableStateOf("") }
     var showPromptReview by remember { mutableStateOf(false) }
     var resultsNonce by remember { mutableStateOf(0) }
@@ -118,6 +118,8 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         }
     }
     val results=remember(resultsNonce) { VideoResultStore(context).list() }
+    val requestedDuration=seconds*(if(images.size==1)repeatSegments else images.size)
+    val durationValid=requestedDuration in 10..30
     val prompts=VideoPlanStore.compileMotion(preset,customMotion,taxonomy)
     if(showPromptReview) AlertDialog(
         onDismissRequest={showPromptReview=false},
@@ -248,6 +250,8 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                 OutlinedTextField(value=customMotion,onValueChange={customMotion=it},
                     label={Text("Specific motion direction")},modifier=Modifier.fillMaxWidth(),
                     minLines=2,maxLines=5)
+                Text("Requested final video: $requestedDuration seconds (required 10–30 s)",
+                    color=if(durationValid)Gold else Red)
                 Text("Segment duration: $seconds s",color=Gold)
                 Slider(value=seconds.toFloat(),
                     onValueChange={seconds=it.roundToInt()},
@@ -267,7 +271,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
             Column(Modifier.padding(horizontal=18.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
                 // Start after validation. Optional prompt review remains available.
                 Button(
-                    enabled=modelReady&&images.isNotEmpty(),
+                    enabled=modelReady&&images.isNotEmpty()&&durationValid,
                     modifier=Modifier.fillMaxWidth(),
                     onClick={
                         runCatching {
@@ -279,7 +283,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                     }
                 ) { Text("Start video in background") }
                 OutlinedButton(
-                    enabled=modelReady&&images.isNotEmpty(),
+                    enabled=modelReady&&images.isNotEmpty()&&durationValid,
                     modifier=Modifier.fillMaxWidth(),
                     onClick={showPromptReview=true}
                 ) {
