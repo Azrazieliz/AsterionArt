@@ -679,6 +679,18 @@ internal class GenerationExecutor(
                 if (technical.score == technicalLeaderScore) technicalLeaderUri = uri
                 repo.registerAsset(uri.toString(), sourceSheetId = null,
                     autoScore = technical.score, sourceJobId = job.id)
+                // An approved text Theme becomes a real reusable Theme Sheet
+                // only after its native image has passed the fidelity gate.
+                job.themeTextPlanId?.let { textId ->
+                    val approved=com.asterion.art.methodology.ThemeTextStore(
+                        applicationContext).load(textId)
+                    require(approved.renderJobId==job.id &&
+                        approved.approved!=null) {
+                        "Theme render lacks a matching authorized text plan"
+                    }
+                    repo.finishThemeTextSheet(textId,
+                        requireNotNull(approved.approved).name,uri.toString())
+                }
                 // Every design is independently selectable, including catalogue
                 // slots from sheets produced by any Creative Studio. The sheet
                 // remains a reference until separately regenerated as one image.
