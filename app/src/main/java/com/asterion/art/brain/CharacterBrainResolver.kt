@@ -199,6 +199,9 @@ class CharacterBrainResolver(context:Context) {
                     fun inputFor(evidence:String)=format+"\nCHARACTER "+selection.id+
                         "\nPRIMARY: "+selection.names.joinToString(" × ")+
                         "\n"+CharacterPhaseOne.DRAWING+
+                        "\nOWNER CREATIVE INTENSITIES:\n"+
+                        com.asterion.art.engine.CreativeIntensity.description(
+                            plan.intensities)+
                         "\nDESIGN EVIDENCE:\n"+evidence+"\n"
                     suspend fun fits(evidence:String):Boolean =
                         engine.countTokens(inputFor(evidence))+
