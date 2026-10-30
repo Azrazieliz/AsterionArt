@@ -18,6 +18,7 @@ import com.asterion.art.model.RenderMode
 import com.asterion.art.model.TaskKind
 import com.asterion.art.work.GenerationWorker
 import com.asterion.art.work.ThemeTextWorker
+import com.asterion.art.work.ThemeTextRevisionWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -41,9 +42,6 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
     var liquid by remember {mutableStateOf(draft.optString("liquid"))}
     var axisName by remember {mutableStateOf("")}
     var axisValue by remember {mutableStateOf("")}
-    var extra by remember {
-        mutableStateOf(RequestDraftStore.readRoleSources(JSONObject(),"unused"))
-    }
     // Owner-named axes are an extension container, not invented semantics.
     var axes by remember {
         mutableStateOf(draft.optJSONObject("custom")?.let{obj->
@@ -55,6 +53,9 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
     }
     var plan by remember{mutableStateOf<ThemeTextPlan?>(null)}
     var selected by remember {mutableStateOf("")}
+    var secondary by remember {mutableStateOf("")}
+    var revisionAction by remember {mutableStateOf("ALTER")}
+    var revisionDirection by remember{mutableStateOf("")}
     var editedName by remember{mutableStateOf("")}
     var editedVisual by remember{mutableStateOf("")}
     var error by remember{mutableStateOf<String?>(null)}
@@ -100,7 +101,7 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
     }
     fun selectTheme(id:String) {
         selected=id
-        val theme=plan?.themes?.firstOrNull{it.id==id} ?:return
+        val theme=plan?.available?.firstOrNull{it.id==id} ?:return
         editedName=theme.name
         editedVisual=theme.visualSystem
     }
@@ -188,7 +189,7 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                 Text(current.stage,color=Mist)
             }
             if(current.status=="READY"||current.status=="APPROVED") {
-                items(current.themes,key={it.id}){candidate->
+                items(current.available,key={it.id}){candidate->
                     Card(colors=CardDefaults.cardColors(containerColor=Panel)){
                         Column(Modifier.padding(12.dp),
                             verticalArrangement=Arrangement.spacedBy(8.dp)){
@@ -201,6 +202,54 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                                 Text("Edit / approve this text theme")
                             }
                             if(selected==candidate.id){
+                                Text("TEXT REVISION OPERATIONS",color=Gold)
+                                Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
+                                    listOf("ALTER","IMPROVE","FUSE").forEach{action->
+                                        FilterChip(
+                                            selected=revisionAction==action,
+                                            onClick={revisionAction=action},
+                                            label={Text(action.lowercase().replaceFirstChar{
+                                                it.uppercase()
+                                            })})
+                                    }
+                                }
+                                if(revisionAction=="FUSE") {
+                                    Text("Second theme source",color=Mist)
+                                    current.available.filter{it.id!=candidate.id}
+                                        .forEach{other->
+                                            FilterChip(
+                                                selected=secondary==other.id,
+                                                onClick={secondary=other.id},
+                                                label={Text(other.name)})
+                                        }
+                                }
+                                OutlinedTextField(revisionDirection,
+                                    {revisionDirection=it},
+                                    modifier=Modifier.fillMaxWidth(),
+                                    minLines=2,maxLines=6,
+                                    label={Text("Exact revision / fusion direction")})
+                                OutlinedButton(
+                                    enabled=revisionDirection.isNotBlank() &&
+                                        (revisionAction!="FUSE" ||
+                                            secondary.isNotBlank()) &&
+                                        current.renderJobId==null,
+                                    onClick={
+                                        runCatching {
+                                            ThemeTextRevisionWorker.enqueue(
+                                                context,current.id,
+                                                if(revisionAction=="FUSE")
+                                                    listOf(candidate.id,secondary)
+                                                else listOf(candidate.id),
+                                                revisionAction,revisionDirection)
+                                        }.onSuccess{
+                                            error=null
+                                        }.onFailure{error=it.message}
+                                    }
+                                ) {
+                                    Text("Generate separate "+revisionAction.lowercase()+
+                                        " text version")
+                                }
+                                HorizontalDivider()
                                 OutlinedTextField(editedName,{editedName=it},
                                     modifier=Modifier.fillMaxWidth(),
                                     label={Text("Theme name")})
