@@ -918,33 +918,45 @@ internal class GenerationExecutor(
                 "Ranking and enhancing results")
             var enhancementStatus = "NOT_REQUESTED"
             var enhancedUri: String? = null
-            if (job.settings.automatic && technicalLeaderUri != null) {
-                // Release the 6+ GB NPU model BEFORE starting a Vulkan SR model.
+            if ((job.settings.automatic || artworkBeam) &&
+                technicalLeaderUri != null) {
+                // The NPU and RealSR must never occupy the device's large
+                // model memory together. Release before enhancement.
                 currentEngine?.release()
                 currentEngine = null
-                if (EmbeddedRealSr.available(applicationContext)) {
-                    foreground("Neural 4× enhancement")
-                    enhancementStatus = "NEURAL_REALSR_PENDING"
-                    val winner = requireNotNull(technicalLeaderUri)
-                    runCatching {
-                        val png=EmbeddedRealSr(applicationContext).enhance(
-                            winner,4,128,{stopped()},{status->
-                                repo.updateTaskProgress(taskId,
-                                    count*passesPerCandidate*100,
-                                    (count*passesPerCandidate+2)*100,status)
-                            })
-                        val uri=GeneratedImagePublisher.publish(
-                            applicationContext,job.id,98,png)
-                        val score=TechnicalImageScorer.score(png)
-                        repo.registerAsset(uri.toString(),autoScore=score.score,
-                            sourceJobId=job.id)
-                        enhancedUri=uri.toString()
-                        enhancementStatus="NATIVE_REALSR_4X_COMPLETED"
-                    }.onFailure { error ->
-                        enhancementStatus="NATIVE_REALSR_FAILED: "+
-                            (error.message ?: error.javaClass.simpleName)
-                    }
-                } else enhancementStatus="NO_EMBEDDED_REALSR"
+                val winner=requireNotNull(technicalLeaderUri)
+                try {
+                    foreground("Automatically enhancing final winner")
+                    val finish=com.asterion.art.enhancement.AutomaticImageEnhancer(
+                        applicationContext).run(
+                        winner=winner,
+                        checkpointDir=File(intermediate,"automatic-enhancement"),
+                        jobId=job.id,
+                        cancelled=stopped,
+                        progress={status->
+                            repo.updateTaskProgress(taskId,
+                                count*passesPerCandidate*100,
+                                (count*passesPerCandidate+2)*100,status)
+                        })
+                    repo.registerAsset(finish.uri.toString(),
+                        autoScore=TechnicalImageScorer.score(
+                            requireNotNull(applicationContext.contentResolver
+                                .openInputStream(finish.uri)).use{it.readBytes()}
+                        ).score,sourceJobId=job.id)
+                    enhancedUri=finish.uri.toString()
+                    enhancementStatus=finish.stages.joinToString("+")
+                } catch(interruption:CancellationException) {
+                    throw interruption
+                } catch(error:Exception) {
+                    enhancementStatus="AUTOMATIC_ENHANCEMENT_FAILED: "+
+                        (error.message ?: error.javaClass.simpleName)
+                    // Preserve the original native winner and all completed
+                    // intermediate enhancement checkpoints. Do not report a
+                    // finished Artwork when its required enhancement failed.
+                    if(artworkBeam)throw IllegalStateException(
+                        "Artwork image saved, but mandatory automatic "+
+                        "enhancement could not complete",error)
+                }
             }
             repo.updateTaskProgress(taskId,(count*passesPerCandidate+1)*100,(count*passesPerCandidate+2)*100,
                 "Finalizing and saving")
