@@ -18,6 +18,8 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
+import com.asterion.art.data.RequestDraftStore
+import org.json.JSONObject
 import com.asterion.art.engine.GenerationPlanner
 import com.asterion.art.engine.SheetTextReader
 import androidx.compose.foundation.rememberScrollState
@@ -44,25 +46,41 @@ fun MethodologyStudioV3(
         return
     }
     val context = LocalContext.current
+    val drafts = remember(context) { RequestDraftStore(context) }
+    val draftKey = remember(method) { "original-"+method.name.lowercase() }
+    val initial = remember(draftKey) { drafts.load(draftKey) }
     val coroutineScope = rememberCoroutineScope()
     val spec = DetailedMethodologies.all.getValue(method)
     val canonical = remember { ConceptCatalog.load(context) }
     val taxonomy=remember { com.asterion.art.engine.ConceptTaxonomy(context) }
     val isCharacter = method == CreationMode.CHARACTER
     var showMethodDetails by remember(method) { mutableStateOf(false) }
-    var selectedConcepts by remember(method) { mutableStateOf<Set<String>>(emptySet()) }
-    var selectedSheets by remember(method) { mutableStateOf<Set<String>>(emptySet()) }
-    var illustration by remember(method) { mutableStateOf<String?>(null) }
+    var selectedConcepts by remember(method) { mutableStateOf(
+        RequestDraftStore.readStrings(initial,"concepts").toSet()
+    ) }
+    var selectedSheets by remember(method) { mutableStateOf(
+        RequestDraftStore.readStrings(initial,"sheets").toSet()
+    ) }
+    var illustration by remember(method) { mutableStateOf(
+        initial.optString("illustration").takeIf{it.isNotBlank()}
+    ) }
     // Catalogue production happens here; per-design render is authorized
     // only after choosing a real saved candidate in Design Library.
     val action=StageAction.CATALOGUE
-    var media by remember(method) { mutableStateOf(RenderMode.ANIME) }
+    var media by remember(method) { mutableStateOf(
+        runCatching { RenderMode.valueOf(initial.optString("media","ANIME")) }
+            .getOrDefault(RenderMode.ANIME)
+    ) }
     var alphabet by remember(method) { mutableStateOf("All") }
     val direction: String? = null
     var message by remember(method) { mutableStateOf<String?>(null) }
     var promptReview by remember(method) { mutableStateOf<Pair<String,String>?>(null) }
-    var ownerPositive by remember(method) { mutableStateOf("") }
-    var ownerNegative by remember(method) { mutableStateOf("") }
+    var ownerPositive by remember(method) {
+        mutableStateOf(initial.optString("owner_positive"))
+    }
+    var ownerNegative by remember(method) {
+        mutableStateOf(initial.optString("owner_negative"))
+    }
     val picturePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(
@@ -73,9 +91,28 @@ fun MethodologyStudioV3(
     }
     val chosen = repo.sheets.filter { it.id in selectedSheets }
     val options = remember(method) { StudioChoices.options(method,canonical) }
-    var exposure by remember(method) { mutableFloatStateOf(2f) }
-    var intimidation by remember(method) { mutableFloatStateOf(3f) }
-    var detail by remember(method) { mutableFloatStateOf(3f) }
+    var exposure by remember(method) {
+        mutableFloatStateOf(initial.optDouble("exposure",2.0).toFloat().coerceIn(0f,5f))
+    }
+    var intimidation by remember(method) {
+        mutableFloatStateOf(initial.optDouble("intimidation",3.0).toFloat().coerceIn(0f,5f))
+    }
+    var detail by remember(method) {
+        mutableFloatStateOf(initial.optDouble("detail",3.0).toFloat().coerceIn(0f,5f))
+    }
+    SideEffect {
+        drafts.save(draftKey,JSONObject().apply {
+            put("concepts",RequestDraftStore.strings(selectedConcepts.sorted()))
+            put("sheets",RequestDraftStore.strings(selectedSheets.sorted()))
+            put("illustration",illustration ?: "")
+            put("media",media.name)
+            put("owner_positive",ownerPositive)
+            put("owner_negative",ownerNegative)
+            put("exposure",exposure.toDouble())
+            put("intimidation",intimidation.toDouble())
+            put("detail",detail.toDouble())
+        })
+    }
     val selectedNames = selectedConcepts.mapNotNull { id ->
         options.firstOrNull { it.id == id }?.label
     }
