@@ -115,7 +115,7 @@ import com.asterion.art.methodology.MethodologyRegistry
 import kotlin.math.roundToInt
 
 private enum class Page(val label: String) {
-    HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), TOOLBOX("Toolbox"), LIBRARY("Library"),
+    HOME("Home"), CREATE("Create"), IMAGE_GATE("Image"), ARTWORK("Artwork"), DEFAULTS("Defaults"), DEFAULT_STUDIO("Methodology"), SHEET("Sheet builder"), THEME_TEXT("Theme creator"), VIDEO("Video"), MODELS("Models"), CORE("Core sheets"), EDIT("Edit"), TOOLBOX("Toolbox"), LIBRARY("Library"),
     JOBS("Jobs"), GRADING("Grading"), TEST("Testing"), SETTINGS("Parameters")
 }
 
@@ -149,7 +149,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         if (current != Page.HOME) IconButton(onClick = {
                             current = when(current) {
                                 Page.DEFAULT_STUDIO -> Page.DEFAULTS
-                                Page.DEFAULTS,Page.ARTWORK,Page.SHEET -> Page.IMAGE_GATE
+                                Page.DEFAULTS,Page.ARTWORK,Page.SHEET,Page.THEME_TEXT -> Page.IMAGE_GATE
                                 Page.IMAGE_GATE,Page.VIDEO -> Page.CREATE
                                 else -> Page.HOME
                             }
@@ -175,7 +175,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         NavigationBarItem(
                             selected = if(page==Page.CREATE)
                                 current in setOf(Page.CREATE,Page.IMAGE_GATE,Page.ARTWORK,
-                                    Page.DEFAULTS,Page.DEFAULT_STUDIO,Page.VIDEO)
+                                    Page.DEFAULTS,Page.DEFAULT_STUDIO,Page.THEME_TEXT,Page.VIDEO)
                                 else current == page,
                             onClick = { current = page },
                             icon = { Icon(icon, contentDescription = text) },
@@ -194,7 +194,8 @@ fun AsterionArtApp(repo: ArtRepository) {
                     Page.IMAGE_GATE -> ImageGateway(
                         openArtwork={ current=Page.ARTWORK },
                         openDefaults={ current=Page.DEFAULTS },
-                        openSheets={ current=Page.SHEET })
+                        openSheets={ current=Page.SHEET },
+                        openThemes={ current=Page.THEME_TEXT })
                     Page.ARTWORK -> CreationScreen(repo) { current=it }
                     Page.DEFAULTS -> MethodologyGateway { method ->
                         selectedDefault=method
@@ -207,6 +208,7 @@ fun AsterionArtApp(repo: ArtRepository) {
                         openParameters={ current=Page.SETTINGS },
                         onQueued={ current=Page.HOME })
                     Page.SHEET -> SheetBuilderScreen(repo) { current = it }
+                    Page.THEME_TEXT -> ThemeTextStudio(repo) { current=Page.JOBS }
                     Page.CORE -> CoreSheetBrowser(repo) { current = Page.HOME }
                     Page.VIDEO -> VideoWorkspace(repo) { current = Page.HOME }
                     Page.MODELS -> NativeModelLibraryScreen()
