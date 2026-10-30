@@ -136,6 +136,11 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                         append(listOf(current.badassness,current.eroticity,current.tension)
                             .joinToString("/"){it?.toString()?:"UNSPECIFIED"})
                         append("\nB = Badassness, E = Eroticity, T = Contextual Tension.")
+                        if(current.intensityV2.isNotEmpty()) {
+                            append("\n")
+                            append(com.asterion.art.engine.CreativeIntensity.description(
+                                current.intensityV2))
+                        }
                         append("\nBinding keywords: ")
                         append(current.keywords.joinToString(" | "))
                         current.characterConfiguration?.let {
