@@ -34,9 +34,17 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
     val store=remember(context){ThemeTextStore(context)}
     val drafts=remember(context){RequestDraftStore(context)}
     val draft=remember(context){drafts.load("theme-text")}
-    var b by remember { mutableStateOf(draft.optString("b")) }
-    var e by remember { mutableStateOf(draft.optString("e")) }
-    var t by remember { mutableStateOf(draft.optString("t")) }
+    var intensity by remember {
+        mutableStateOf(
+            (com.asterion.art.engine.CreativeIntensity.defaults+
+                com.asterion.art.engine.CreativeIntensity.fromJson(
+                    draft.optJSONObject("intensity_v2"))+
+                mapOf("B" to draft.optString("b"),
+                      "E" to draft.optString("e"),
+                      "T" to draft.optString("t"))
+                    .filterValues{it.isNotBlank()})
+        )
+    }
     var keywords by remember { mutableStateOf(draft.optString("keywords")) }
     var characterConfig by remember {mutableStateOf(draft.optString("config"))}
     var liquid by remember {mutableStateOf(draft.optString("liquid"))}
@@ -66,7 +74,12 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
     val history=remember(active){store.recent()}
     SideEffect {
         drafts.save("theme-text",JSONObject().apply{
-            put("b",b);put("e",e);put("t",t)
+            put("b",intensity["B"].orEmpty())
+            put("e",intensity["E"].orEmpty())
+            put("t",intensity["T"].orEmpty())
+            put("intensity_v2",
+                com.asterion.art.engine.CreativeIntensity.json(
+                    intensity.filterValues{it.isNotBlank()}))
             put("keywords",keywords);put("config",characterConfig)
             put("liquid",liquid);put("custom",JSONObject(axes))
             put("sheet_mode",sheetMode?.name ?: "")
@@ -82,24 +95,19 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
             delay(1750L)
         }
     }
-    fun readScore(label:String,value:String):Int? {
-        if(value.isBlank())return null
-        val parsed=value.trim().toIntOrNull()
-            ?:error("$label requires an integer")
-        require(parsed in 0..200){
-            "$label is outside the original 0–200 scoring contract"
-        }
-        return parsed
-    }
+    fun legacyInteger(value:String?):Int?=value?.toIntOrNull()
     fun submitText() {
         runCatching {
-            val created=store.create(readScore("B",b),
-                readScore("E",e),readScore("T",t),
+            com.asterion.art.engine.CreativeIntensity.validate(intensity)
+            val created=store.create(legacyInteger(intensity["B"]),
+                legacyInteger(intensity["E"]),
+                legacyInteger(intensity["T"]),
                 keywords.split(',', '\n').map{it.trim()}.filter{it.isNotBlank()},
                 axes,
                 characterConfig.takeIf{it.isNotBlank()},
                 liquid.takeIf{it.isNotBlank()},
-                System.currentTimeMillis())
+                System.currentTimeMillis(),
+                intensityV2=intensity)
             ThemeTextWorker.enqueue(context,created.id)
             active=created.id;plan=created;error=null
         }.onFailure{error=it.message}
@@ -125,18 +133,7 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(12.dp),
                     verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Text("ORIGINAL B/E/T STRUCTURE",color=Gold)
-                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(b,{b=it},Modifier.weight(1f),
-                            label={Text("B")},singleLine=true)
-                        OutlinedTextField(e,{e=it},Modifier.weight(1f),
-                            label={Text("E")},singleLine=true)
-                        OutlinedTextField(t,{t=it},Modifier.weight(1f),
-                            label={Text("T")},singleLine=true)
-                    }
-                    Text("B = Badassness · E = Eroticity · T = Contextual Tension. "+
-                        "Unspecified values remain unspecified.",color=Mist,
-                        style=MaterialTheme.typography.bodySmall)
+                    CreativeIntensityEditor(intensity){intensity=it}
                     OutlinedTextField(keywords,{keywords=it},
                         modifier=Modifier.fillMaxWidth(),
                         label={Text("Binding visual keywords (comma/newline separated)")},
@@ -179,6 +176,7 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                 }
             }
         }
+
         if(history.isNotEmpty())item {
             Text("PRESERVED TEXT THEME PLANS",color=Gold)
             history.take(12).forEach{old->
@@ -312,7 +310,8 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                                         mode=requireNotNull(sheetMode),
                                         sheets=emptyList(),settings=settings,
                                         designPrompt=current.renderAuthority(),
-                                        themeTextPlanId=current.id)
+                                        themeTextPlanId=current.id,
+                                        intensities=current.intensityV2)
                                     store.recordRender(current.id,job.id)
                                     val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
                                     GenerationWorker.enqueue(context,job.id,task.id)

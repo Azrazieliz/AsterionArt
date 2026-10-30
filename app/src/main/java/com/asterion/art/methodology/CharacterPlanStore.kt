@@ -21,7 +21,8 @@ data class CharacterPhaseOnePlan(
     val modelId:String?=null,
     val failure:String?=null,
     val authorizedJobId:String?=null,
-    val progressStage:String=""
+    val progressStage:String="",
+    val intensities:Map<String,String> = emptyMap()
 ) {
     val total:Int get()=CharacterPhaseOne.countStored(sheets)
     val ready:Boolean get()=status=="READY"||status=="AUTHORIZED"
@@ -49,12 +50,14 @@ class CharacterPlanStore(context:Context) {
         require(id.matches(Regex("[A-Za-z0-9_-]{8,100}")))
         return File(folder,id+".json")
     }
-    @Synchronized fun create(slots:List<String>,sheets:Int,seed:Long):CharacterPhaseOnePlan {
+    @Synchronized fun create(slots:List<String>,sheets:Int,seed:Long,
+        intensities:Map<String,String> = emptyMap()):CharacterPhaseOnePlan {
+        com.asterion.art.engine.CreativeIntensity.validate(intensities)
         CharacterPhaseOne.validateSlots(slots)
         CharacterPhaseOne.count(sheets)
         val plan=CharacterPhaseOnePlan(
             UUID.randomUUID().toString(),System.currentTimeMillis(),
-            sheets,slots.map{it.trim()},seed)
+            sheets,slots.map{it.trim()},seed,intensities=intensities)
         persist(plan)
         return plan
     }
@@ -114,6 +117,8 @@ class CharacterPlanStore(context:Context) {
             put("model_id",p.modelId?:JSONObject.NULL)
             put("failure",p.failure?:JSONObject.NULL)
             put("progress_stage",p.progressStage.take(200))
+            put("intensity_v2",
+                com.asterion.art.engine.CreativeIntensity.json(p.intensities))
             put("authorized_job",p.authorizedJobId?:JSONObject.NULL)
             put("requires_visual_audit",true)
             put("no_template_based_designs",true)
@@ -142,7 +147,9 @@ class CharacterPlanStore(context:Context) {
             },(0 until roster.length()).map{frozenFromJson(roster.getJSONObject(it))},
             j.getJSONArray("sheet_prompts").strings(),
             j.optional("model_id"),j.optional("failure"),j.optional("authorized_job"),
-            j.optString("progress_stage","")
+            j.optString("progress_stage",""),
+            com.asterion.art.engine.CreativeIntensity.fromJson(
+                j.optJSONObject("intensity_v2"))
         )
     }
     /** Recover independent populations after activity/process recreation. */

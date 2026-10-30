@@ -1,0 +1,119 @@
+name: ASTERION ART owner-signed test release (original identity only)
+on:
+  push:
+    branches:
+      - implementation/owner-intensity-taxonomy-phase-beam-20261030
+    paths:
+      - .github/workflows/owner-signed-test-apk.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: asterion-original-identity-test-apk
+  cancel-in-progress: false
+jobs:
+  build-owner-test-apk:
+    if: github.ref == 'refs/heads/implementation/owner-intensity-taxonomy-phase-beam-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    environment: asterion-release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate existing ORIGINAL owner key (no replacement or rotation)
+        shell: bash
+        env:
+          ASTERION_RELEASE_KEYSTORE_B64: ${{ secrets.ASTERION_RELEASE_KEYSTORE_B64 }}
+          ASTERION_RELEASE_PASSWORD: ${{ secrets.ASTERION_RELEASE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${ASTERION_RELEASE_KEYSTORE_B64}" || {
+            echo "::error::Original release keystore unavailable in protected environment. No installable APK published."
+            exit 1
+          }
+          test -n "${ASTERION_RELEASE_PASSWORD}" || {
+            echo "::error::Original release key password unavailable. No installable APK published."
+            exit 1
+          }
+          umask 077
+          printf '%s' "$ASTERION_RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/asterion-original-owner.p12"
+          python3 native/verify_release_signing.py keystore "$RUNNER_TEMP/asterion-original-owner.p12"
+          echo "ASTERION_RELEASE_KEYSTORE=$RUNNER_TEMP/asterion-original-owner.p12" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate original native and source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check numpy
+          python -m unittest discover -s fusion -p 'test_*.py' -v
+          python -m unittest discover -s native -p 'test_*.py' -v
+          python -m unittest discover -s training -p 'test_*.py' -v
+      - name: Install pinned NDK and CMake
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager "ndk;27.2.12479018" "cmake;3.31.6" >/dev/null
+      - name: Fetch audited local llama.cpp (pinned commit)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch v0.7.0 https://github.com/ggml-org/llama.cpp.git native/llama.cpp
+          test "$(git -C native/llama.cpp rev-parse HEAD)" = "620d2225cc436ab0b001e3200e590e3b286ef9ab"
+      - name: Package local native inference and enhancement dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 native/prepare_native_runtime.py --project .
+          python3 native/prepare_realsr.py --project .
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+      - name: Execute all app unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest --stacktrace
+      - name: Build owner-signed release APK (never modify owner data)
+        shell: bash
+        env:
+          ASTERION_RELEASE_PASSWORD: ${{ secrets.ASTERION_RELEASE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease --stacktrace
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          python3 native/verify_apk_native.py --apk "$APK"
+          python3 native/verify_release_signing.py apk "$APK" "$ASTERION_RELEASE_KEYSTORE" "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          mkdir -p dist
+          cp "$APK" dist/AsterionArt-v0.2.3-ORIGINAL-KEY-TEST.apk
+          sha256sum dist/*.apk > dist/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Asterion-Art-VERIFIED-ORIGINAL-KEY-TESTABLE-APK
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish direct-download GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="asterion-art-v0.2.3-original-key-test-${GITHUB_SHA:0:12}"
+          gh release create "$tag" dist/AsterionArt-v0.2.3-ORIGINAL-KEY-TEST.apk dist/sha256.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Asterion Art v0.2.3 · Original-Key Device Test" \
+            --notes "TEST CANDIDATE, not production validated. Original owner release key and pinned certificate verified by native/verify_release_signing.py. Existing Android app/data/models are not modified by this build. Preserve installed package and do not uninstall to bypass certificate mismatch. Phone inference is not yet validated." \
+            --prerelease --latest=false
+      - name: Erase temporary key material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/asterion-original-owner.p12"

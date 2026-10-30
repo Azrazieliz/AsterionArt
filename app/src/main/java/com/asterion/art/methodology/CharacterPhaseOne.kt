@@ -1,6 +1,7 @@
 package com.asterion.art.methodology
 
 import com.asterion.art.engine.ConceptDefinition
+import com.asterion.art.engine.CanonicalSelectorGraph
 import java.util.Random
 
 /** Only Phase 1. Every sheet contains five independent clinical anatomical designs. */
@@ -90,7 +91,8 @@ data class CharacterSelection(val number:Int,val concepts:List<PrimaryConcept>) 
 object CharacterPrimaryResolver {
     private val wildcard=Regex("^X\\{(.{1,140})\\}$",RegexOption.IGNORE_CASE)
     fun resolve(slots:List<String>,sheets:Int,
-                candidates:List<ConceptDefinition>,random:Random):List<CharacterSelection> {
+                candidates:List<ConceptDefinition>,random:Random,
+                selector:CanonicalSelectorGraph?=null):List<CharacterSelection> {
         CharacterPhaseOne.validateSlots(slots)
         val total=CharacterPhaseOne.count(sheets)
         val selectable=candidates.filter{
@@ -110,22 +112,42 @@ object CharacterPrimaryResolver {
             for(raw in slots) {
                 val slot=raw.trim()
                 val query=wildcard.matchEntire(slot)?.groupValues?.get(1)?.trim()
-                if(slot.equals("X",true)||query!=null) {
-                    val pool=selectable.filter{ entry ->
-                        val matches=query==null||entry.id.contains(query,true)||
-                            entry.name.contains(query,true)||
-                            entry.core.contains(query,true)||
-                            entry.materialization.contains(query,true)||
-                            entry.fullRecord.contains(query,true)
-                        matches && entry.name.lowercase() !in reserved &&
-                            resolved.none{it.name.equals(entry.name,true)}
+                val fixed=byId[slot.uppercase()]?:byName[slot.lowercase()]
+                val namedFamily=if(fixed==null && query==null &&
+                    !slot.equals("X",true))selector?.resolveNamedBranch(slot) else null
+                if(slot.equals("X",true)||query!=null||namedFamily!=null) {
+                    // On canonical §12 path, draw uniformly from actual
+                    // recursively resolved SC leaves. No family weighting,
+                    // keyword substring matching or unused-concept preference.
+                    val eligible=if(selector!=null) {
+                        val result=when {
+                            slot.equals("X",true)->selector.fullPool()
+                            query!=null->selector.resolve(query,byId)
+                            else->requireNotNull(namedFamily)
+                        }
+                        result.leafIds.map { id ->
+                            byId[id]?:error("Canonical selector leaf missing: "+id)
+                        }
+                    } else {
+                        selectable.filter{entry->
+                            val matches=query==null||
+                                entry.id.contains(query,true)||
+                                entry.name.contains(query,true)||
+                                entry.core.contains(query,true)||
+                                entry.materialization.contains(query,true)||
+                                entry.fullRecord.contains(query,true)
+                            matches&&entry.name.lowercase() !in reserved &&
+                                resolved.none{it.name.equals(entry.name,true)}
+                        }
                     }
-                    require(pool.isNotEmpty()){
-                        "No unused canonical leaf satisfies wildcard "+slot
+                    require(eligible.isNotEmpty()){"No canonical SC leaves for "+slot}
+                    val chosen=eligible[random.nextInt(eligible.size)]
+                    val method=when {
+                        namedFamily!=null->"uniform_selector_family"
+                        query!=null->"uniform_constrained_X"
+                        else->"uniform_X"
                     }
-                    val chosen=pool[random.nextInt(pool.size)]
-                    resolved+=PrimaryConcept(slot,chosen.name,chosen.id,
-                        if(query==null)"uniform_X" else "uniform_constrained_X")
+                    resolved+=PrimaryConcept(slot,chosen.name,chosen.id,method)
                 }else {
                     val known=byId[slot.uppercase()]?:byName[slot.lowercase()]
                     require(!slot.contains('{')&&!slot.contains('}')) {

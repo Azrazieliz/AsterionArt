@@ -67,7 +67,8 @@ fun ModeTextBoard(
         runCatching {
             require(eligible){"Complete all required input references first"}
             val p=store.create(mode,renderMode,sheetIds,
-                sourceUri,concepts,direction,exclusions,directReferences)
+                sourceUri,concepts,direction,exclusions,
+                directReferences)
             ModeTextWorker.enqueue(context,p.id)
             active=p.id
             plan=p

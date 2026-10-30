@@ -393,7 +393,8 @@ fun MethodologyStudioV3(
                 repo=repo,mode=method,renderMode=media,
                 sheetIds=chosen.map{it.id},sourceUri=illustration,
                 concepts=names,direction=ownerPositive,
-                exclusions=ownerNegative,eligible=eligible,
+                exclusions=ownerNegative,
+                eligible=eligible,
                 onImageQueued=onQueued)
         }
         item {

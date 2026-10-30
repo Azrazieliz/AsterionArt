@@ -239,6 +239,16 @@ internal class GenerationExecutor(
                             .merge(pass.negative,job.userNegativePrompt))
                 })
             }
+            // Theme-only creative parameters are never attached to
+            // Artwork or another Original; keep historical snapshots readable.
+            if(job.themeTextPlanId!=null && job.intensities.isNotEmpty()) {
+                val directives=com.asterion.art.engine.CreativeIntensity
+                    .description(job.intensities)
+                recipe=recipe.copy(passes=recipe.passes.map{stage->
+                    stage.copy(positive=stage.positive+
+                        "\n\nOWNER CREATIVE INTENSITIES:\n"+directives)
+                })
+            }
             // Recover and execute the original deterministic compiler for
             // compatible approved Artwork worksheets (never for Originals).
             // Invalid/non-structured PNGs are not misrepresented as compiled.
@@ -482,9 +492,13 @@ internal class GenerationExecutor(
                 .applies(job.settings,model)
             if(turboAuto)repo.updateTaskProgress(taskId,0,0,
                 "Anima Turbo · optimized for on-device NPU: 8 steps, CFG 1")
-            val count = com.asterion.art.engine.OriginalOutputPolicy.imageCount(
-                job.creationMode,!job.designPrompt.isNullOrBlank(),
-                characterPlan?.sheets,tunedSettings.batch)
+            val artworkBeam=job.creationMode==null &&
+                (job.designPrompt.isNullOrBlank() ||
+                    job.methodologyTextPlanId!=null)
+            val count = if(artworkBeam) 1 else
+                com.asterion.art.engine.OriginalOutputPolicy.imageCount(
+                    job.creationMode,!job.designPrompt.isNullOrBlank(),
+                    characterPlan?.sheets,tunedSettings.batch)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
             val oneShotCharacterSheet =
@@ -507,7 +521,89 @@ internal class GenerationExecutor(
                 val candidateSettings = if(turboAuto)tunedSettings else
                     PreferenceLearning.candidate(tunedSettings,candidate - 1)
                 val candidateRenderStart=android.os.SystemClock.elapsedRealtime()
-                val image:ByteArray=if(characterPlan!=null) {
+                val image:ByteArray=if(artworkBeam) {
+                    // ONE highest-ranked image survives every stage.
+                    // Each stage renders only the user-selected batch count,
+                    // never batch × number of previously retained candidates.
+                    val beams=com.asterion.art.engine.ArtworkBeamRunner(
+                        File(intermediate,"owner30-artwork-best-one-v2"))
+                    val result=beams.execute(
+                        stages=stageSequence,
+                        baseSeed=seed,
+                        initialPng=originalImage,
+                        modelId=model.id,
+                        candidatesPerPhase=tunedSettings.batch,
+                        stopped=stopped,
+                        render={pass,parent,childSeed,child,total,parentId->
+                            thermalGate()
+                            val label="Artwork "+
+                                com.asterion.art.engine.ArtworkFivePhaseContract
+                                    .at(pass.number).name+
+                                " · variation "+child+"/"+total
+                            foreground(label)
+                            val applied=if(pass.number==1 && parent!=null &&
+                                model.ditKind !in listOf("qwen21","klein"))
+                                pass.copy(denoise=candidateSettings.denoise)
+                            else pass
+                            val trace=File(intermediate,
+                                "actual-native-stage-inputs.jsonl")
+                            val invocation=JSONObject().apply{
+                                put("candidate",candidate)
+                                put("stage",pass.number)
+                                put("child",child)
+                                put("parent_id",parentId?:JSONObject.NULL)
+                                put("model",model.id)
+                                put("positive",applied.positive)
+                                put("negative",applied.negative)
+                                put("denoise",applied.denoise.toDouble())
+                                put("seed",childSeed)
+                            }
+                            GeneratedImagePublisher.atomicWrite(trace,
+                                (trace.takeIf{it.exists()}?.readText().orEmpty()+
+                                    invocation.toString()+"\\n")
+                                    .toByteArray(Charsets.UTF_8))
+                            engine.verifyText(applied.positive)
+                            if(applied.negative.isNotBlank())
+                                engine.verifyText(applied.negative)
+                            val generated=engine.generate(
+                                applied,candidateSettings.copy(batch=1),
+                                resolution.first,resolution.second,
+                                parent,childSeed,{stopped()},
+                                {step,totalSteps->
+                                    if(totalSteps>0 && step>=0 && step%3==0)
+                                        repo.updateTaskProgress(taskId,
+                                            (pass.number-1)*100+
+                                                (child-1)*100/total+
+                                                (step*100/totalSteps)/total,
+                                            700,label)
+                                },referencePngs=referenceInputs)
+                            generated.png
+                        },
+                        onStage={number,survivors->
+                            repo.updateTaskProgress(taskId,number*100,700,
+                                "Retained single best Artwork "+
+                                    com.asterion.art.engine.ArtworkFivePhaseContract
+                                        .at(number).name+" outputs")
+                            taskProgress(candidate,number)
+                        }
+                    )
+                    GeneratedImagePublisher.atomicWrite(
+                        File(intermediate,"owner30-artwork-beam-summary.json"),
+                        JSONObject().apply{
+                            put("schema","asterion.artwork.best1.v2")
+                            put("phases",5)
+                            put("retained_per_phase",1)
+                            put("candidates_per_phase",tunedSettings.batch)
+                            put("generated_per_phase",
+                                JSONArray(result.generatedPerPhase))
+                            put("total_native_invocations",
+                                result.totalInvocations)
+                            put("winner",result.winner.id)
+                            put("winner_seed",result.winner.seed)
+                            put("ranked_by","technical image score; not owner-grade")
+                        }.toString(2).toByteArray(Charsets.UTF_8))
+                    result.winner.png
+                } else if(characterPlan!=null) {
                     // Five independent Character Creation triptychs use a
                     // 16:45 output crop. Anima/SDXL still load their fixed
                     // 1024-square QNN CANVAS; the native server crops 16:45.
@@ -831,33 +927,45 @@ internal class GenerationExecutor(
                 "Ranking and enhancing results")
             var enhancementStatus = "NOT_REQUESTED"
             var enhancedUri: String? = null
-            if (job.settings.automatic && technicalLeaderUri != null) {
-                // Release the 6+ GB NPU model BEFORE starting a Vulkan SR model.
+            if ((job.settings.automatic || artworkBeam) &&
+                technicalLeaderUri != null) {
+                // The NPU and RealSR must never occupy the device's large
+                // model memory together. Release before enhancement.
                 currentEngine?.release()
                 currentEngine = null
-                if (EmbeddedRealSr.available(applicationContext)) {
-                    foreground("Neural 4× enhancement")
-                    enhancementStatus = "NEURAL_REALSR_PENDING"
-                    val winner = requireNotNull(technicalLeaderUri)
-                    runCatching {
-                        val png=EmbeddedRealSr(applicationContext).enhance(
-                            winner,4,128,{stopped()},{status->
-                                repo.updateTaskProgress(taskId,
-                                    count*passesPerCandidate*100,
-                                    (count*passesPerCandidate+2)*100,status)
-                            })
-                        val uri=GeneratedImagePublisher.publish(
-                            applicationContext,job.id,98,png)
-                        val score=TechnicalImageScorer.score(png)
-                        repo.registerAsset(uri.toString(),autoScore=score.score,
-                            sourceJobId=job.id)
-                        enhancedUri=uri.toString()
-                        enhancementStatus="NATIVE_REALSR_4X_COMPLETED"
-                    }.onFailure { error ->
-                        enhancementStatus="NATIVE_REALSR_FAILED: "+
-                            (error.message ?: error.javaClass.simpleName)
-                    }
-                } else enhancementStatus="NO_EMBEDDED_REALSR"
+                val winner=requireNotNull(technicalLeaderUri)
+                try {
+                    foreground("Automatically enhancing final winner")
+                    val finish=com.asterion.art.enhancement.AutomaticImageEnhancer(
+                        applicationContext).run(
+                        winner=winner,
+                        checkpointDir=File(intermediate,"automatic-enhancement"),
+                        jobId=job.id,
+                        cancelled=stopped,
+                        progress={status->
+                            repo.updateTaskProgress(taskId,
+                                count*passesPerCandidate*100,
+                                (count*passesPerCandidate+2)*100,status)
+                        })
+                    repo.registerAsset(finish.uri.toString(),
+                        autoScore=TechnicalImageScorer.score(
+                            requireNotNull(applicationContext.contentResolver
+                                .openInputStream(finish.uri)).use{it.readBytes()}
+                        ).score,sourceJobId=job.id)
+                    enhancedUri=finish.uri.toString()
+                    enhancementStatus=finish.stages.joinToString("+")
+                } catch(interruption:CancellationException) {
+                    throw interruption
+                } catch(error:Exception) {
+                    enhancementStatus="AUTOMATIC_ENHANCEMENT_FAILED: "+
+                        (error.message ?: error.javaClass.simpleName)
+                    // Preserve the original native winner and all completed
+                    // intermediate enhancement checkpoints. Do not report a
+                    // finished Artwork when its required enhancement failed.
+                    if(artworkBeam)throw IllegalStateException(
+                        "Artwork image saved, but mandatory automatic "+
+                        "enhancement could not complete",error)
+                }
             }
             repo.updateTaskProgress(taskId,(count*passesPerCandidate+1)*100,(count*passesPerCandidate+2)*100,
                 "Finalizing and saving")

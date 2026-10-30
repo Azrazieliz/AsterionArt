@@ -1,5 +1,8 @@
 package com.asterion.art.ui
 
+import android.content.Intent
+import java.io.File
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -38,6 +41,8 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
     var editTesting by remember{mutableStateOf(false)}
     var editOutcome by remember{mutableStateOf<String?>(null)}
     var note by remember{mutableStateOf<String?>(null)}
+    var suiteRunning by remember{mutableStateOf(false)}
+    var suiteReport by remember{mutableStateOf<String?>(null)}
     suspend fun refresh() {
         val values=withContext(Dispatchers.IO) {
             RuntimeProbes.snapshot(context) to NativeModelLibrary(context).list()
@@ -72,6 +77,114 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
                     finally{evaluating=false}
                 }
             }){Text(if(evaluating)"Checking…" else "Refresh actual runtime status")}
+        }
+        item {
+            OutlinedCard(colors=CardDefaults.outlinedCardColors(
+                containerColor=Panel)) {
+                Column(Modifier.padding(14.dp),
+                    verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Text("ONE-PASS DEVICE ACCEPTANCE",color=Gold)
+                    Text("Runs actual reference-sheet publishing, protected-pixel "+
+                        "editing, Image Toolbox, readiness probes and—when an "+
+                        "image model is installed—queues one genuine native QNN "+
+                        "inference. The last result appears in Jobs and Gallery. "+
+                        "This does not train models or modify existing projects. "+
+                        "Video rendering still needs a separate real-model check.",
+                        color=Mist,style=MaterialTheme.typography.bodySmall)
+                    Button(
+                        enabled=!suiteRunning && !pending,
+                        modifier=Modifier.fillMaxWidth(),
+                        onClick={
+                            scope.launch {
+                                suiteRunning=true
+                                try {
+                                    val outcome=withContext(Dispatchers.IO) {
+                                        val lines=mutableListOf<String>()
+                                        lines+="ASTERION ART · DEVICE ACCEPTANCE"
+                                        lines+="Timestamp epoch ms: "+System.currentTimeMillis()
+                                        lines+="Smoke checks are distinct from neural fidelity."
+                                        val checks=RuntimeProbes.snapshot(context)
+                                        checks.forEach{check->
+                                            lines+=check.component+" | "+
+                                                check.state+" | "+check.detail
+                                        }
+                                        fun verify(name:String,test:()->String){
+                                            lines+=runCatching{
+                                                name+" | "+test()
+                                            }.getOrElse{problem->
+                                                name+" | FAIL: "+
+                                                    (problem.message?:
+                                                        problem.javaClass.simpleName)
+                                            }
+                                        }
+                                        verify("Sheet output") {
+                                            RuntimeProbes.sheetRoundTrip(context)
+                                        }
+                                        verify("Protected editing / Toolbox") {
+                                            RuntimeProbes.editAndToolboxRoundTrip(context)
+                                        }
+                                        val model=NativeModelLibrary(context)
+                                            .list().firstOrNull{
+                                                it.id==selectedModel
+                                            }
+                                        if(model!=null) {
+                                            lines+="Native QNN image | QUEUED for real "+
+                                                "inference; check the live task below."
+                                            val id=runCatching{
+                                                NativeImageSmokeWorker.enqueue(
+                                                    context,model.id)
+                                            }.getOrElse{error->
+                                                lines+="Native QNN image | FAIL: "+
+                                                    (error.message?:"Could not queue")
+                                                ""
+                                            }
+                                            if(id.isNotBlank())lines+="QNN task ID: "+id
+                                        } else lines+="Native QNN image | NEEDS MODEL"
+                                        val report=lines.joinToString("\n")
+                                        val folder=File(context.filesDir,
+                                            "acceptance-reports").also{it.mkdirs()}
+                                        com.asterion.art.data.GeneratedImagePublisher
+                                            .atomicWrite(
+                                                File(folder,"latest-device-acceptance.txt"),
+                                                report.toByteArray(Charsets.UTF_8))
+                                        report
+                                    }
+                                    suiteReport=outcome
+                                    refresh()
+                                } catch(problem:Throwable) {
+                                    suiteReport="FAIL: "+
+                                        (problem.message?:problem.javaClass.simpleName)
+                                } finally {
+                                    suiteRunning=false
+                                }
+                            }
+                        }) {
+                        Text(if(suiteRunning)"Executing acceptance checks…"
+                            else "Run device acceptance checks")
+                    }
+                    suiteReport?.let{record->
+                        Text(record,color=Mist,
+                            style=MaterialTheme.typography.bodySmall)
+                        OutlinedButton(modifier=Modifier.fillMaxWidth(),
+                            onClick={
+                                val latest=repo.tasks.filter{
+                                    it.targetId.startsWith("native-smoke-")
+                                }.sortedByDescending{it.createdAt}.take(3)
+                                    .joinToString("\n"){task->
+                                        "Native QNN "+task.status+" | "+
+                                            (task.error?:task.stage?:"Pending")
+                                    }
+                                val body=record+"\n\nLatest real QNN run(s):\n"+latest
+                                val intent=Intent(Intent.ACTION_SEND).apply{
+                                    type="text/plain"
+                                    putExtra(Intent.EXTRA_TEXT,body)
+                                }
+                                context.startActivity(Intent.createChooser(
+                                    intent,"Share Asterion acceptance report"))
+                            }){Text("Share acceptance report")}
+                    }
+                }
+            }
         }
         items(probes.size){index->
             val report=probes[index]
@@ -166,9 +279,11 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
         }
         item {
             Text("VIDEO ENGINE",color=Gold)
-            Text("There is no independently integrated Wan native inference "+
-                "engine in this build. A local Nightmare service remains "+
-                "a separate dependency. This screen will not fake video output.",
+            Text("Embedded Wan 2.2 TI2V is available in the source runtime, "+
+                "but requires its diffusion, VAE and encoder checkpoints. "+
+                "The 10–30-second pipeline uses locally conditioned segments. "+
+                "Video quality and frame continuity are not marked PASS "+
+                "until real footage has been produced and examined.",
                 color=Mist)
             OutlinedButton(onClick=openVideo){Text("Open Video Creation")}
             note?.let{Text(it,color=Mist)}

@@ -148,7 +148,8 @@ data class ModeTextPlan(
     val status:String="DRAFT",
     val stage:String="",
     val designs:List<ModeTextDesign> = emptyList(),
-    val renderJobId:String?=null
+    val renderJobId:String?=null,
+    val intensities:Map<String,String> = emptyMap()
 ) {
     val schema get()=ModeTextSchemas.forMode(mode)
     fun rendererAuthority():String {
@@ -162,6 +163,8 @@ data class ModeTextPlan(
                 .append(schema.designsPerImage)
                 .append(" INDEPENDENT DESIGNS.\n")
             append("USER DIRECTION: ").append(userDirection).append("\n")
+            // Historical intensity fields remain deserializable solely
+            // for data preservation, not operative in non-Theme modes.
             append("BINDING SOURCE CONCEPTS: ").append(concepts.joinToString(" × "))
                 .append("\n")
             append("SOURCE IMAGE: ").append(sourceImageUri?:"none").append("\n")
@@ -195,10 +198,13 @@ class ModeTextPlanStore(context:Context) {
     @Synchronized fun create(mode:CreationMode?,renderMode:RenderMode,
         sheets:List<String>,sourceUri:String?,concepts:List<String>,
         direction:String,exclusions:String,
-        directReferences:Map<SheetRole,List<String>> = emptyMap()):ModeTextPlan {
+        directReferences:Map<SheetRole,List<String>> = emptyMap(),
+        intensities:Map<String,String> = emptyMap()):ModeTextPlan {
+        com.asterion.art.engine.CreativeIntensity.validate(intensities)
         val plan=ModeTextPlan(UUID.randomUUID().toString(),
             System.currentTimeMillis(),mode,renderMode,sheets.distinct(),
-            sourceUri,directReferences,concepts,direction,exclusions)
+            sourceUri,directReferences,concepts,direction,exclusions,
+            intensities=intensities)
         persist(plan)
         return plan
     }
@@ -219,6 +225,8 @@ class ModeTextPlanStore(context:Context) {
             put("concepts",JSONArray(plan.concepts))
             put("direction",plan.userDirection);put("exclusions",plan.exclusions)
             put("status",plan.status);put("stage",plan.stage)
+            put("intensity_v2",
+                com.asterion.art.engine.CreativeIntensity.json(plan.intensities))
             put("render_job",plan.renderJobId?:JSONObject.NULL)
             put("designs",JSONArray().apply{
                 plan.designs.forEach{d->
@@ -255,7 +263,9 @@ class ModeTextPlanStore(context:Context) {
                 val f=d.getJSONObject("fields")
                 ModeTextDesign(d.getInt("ordinal"),d.getString("name"),
                     f.keys().asSequence().associateWith{f.getString(it)})
-            },str("render_job"))
+            },str("render_job"),
+            com.asterion.art.engine.CreativeIntensity.fromJson(
+                j.optJSONObject("intensity_v2")))
     }
     @Synchronized fun recent()=directory.listFiles().orEmpty()
         .filter{it.extension=="json"}
