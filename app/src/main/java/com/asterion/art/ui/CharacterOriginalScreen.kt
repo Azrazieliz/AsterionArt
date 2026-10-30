@@ -46,8 +46,9 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
         initial.optString("route","A").takeIf{it in setOf("A","B")} ?: "A"
     )}
     var intensity by remember{
-        mutableStateOf(com.asterion.art.engine.CreativeIntensity.fromJson(
-            initial.optJSONObject("intensity_v2")))
+        mutableStateOf(com.asterion.art.engine.CreativeIntensity.defaults+
+            com.asterion.art.engine.CreativeIntensity.fromJson(
+                initial.optJSONObject("intensity_v2")))
     }
     var slots by remember{mutableStateOf(
         RequestDraftStore.readStrings(initial,"slots")
