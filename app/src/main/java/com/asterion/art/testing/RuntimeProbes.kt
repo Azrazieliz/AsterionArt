@@ -83,10 +83,19 @@ object RuntimeProbes {
                     if(p!=null)"Matching sheet provider found; imported bytes are verified before use."
                     else "Asterion Core provider is not installed/visible on this phone.")
             },
-            RuntimeProbe("AI video engine","NOT INTEGRATED",
-                "The current video workflow needs a separate phone-local Nightmare " +
-                    "video API. Native Wan inference is not embedded; no artificial " +
-                    "video is presented as generated."),
+            result("AI video engine") {
+                val pack=com.asterion.art.video.WanVideoModelPack.ready(app)
+                RuntimeProbe("AI video engine",
+                    if(pack==null)"NEEDS MODEL" else "PRESENT",
+                    "Embedded Wan 2.2 local image-to-video engine is compiled. "+
+                    if(pack==null)
+                        "Install the exact Wan diffusion, VAE and text encoder "+
+                        "in Video Model Setup before actual inference."
+                    else
+                        "Three required local model components are registered. "+
+                        "Native video frames and 10–30-second continuity still "+
+                        "require a real generation test.")
+            },
             result("Gallery and cache storage") {
                 val available=app.cacheDir.usableSpace
                 RuntimeProbe("Gallery and cache storage",
