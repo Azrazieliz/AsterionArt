@@ -39,10 +39,12 @@ data class ThemeTextPlan(
     val stage:String="",
     val frozenAtomSets:List<List<String>> = emptyList(),
     val themes:List<ThemeText> = emptyList(),
+    val revisions:List<ThemeText> = emptyList(),
     val approvedThemeId:String? = null,
     val renderJobId:String? = null
 ) {
-    val approved:ThemeText? get()=themes.firstOrNull{it.id==approvedThemeId}
+    val available:List<ThemeText> get()=themes+revisions
+    val approved:ThemeText? get()=available.firstOrNull{it.id==approvedThemeId}
     fun requireFive() {
         require(themes.size==5) { "Exactly five independent text themes are required" }
         require(themes.map{it.id}.distinct().size==5)
@@ -128,6 +130,16 @@ class ThemeTextStore(context:Context) {
                     })
                 }
             })
+            put("revisions",JSONArray().apply{
+                plan.revisions.forEach { theme ->
+                    put(JSONObject().apply{
+                        put("id",theme.id);put("name",theme.name)
+                        put("atoms",JSONArray(theme.atoms))
+                        put("visual",theme.visualSystem)
+                        put("parents",JSONArray(theme.revisedFrom))
+                    })
+                }
+            })
             put("approved",plan.approvedThemeId?:JSONObject.NULL)
             put("render_job",plan.renderJobId?:JSONObject.NULL)
         }
@@ -140,6 +152,10 @@ class ThemeTextStore(context:Context) {
         fun strings(array:JSONArray)=(0 until array.length()).map{array.getString(it)}
         val extras=j.optJSONObject("extra")?:JSONObject()
         val items=j.getJSONArray("themes")
+        fun theme(c:JSONObject)=ThemeText(
+            c.getString("id"),c.getString("name"),
+            strings(c.getJSONArray("atoms")),c.getString("visual"),
+            strings(c.optJSONArray("parents")?:JSONArray()))
         return ThemeTextPlan(
             j.getString("id"),j.getLong("created"),
             if(j.isNull("b"))null else j.getInt("b"),
@@ -152,12 +168,11 @@ class ThemeTextStore(context:Context) {
             j.optJSONArray("frozen_atoms")?.let{outer->
                 (0 until outer.length()).map{strings(outer.getJSONArray(it))}
             }.orEmpty(),
-            (0 until items.length()).map{index->
-                val c=items.getJSONObject(index)
-                ThemeText(c.getString("id"),c.getString("name"),
-                    strings(c.getJSONArray("atoms")),c.getString("visual"),
-                    strings(c.optJSONArray("parents")?:JSONArray()))
-            },optional("approved"),optional("render_job")
+            (0 until items.length()).map{theme(items.getJSONObject(it))},
+            j.optJSONArray("revisions")?.let{arr->
+                (0 until arr.length()).map{theme(arr.getJSONObject(it))}
+            }.orEmpty(),
+            optional("approved"),optional("render_job")
         )
     }
     @Synchronized fun recent():List<ThemeTextPlan> = directory.listFiles()
@@ -167,8 +182,8 @@ class ThemeTextStore(context:Context) {
 
     @Synchronized fun begin(id:String) {
         val p=load(id)
-        require(p.status in setOf("DRAFT","FAILED")) {
-            "Theme generation already in progress or completed"
+        require(p.status in setOf("DRAFT","FAILED","GENERATING")) {
+            "Theme generation already completed; use saved themes"
         }
         persist(p.copy(status="GENERATING",stage="Selecting five independent atomic sets"))
     }
@@ -206,20 +221,37 @@ class ThemeTextStore(context:Context) {
         require(p.renderJobId==null) {
             "This revision has already been sent to rendering; create another text plan"
         }
-        require(p.themes.any{it.id==theme.id})
+        require(p.available.any{it.id==theme.id})
         val changed=p.themes.map{if(it.id==theme.id)theme else it}
+        val variations=p.revisions.map{if(it.id==theme.id)theme else it}
         val revised=p.copy(status="READY",themes=changed,
-            approvedThemeId=null,stage="Theme text modified; approval required")
+            revisions=variations,approvedThemeId=null,
+            stage="Theme text modified; approval required")
         revised.requireFive()
         persist(revised)
     }
     @Synchronized fun approve(id:String,themeId:String) {
         val p=load(id)
         p.requireFive()
-        require(p.themes.any{it.id==themeId})
+        require(p.available.any{it.id==themeId})
         require(p.renderJobId==null)
         persist(p.copy(status="APPROVED",approvedThemeId=themeId,
             stage="Text theme approved; ready for optional Theme Sheet bridge"))
+    }
+    /** Add an alternate or fusion text version without modifying five originals. */
+    @Synchronized fun addRevision(id:String,theme:ThemeText) {
+        val p=load(id)
+        p.requireFive()
+        require(p.status in setOf("READY","APPROVED"))
+        require(p.renderJobId==null)
+        require(p.available.none{it.id==theme.id})
+        require(theme.revisedFrom.isNotEmpty())
+        require(theme.revisedFrom.all{parent->
+            p.available.any{it.id==parent}
+        })
+        persist(p.copy(status="READY",revisions=p.revisions+theme,
+            approvedThemeId=null,
+            stage="New independent text revision ready for approval"))
     }
     @Synchronized fun recordRender(id:String,jobId:String) {
         val p=load(id)
