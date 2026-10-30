@@ -118,7 +118,8 @@ class GenerationForegroundService:Service() {
             return START_NOT_STICKY
         }
         beginForeground("Reading saved image-generation queue")
-        if(running?.isActive==true)return START_REDELIVER_INTENT
+        if(activeJob!=null || running?.isActive==true)
+            return START_REDELIVER_INTENT
 
         val catalog=ArtRepository(applicationContext)
         val previous=catalog.tasks.firstOrNull { it.id==first.taskId }
