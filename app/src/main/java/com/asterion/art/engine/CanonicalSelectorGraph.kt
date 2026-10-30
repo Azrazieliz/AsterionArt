@@ -142,11 +142,21 @@ class CanonicalSelectorGraph private constructor(
     fun resolveNamedBranch(query:String):Pool? {
         val term=key(query)
         val found=nodes.values.filter{key(it.name)==term || key(it.id)==term}
-        if(found.isEmpty())return null
-        val unique=found.map{pool(query,"selector_family",listOf(it.id))}
+        val canonical=found.map{pool(query,"selector_family",listOf(it.id))}
             .distinctBy{it.leafIds}
-        require(unique.size==1){"Ambiguous named family: "+query}
-        return unique.single()
+        if(canonical.isNotEmpty()) {
+            require(canonical.size==1){"Ambiguous named family: "+query}
+            return canonical.single()
+        }
+        val named=aliases.filter{item->
+            item.kind=="view"&&item.terms.any{key(it)==term}
+        }.map{pool(query,"selector_family_alias",it.targets)}
+            .distinctBy{it.leafIds}
+        if(named.isNotEmpty()) {
+            require(named.size==1){"Ambiguous named family alias: "+query}
+            return named.single()
+        }
+        return null
     }
 
     companion object {
