@@ -10,6 +10,13 @@ $credential=Join-Path $root 'release-pass.dpapi'
 if(-not(Test-Path $keystore) -or -not(Test-Path $credential)){
     throw 'Existing persistent signing identity missing; refusing rotation'
 }
+# Match the ORIGINAL owner key pinned in verify_release_signing.py.
+# A similarly named replacement keystore is never an acceptable upgrade key.
+$expected='90f19f1436cd0617b55ad0b35eaaae846e07e01e260571fa12a326bbf05e8864'
+$actual=(Get-FileHash -LiteralPath $keystore -Algorithm SHA256).Hash.ToLowerInvariant()
+if($actual -ne $expected){
+    throw 'Owner keystore checksum mismatch; refusing to sign with an alternate identity'
+}
 $tools=Get-ChildItem -LiteralPath (Join-Path $env:ANDROID_HOME 'build-tools') -Directory |
     Sort-Object {[version]$_.Name} -Descending | Select-Object -First 1
 if(-not $tools){throw 'Android build-tools missing'}
@@ -21,10 +28,14 @@ $output=Join-Path (Split-Path -Parent $source) 'asterion-art-release-signed.apk'
 if($source -eq $output){throw 'Refusing in-place overwrite'}
 try {
     $env:ASTERION_RELEASE_PASSWORD=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
-    & $apksigner sign --ks $keystore --ks-type PKCS12 --ks-key-alias asterion-art-release --ks-pass env:ASTERION_RELEASE_PASSWORD --key-pass env:ASTERION_RELEASE_PASSWORD --out $output $source
+    & $apksigner sign --ks $keystore --ks-type PKCS12 --ks-key-alias asterion-art-persistent-20261028 --ks-pass env:ASTERION_RELEASE_PASSWORD --key-pass env:ASTERION_RELEASE_PASSWORD --out $output $source
     if($LASTEXITCODE -ne 0){throw 'Signing failed'}
     & $apksigner verify --verbose --print-certs $output
     if($LASTEXITCODE -ne 0){throw 'Signature verification failed'}
+    $verify=Join-Path (Split-Path -Parent $PSScriptRoot) 'native\verify_release_signing.py'
+    if(-not(Test-Path $verify)){throw 'Original certificate verification script missing'}
+    & python $verify apk $output $keystore $apksigner
+    if($LASTEXITCODE -ne 0){throw 'Signed APK does not match owner certificate; refusing delivery'}
     Write-Output ('Signed APK: '+$output)
     Write-Output ('SHA-256: '+(Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash)
     if($Install){
