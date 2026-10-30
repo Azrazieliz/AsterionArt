@@ -85,11 +85,6 @@ fun MethodologyStudioV3(
     var ownerNegative by remember(method) {
         mutableStateOf(initial.optString("owner_negative"))
     }
-    var intensity by remember(method) {
-        mutableStateOf(com.asterion.art.engine.CreativeIntensity.defaults+
-            com.asterion.art.engine.CreativeIntensity.fromJson(
-                initial.optJSONObject("intensity_v2")))
-    }
     val picturePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.takePersistableUriPermission(
@@ -118,9 +113,6 @@ fun MethodologyStudioV3(
             put("media",media.name)
             put("owner_positive",ownerPositive)
             put("owner_negative",ownerNegative)
-            put("intensity_v2",
-                com.asterion.art.engine.CreativeIntensity.json(
-                    intensity.filterValues{it.isNotBlank()}))
             put("exposure",exposure.toDouble())
             put("intimidation",intimidation.toDouble())
             put("detail",detail.toDouble())
@@ -167,8 +159,7 @@ fun MethodologyStudioV3(
             val job=GenerationJobStore(context).create(
                 media,chosen.map { it.id },adjusted,method,illustration,names,
                 userScenePrompt=ownerPositive,
-                userNegativePrompt=ownerNegative,
-                intensities=intensity)
+                userNegativePrompt=ownerNegative)
             val task=repo.recordTask(job.id,TaskKind.STILL_IMAGE)
             GenerationWorker.enqueue(context,job.id,task.id)
         }.onSuccess { onQueued() }.onFailure { message=it.message }
@@ -397,15 +388,12 @@ fun MethodologyStudioV3(
                 })
             }
         }
-        item {
-            CreativeIntensityEditor(intensity){intensity=it}
-        }
         if(route=="B") item {
             ModeTextBoard(
                 repo=repo,mode=method,renderMode=media,
                 sheetIds=chosen.map{it.id},sourceUri=illustration,
                 concepts=names,direction=ownerPositive,
-                exclusions=ownerNegative,intensities=intensity,
+                exclusions=ownerNegative,
                 eligible=eligible,
                 onImageQueued=onQueued)
         }
