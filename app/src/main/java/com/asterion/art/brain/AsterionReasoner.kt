@@ -35,7 +35,7 @@ data class NeuralDesignPlan(
 )
 
 /**
- * Real inference: Gemma 3 GGUF is loaded in CPU memory and released BEFORE QNN.
+ * Real inference: owner-selected Qwen3 or Gemma3 GGUF is released BEFORE QNN.
  *
  * One bounded inference receives the complete canonical input and user feedback.
  * Deterministic collection/validation occurs before native generation.
@@ -218,7 +218,7 @@ class AsterionReasoner(context:Context) {
             }
             onStage("Loading "+weights.label+" with "+contextSize+" tokens")
             engine.loadModel(weightFile.absolutePath,contextSize)
-            // LoRA is applied to a compatible Gemma 3 base, never silently
+            // LoRA is applied to its exact compatible selected base, never silently
             // substituted for an incompatible architecture.
             selectedAdapter?.let { adapter ->
                 engine.loadAdapter(adapter.absolutePath)
@@ -232,7 +232,7 @@ class AsterionReasoner(context:Context) {
                     "the installed reasoning model's measured context; " +
                     "do not silently truncate or recursively rewrite authority."
             }
-            onStage("One bounded Gemma 3 compilation of complete original authority")
+            onStage("One bounded "+weights.label+" compilation of complete original authority")
             engine.restartConversation(activeSystem)
             val third=answer(request,outputBudget)
             val valid=StructuredPlanOutput.validate(
