@@ -10,6 +10,8 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.TaskStatus
@@ -41,13 +43,26 @@ class GenerationForegroundService:Service() {
         fun enqueue(context:Context,jobId:String,taskId:String) {
             require(jobId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
             require(taskId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
+            // Persist before requesting Android to start the service. The user
+            // can leave the Activity immediately and no queued job is lost.
+            ForegroundRenderQueueStore(context).enqueue(jobId,taskId)
             val request=Intent(context,GenerationForegroundService::class.java)
                 .putExtra(JOB_ID,jobId).putExtra(TASK_ID,taskId)
             context.startForegroundService(request)
         }
         fun cancel(context:Context,jobId:String) {
+            ForegroundRenderQueueStore(context).remove(jobId)
             context.startService(Intent(context,GenerationForegroundService::class.java)
                 .setAction(ACTION_CANCEL).putExtra(JOB_ID,jobId))
+        }
+
+        /** Called only while the user reopens the app, to resume orphaned jobs. */
+        fun revivePending(context:Context) {
+            val pending=ForegroundRenderQueueStore(context).next() ?: return
+            context.startForegroundService(
+                Intent(context,GenerationForegroundService::class.java)
+                    .putExtra(JOB_ID,pending.jobId)
+                    .putExtra(TASK_ID,pending.taskId))
         }
     }
 
@@ -56,6 +71,7 @@ class GenerationForegroundService:Service() {
     private var activeJob:String?=null
     private var activeTask:String?=null
     private var lock:PowerManager.WakeLock?=null
+    private val mainHandler=Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
@@ -80,31 +96,47 @@ class GenerationForegroundService:Service() {
     }
 
     override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
-        val jobId=intent?.getStringExtra(JOB_ID)
+        val incomingJob=intent?.getStringExtra(JOB_ID)
         if(intent?.action==ACTION_CANCEL) {
-            if(jobId==activeJob) {
+            if(incomingJob==activeJob) {
                 running?.cancel(CancellationException("User cancelled rendering"))
                 activeTask?.let {
-                    ArtRepository(applicationContext).updateTask(it,TaskStatus.CANCELLED,
-                        "User cancelled native image rendering")
+                    ArtRepository(applicationContext).updateTask(
+                        it,TaskStatus.CANCELLED,"User cancelled native image rendering")
                 }
-                stopSelf(startId)
-            }
-            return START_NOT_STICKY
-        }
-        val taskId=intent?.getStringExtra(TASK_ID)
-        if(jobId.isNullOrBlank()||taskId.isNullOrBlank()) {
-            stopSelf(startId)
-            return START_NOT_STICKY
-        }
-        beginForeground("Reading saved image-generation plan")
-        if(running?.isActive==true) {
-            if(jobId!=activeJob) {
-                ArtRepository(applicationContext).updateTask(taskId,TaskStatus.FAILED,
-                    "Another native rendering job is already running")
             }
             return START_REDELIVER_INTENT
         }
+
+        // The service may receive several starts while a single NPU is in
+        // use. Their durable queue is drained sequentially, never failed as
+        // "already running".
+        val queue=ForegroundRenderQueueStore(applicationContext)
+        val first=queue.next()
+        if(first==null) {
+            if(running?.isActive!=true)stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+        beginForeground("Reading saved image-generation queue")
+        if(running?.isActive==true)return START_REDELIVER_INTENT
+
+        val catalog=ArtRepository(applicationContext)
+        val previous=catalog.tasks.firstOrNull { it.id==first.taskId }
+        if(previous==null || previous.status in setOf(
+                TaskStatus.COMPLETED,TaskStatus.CANCELLED,TaskStatus.FAILED)) {
+            // A completed job can remain in the queue after a process
+            // crash between saving its result and removing the queue item.
+            queue.remove(first.jobId)
+            mainHandler.post {
+                if(queue.next()!=null)
+                    revivePending(applicationContext)
+                else stopSelf()
+            }
+            return START_REDELIVER_INTENT
+        }
+
+        val jobId=first.jobId
+        val taskId=first.taskId
         activeJob=jobId
         activeTask=taskId
         lock=(getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(
@@ -131,9 +163,27 @@ class GenerationForegroundService:Service() {
                 ArtRepository(applicationContext).updateTask(
                     taskId,TaskStatus.FAILED,e.message?:"Native inference failed")
             } finally {
+                // If Android kills this process before here, the durable
+                // FIFO entry survives and its checkpoints remain recoverable.
+                queue.remove(jobId)
                 releaseWakeLock()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelfResult(startId)
+                mainHandler.post {
+                    running=null
+                    activeJob=null
+                    activeTask=null
+                    if(queue.next()!=null) {
+                        // Continue other explicitly requested renders while
+                        // the user is no longer viewing this Activity.
+                        val pending=queue.next()!!
+                        onStartCommand(Intent(applicationContext,
+                            GenerationForegroundService::class.java)
+                            .putExtra(JOB_ID,pending.jobId)
+                            .putExtra(TASK_ID,pending.taskId),0,startId)
+                    } else {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelfResult(startId)
+                    }
+                }
             }
         }
         return START_REDELIVER_INTENT
