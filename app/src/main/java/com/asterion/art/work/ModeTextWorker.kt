@@ -83,7 +83,8 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                     val sheet=repo.sheets.firstOrNull{it.id==selected}
                         ?:error("Selected reference sheet was removed")
                     sheet.outputUri?:error("Selected reference sheet is unfinished")
-                }+listOfNotNull(plan.sourceImageUri)
+                }+listOfNotNull(plan.sourceImageUri)+
+                plan.directReferences.values.flatten()
             ).distinct()
             val evidence=mutableListOf<String>()
             BrainInferenceLock.mutex.withLock {
