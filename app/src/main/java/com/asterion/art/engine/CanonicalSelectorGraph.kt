@@ -58,11 +58,11 @@ class CanonicalSelectorGraph private constructor(
     fun fullPool():Pool=pool("X","unrestricted",roots)
     fun branch(id:String):Pool=pool(id,"canonical_branch",listOf(id))
 
-    fun broadCategories():List<Pair<Node,Int>>=roots.map { id ->
+    fun broadCategories():List<Pair<Node,Int>> = roots.map { id ->
         val node=nodes.getValue(id)
         node to descendants(id).size
     }
-    fun branches():List<Pair<Node,Int>>=nodes.values.sortedBy{it.name}
+    fun branches():List<Pair<Node,Int>> = nodes.values.sortedBy{it.name}
         .map{node->node to descendants(node.id).size}
 
     /**
