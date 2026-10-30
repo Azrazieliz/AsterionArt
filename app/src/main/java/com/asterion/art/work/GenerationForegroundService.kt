@@ -177,7 +177,8 @@ class GenerationForegroundService:Service() {
                     activeJob=null
                     activeTask=null
                     val pending=queue.next()
-                    if(pending!=null && !wasInterrupted) {
+                    if(pending!=null && (!wasInterrupted ||
+                        persistedStatus==TaskStatus.CANCELLED)) {
                         // Continue other explicitly requested renders while
                         // the user is no longer viewing this Activity.
                         onStartCommand(Intent(applicationContext,
