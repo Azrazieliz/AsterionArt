@@ -36,13 +36,15 @@ data class ArtworkBeamResult(
 }
 object ArtworkBeamPolicy {
     const val survivors=3
-    const val childrenPerSurvivor=3
+    const val defaultVariationsPerSurvivor=3
     fun <T> top(items:List<T>,value:(T)->Double):List<T> =
         items.sortedWith(compareByDescending<T>{value(it)}).take(survivors)
-    fun schedule(parentCount:Int,phase:Int):Int {
+    fun schedule(parentCount:Int,phase:Int,
+        variationsPerSurvivor:Int=defaultVariationsPerSurvivor):Int {
         require(phase in 1..5)
+        require(variationsPerSurvivor>=1)
         require(parentCount==if(phase==1)0 else survivors)
-        return if(phase==1)survivors else parentCount*childrenPerSurvivor
+        return if(phase==1)survivors else parentCount*variationsPerSurvivor
     }
 }
 
@@ -63,6 +65,7 @@ class ArtworkBeamRunner(private val checkpointRoot:File) {
         baseSeed:Long,
         initialPng:ByteArray?,
         modelId:String,
+        variationsPerSurvivor:Int=ArtworkBeamPolicy.defaultVariationsPerSurvivor,
         stopped:()->Boolean,
         render:suspend (pass:GenerationPass,parent:ByteArray?,
             seed:Long,child:Int,total:Int,parentId:String?)->ByteArray,
@@ -79,10 +82,11 @@ class ArtworkBeamRunner(private val checkpointRoot:File) {
                 if(stage.number==1)listOf(null to initialPng)
                 else parents.map{it.id to it.png}
             val candidates=mutableListOf<ArtworkBeamNode>()
-            val total=ArtworkBeamPolicy.schedule(parents.size,stage.number)
+            val total=ArtworkBeamPolicy.schedule(
+                parents.size,stage.number,variationsPerSurvivor)
             for((parentIndex,parent) in inputs.withIndex()) {
                 val children=if(stage.number==1)ArtworkBeamPolicy.survivors
-                    else ArtworkBeamPolicy.childrenPerSurvivor
+                    else variationsPerSurvivor
                 for(branch in 0 until children) {
                     if(stopped())throw java.util.concurrent.CancellationException(
                         "Artwork rendering interrupted")
