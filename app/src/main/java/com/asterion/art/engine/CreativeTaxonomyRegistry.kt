@@ -101,6 +101,6 @@ class CreativeTaxonomyRegistry(context:Context) {
             GeneratedImagePublisher.atomicWrite(file(space),obj.toString(2).toByteArray())
         }
     }
-    fun atoms():List<String>=entries(THEME_ATOMS).values.flatten().distinct()
+    fun atoms():List<String> = entries(THEME_ATOMS).values.flatten().distinct()
     fun themeRoulette(seed:Long):List<List<String>> =roulette(atoms(),seed)
 }
