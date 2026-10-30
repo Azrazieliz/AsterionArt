@@ -124,6 +124,31 @@ class ArtRepository(context: Context) {
         }
     }
 
+    /**
+     * Register an actually generated Theme Sheet as a reusable sheet asset.
+     * The approved Theme Text is preserved in ThemeTextStore; the rendered
+     * pixels, not placeholder text, are the source for future Artwork.
+     */
+    @Synchronized fun finishThemeTextSheet(
+        textPlanId:String, themeName:String, outputUri:String
+    ):SheetRecord = synchronized(CATALOG_LOCK) {
+        reload()
+        require(textPlanId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
+        require(outputUri.startsWith("content://")||outputUri.startsWith("file://"))
+        val label="Theme · "+themeName+" · "+textPlanId
+        val existing=sheets.firstOrNull{it.label==label}
+        if(existing!=null) return@synchronized existing
+        val sheet=SheetRecord(
+            role=SheetRole.THEME,label=label,
+            sourceUris=listOf(outputUri),referenceSlots=listOf("PRIMARY"),
+            outputUri=outputUri
+        )
+        val changed=sheets+sheet
+        check(prefs.edit().putString("sheets",encodeSheets(changed)).commit())
+        sheets=changed
+        sheet
+    }
+
     /** Reuses Core's finished reference unchanged; no nested sheet and no lossy recompression. */
     @Synchronized fun importCoreCharacter(
         characterId: String, sheetAssetId: String, name: String, mediaUri: String,
