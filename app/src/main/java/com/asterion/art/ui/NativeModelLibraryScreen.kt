@@ -21,6 +21,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.lazy.LazyRow
 import com.asterion.art.model.RenderMode
+import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.nativeengine.ModelOutputRouting
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -63,6 +64,7 @@ fun NativeModelLibraryScreen() {
         }
     }
     var tagRefresh by remember { mutableStateOf(0) }
+    var openedModeModelId by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var selectedFamily by remember { mutableStateOf("auto") }
     var deleteModelId by remember { mutableStateOf<String?>(null) }
@@ -138,7 +140,7 @@ fun NativeModelLibraryScreen() {
             }
         }
         item {
-            Text("MODEL FAMILY · SELECT IF ZIP HAS NO MARKER",color=Gold)
+            Text("MODEL FAMILY Ãƒâ€šÃ‚Â· SELECT IF ZIP HAS NO MARKER",color=Gold)
             LazyRow(horizontalArrangement=Arrangement.spacedBy(7.dp)) {
                 items(listOf("auto","anima","sdxl","sd15npu","zimage",
                     "klein","qwen21","krea2turbo")) { family ->
@@ -171,7 +173,7 @@ fun NativeModelLibraryScreen() {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(14.dp),
                     verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                    Text(task.status.name+" · "+(task.stage ?: "Model import"),
+                    Text(task.status.name+" Ãƒâ€šÃ‚Â· "+(task.stage ?: "Model import"),
                         color=if(task.status==TaskStatus.FAILED ||
                             task.status==TaskStatus.CANCELLED) Red else Gold)
                     if(task.status==TaskStatus.QUEUED || task.status==TaskStatus.RUNNING) {
@@ -194,20 +196,20 @@ fun NativeModelLibraryScreen() {
             }
         }
         if(originalFiles.isNotEmpty()) {
-            item { Text("ORIGINAL CHECKPOINTS · NON-RUNNABLE",color=Gold,
+            item { Text("ORIGINAL CHECKPOINTS Ãƒâ€šÃ‚Â· NON-RUNNABLE",color=Gold,
                 style=MaterialTheme.typography.labelLarge) }
             items(originalFiles,key={it.id}) { file ->
                 Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                     Column(Modifier.padding(14.dp),
                         verticalArrangement=Arrangement.spacedBy(5.dp)) {
                         Text(file.name,style=MaterialTheme.typography.titleMedium)
-                        Text(file.format+" · "+
+                        Text(file.format+" Ãƒâ€šÃ‚Â· "+
                             if(file.sizeBytes>=0)
                                 (file.sizeBytes/1048576L).toString()+" MiB"
                             else "Size unknown",color=Mist)
                         Text(if(file.sourceUri.startsWith("file:"))
-                            "Verified Hugging Face model · local app storage"
-                            else "External SAF reference · no duplicate model copy",color=Mist,
+                            "Verified Hugging Face model Ãƒâ€šÃ‚Â· local app storage"
+                            else "External SAF reference Ãƒâ€šÃ‚Â· no duplicate model copy",color=Mist,
                             style=MaterialTheme.typography.bodySmall)
                         OutlinedButton(onClick={unregisterOriginalId=file.id}) {
                             Text("Unregister original")
@@ -231,9 +233,9 @@ fun NativeModelLibraryScreen() {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(15.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
                     Text(model.label,style=MaterialTheme.typography.titleMedium)
-                    Text(model.backend.uppercase()+" · "+
+                    Text(model.backend.uppercase()+" Ãƒâ€šÃ‚Â· "+
                         (model.sizeBytes / 1048576L)+" MiB",color=Mist)
-                    Text("Content checksum "+model.contentSha256.take(18)+"…",
+                    Text("Content checksum "+model.contentSha256.take(18)+"ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦",
                         style=MaterialTheme.typography.bodySmall,color=Mist)
                     Text("OUTPUT TYPES",color=Gold,style=MaterialTheme.typography.labelSmall)
                     val chosen=remember(model.id,tagRefresh) { routing.tags(model.id) }
@@ -245,6 +247,35 @@ fun NativeModelLibraryScreen() {
                                     routing.set(model.id,type,type !in chosen)
                                     tagRefresh++
                                 },label={Text(type.display)})
+                        }
+                    }
+                    OutlinedButton(onClick={
+                        openedModeModelId=if(openedModeModelId==model.id)null else model.id
+                    }) {
+                        Text(if(openedModeModelId==model.id)
+                            "Hide mode-specific checkpoint routing"
+                            else "Assign this checkpoint to a creative mode")
+                    }
+                    if(openedModeModelId==model.id) {
+                        Text("MODE CHECKPOINT ROUTING",color=Gold,
+                            style=MaterialTheme.typography.labelSmall)
+                        Text("Select this installed QNN checkpoint for a mode. " +
+                            "Only genuine mode-trained, compatible model weights " +
+                            "can supply weight-level conditioning; routing alone " +
+                            "does not change model intelligence.",
+                            style=MaterialTheme.typography.bodySmall,color=Mist)
+                        LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                            items(CreativeDomain.entries) { domain ->
+                                val assigned=remember(model.id,domain,tagRefresh) {
+                                    routing.forMode(domain.name,
+                                        installed.map { it.toDreamModel() })?.id
+                                }
+                                FilterChip(selected=assigned==model.id,onClick={
+                                    routing.setMode(domain.name,
+                                        if(assigned==model.id)null else model.id)
+                                    tagRefresh++
+                                },label={Text(domain.name.replace('_',' '))})
+                            }
                         }
                     }
                     OutlinedButton(onClick={deleteModelId=model.id}) {

@@ -187,8 +187,10 @@ internal class GenerationExecutor(
             val engine = EmbeddedEngineFactory.open(applicationContext)
             currentEngine = engine
             val models = engine.installedModels()
-            val taggedPreferred = ModelOutputRouting(applicationContext)
-                .preferred(job.mode, models)
+            val outputRouting = ModelOutputRouting(applicationContext)
+            val taggedPreferred = outputRouting.forMode(
+                UniversalCreativePlanner.domain(job.creationMode).name,models
+            ) ?: outputRouting.preferred(job.mode, models)
             val preferredId = taggedPreferred?.id ?: GenerationPlanner.selectModelId(
                 models.map { it.id to it.name }, job.mode)
             val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
@@ -290,7 +292,7 @@ internal class GenerationExecutor(
             val brainPlan=if(characterPlan!=null || restoredCompilation!=null ||
                 !job.designPrompt.isNullOrBlank())
                 null else if(neural.available()) {
-                foreground("Asterion Brain · interpreting and designing")
+                foreground("Asterion Brain Â· interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
                 val spec=job.creationMode?.let { selected ->
                     if(selected==CreationMode.CHARACTER)
@@ -365,7 +367,7 @@ internal class GenerationExecutor(
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
-            repo.updateTaskProgress(taskId,0,0,"Loading QNN model · "+model.name)
+            repo.updateTaskProgress(taskId,0,0,"Loading QNN model Â· "+model.name)
             foreground("Loading " + model.name)
             val loadStarted=android.os.SystemClock.elapsedRealtime()
             engine.prepare(model, resolution.first, resolution.second) { stopped() }
@@ -491,7 +493,7 @@ internal class GenerationExecutor(
             val turboAuto=com.asterion.art.nativeengine.NativeTurboDefaults
                 .applies(job.settings,model)
             if(turboAuto)repo.updateTaskProgress(taskId,0,0,
-                "Anima Turbo · optimized for on-device NPU: 8 steps, CFG 1")
+                "Anima Turbo Â· optimized for on-device NPU: 8 steps, CFG 1")
             val artworkBeam=job.creationMode==null &&
                 (job.designPrompt.isNullOrBlank() ||
                     job.methodologyTextPlanId!=null)
@@ -524,7 +526,7 @@ internal class GenerationExecutor(
                 val image:ByteArray=if(artworkBeam) {
                     // ONE highest-ranked image survives every stage.
                     // Each stage renders only the user-selected batch count,
-                    // never batch × number of previously retained candidates.
+                    // never batch Ã— number of previously retained candidates.
                     val beams=com.asterion.art.engine.ArtworkBeamRunner(
                         File(intermediate,"owner30-artwork-best-one-v2"))
                     val result=beams.execute(
@@ -539,7 +541,7 @@ internal class GenerationExecutor(
                             val label="Artwork "+
                                 com.asterion.art.engine.ArtworkFivePhaseContract
                                     .at(pass.number).name+
-                                " · variation "+child+"/"+total
+                                " Â· variation "+child+"/"+total
                             foreground(label)
                             val applied=if(pass.number==1 && parent!=null &&
                                 model.ditKind !in listOf("qwen21","klein"))
@@ -646,7 +648,7 @@ internal class GenerationExecutor(
                                     invocation.toString()+"\n").toByteArray(Charsets.UTF_8))
                             if(stopped())throw CancellationException()
                             val stageLabel="Sheet "+candidate+"/"+count+
-                                " · identity "+d.id+" · complete native prompt"
+                                " Â· identity "+d.id+" Â· complete native prompt"
                             foreground(stageLabel)
                             val started=android.os.SystemClock.elapsedRealtime()
                             val result=engine.generate(
@@ -684,7 +686,7 @@ internal class GenerationExecutor(
                         }
                         repo.updateTaskProgress(taskId,
                             (candidate-1)*5+cell+1,count*5,
-                            "Rendered original "+d.id+" · "+
+                            "Rendered original "+d.id+" Â· "+
                                 (cell+1)+"/5 triptychs checkpointed")
                         triptych
                     }
@@ -710,11 +712,11 @@ internal class GenerationExecutor(
                     }
                     thermalGate()
                     val stageLabel = "Image " + candidate + "/" + count +
-                        (if(oneShotCharacterSheet) " · one-shot master sheet"
+                        (if(oneShotCharacterSheet) " Â· one-shot master sheet"
                          else if(job.creationMode==null && stageSequence.size==5)
-                             " · "+com.asterion.art.engine.ArtworkFivePhaseContract
-                                 .at(stage.number).name+" · pass "+stage.number+"/5"
-                         else " · original "+stage.number+"/"+stageSequence.size)
+                             " Â· "+com.asterion.art.engine.ArtworkFivePhaseContract
+                                 .at(stage.number).name+" Â· pass "+stage.number+"/5"
+                         else " Â· original "+stage.number+"/"+stageSequence.size)
                     repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
