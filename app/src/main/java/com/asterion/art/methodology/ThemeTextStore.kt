@@ -41,7 +41,8 @@ data class ThemeTextPlan(
     val themes:List<ThemeText> = emptyList(),
     val revisions:List<ThemeText> = emptyList(),
     val approvedThemeId:String? = null,
-    val renderJobId:String? = null
+    val renderJobId:String? = null,
+    val intensityV2:Map<String,String> = emptyMap()
 ) {
     val available:List<ThemeText> get()=themes+revisions
     val approved:ThemeText? get()=available.firstOrNull{it.id==approvedThemeId}
@@ -75,6 +76,11 @@ data class ThemeTextPlan(
                 append("\\nCHARACTER CONFIGURATION: ").append(characterConfiguration)
             if(liquidDirection!=null)
                 append("\\nLIQUID: ").append(liquidDirection)
+            if(intensityV2.isNotEmpty()) {
+                append("\\n")
+                append(com.asterion.art.engine.CreativeIntensity.description(
+                    intensityV2))
+            }
             extraParameters.forEach{(name,value)->
                 append("\\nOWNER PARAMETER ").append(name).append(": ").append(value)
             }
@@ -95,15 +101,17 @@ class ThemeTextStore(context:Context) {
         extra:Map<String,String>,
         characterConfiguration:String?,
         liquidDirection:String?,
-        seed:Long
+        seed:Long,
+        intensityV2:Map<String,String> = emptyMap()
     ):ThemeTextPlan {
-        listOfNotNull(b,e,t).forEach{require(it in 0..200)}
+        listOfNotNull(b,e,t).forEach{require(it>=0)}
+        com.asterion.art.engine.CreativeIntensity.validate(intensityV2)
         require(extra.keys.all{it.isNotBlank()})
         return ThemeTextPlan(UUID.randomUUID().toString(),
             System.currentTimeMillis(),b,e,t,
             keywords.map{it.trim()}.filter{it.isNotBlank()},
-            extra.mapKeys{it.key.trim()},characterConfiguration,liquidDirection,seed)
-            .also(::persist)
+            extra.mapKeys{it.key.trim()},characterConfiguration,liquidDirection,seed,
+            intensityV2=intensityV2).also(::persist)
     }
     @Synchronized fun persist(plan:ThemeTextPlan) {
         val data=JSONObject().apply {
@@ -114,6 +122,8 @@ class ThemeTextStore(context:Context) {
             put("t",plan.tension?:JSONObject.NULL)
             put("keywords",JSONArray(plan.keywords))
             put("extra",JSONObject(plan.extraParameters))
+            put("intensity_v2",
+                com.asterion.art.engine.CreativeIntensity.json(plan.intensityV2))
             put("config",plan.characterConfiguration?:JSONObject.NULL)
             put("liquid",plan.liquidDirection?:JSONObject.NULL)
             put("seed",plan.seed);put("status",plan.status);put("stage",plan.stage)
@@ -172,7 +182,9 @@ class ThemeTextStore(context:Context) {
             j.optJSONArray("revisions")?.let{arr->
                 (0 until arr.length()).map{theme(arr.getJSONObject(it))}
             }.orEmpty(),
-            optional("approved"),optional("render_job")
+            optional("approved"),optional("render_job"),
+            com.asterion.art.engine.CreativeIntensity.fromJson(
+                j.optJSONObject("intensity_v2"))
         )
     }
     @Synchronized fun recent():List<ThemeTextPlan> = directory.listFiles()
