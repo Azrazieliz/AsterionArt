@@ -143,6 +143,9 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                         append("\nOWNER CONCEPTS: ").append(plan.concepts.joinToString(" × "))
                         append("\nOWNER DIRECTION: ").append(plan.userDirection)
                         append("\nOWNER EXCLUSIONS: ").append(plan.exclusions)
+                        append("\nCREATIVE INTENSITY CONFIGURATION: ")
+                        append(com.asterion.art.engine.CreativeIntensity.description(
+                            plan.intensities))
                         append("\nACTUAL-PIXEL VISUAL OBSERVATIONS: ")
                         append(evidence.joinToString("\n"))
                         append("\nWrite exactly ").append(schema.designsPerImage)
