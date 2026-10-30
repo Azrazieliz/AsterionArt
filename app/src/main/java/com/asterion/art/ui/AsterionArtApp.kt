@@ -123,6 +123,15 @@ private enum class Page(val label: String) {
 @Composable
 fun AsterionArtApp(repo: ArtRepository) {
     AsterionArtTheme {
+        val context=LocalContext.current
+        LaunchedEffect(Unit) {
+            runCatching {
+                GenerationForegroundService.revivePending(context)
+            }.onFailure {
+                android.util.Log.w("AsterionArt",
+                    "A saved native render remains queued for recovery",it)
+            }
+        }
         var current by rememberSaveable { mutableStateOf(Page.HOME) }
         var editingAsset by remember { mutableStateOf<GradedAsset?>(null) }
         var selectedDefault by remember { mutableStateOf(CreationMode.CHARACTER) }
