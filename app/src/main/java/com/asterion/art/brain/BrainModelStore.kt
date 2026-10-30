@@ -14,11 +14,18 @@ data class BrainWeights(
 }
 
 object BrainCatalog {
-    // Replacement for Qwen: a LoRA-trainable on-device llama.cpp model.
-    // The official Hub LFS SHA256 is pinned. The file length is checked
-    // against the actual response and SHA256, not a guessed rounded size.
+    // Preserve owner-installed Qwen3 reasoning models. The October 29
+    // Gemma candidate remains selectable for compatible experimental work;
+    // it must never silently erase the approved Qwen architecture.
+    // Pinned model identities match the original research branch.
     val models=listOf(
-        BrainWeights("gemma3_4b_q4","Gemma 3 4B IT · Q4_K_M · adaptable",
+        BrainWeights("qwen3_17_q4","Qwen3 1.7B · Q4_K_M",
+            "unsloth/Qwen3-1.7B-GGUF","Qwen3-1.7B-Q4_K_M.gguf",
+            1107409472L,"b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897"),
+        BrainWeights("qwen3_06_q5","Qwen3 0.6B · Q5_K_M",
+            "bartowski/Qwen_Qwen3-0.6B-GGUF","Qwen_Qwen3-0.6B-Q5_K_M.gguf",
+            551378336L,"2df7894c99ee7716f0ed3c7d454c2386a7ae976c4b0ad0e716d55399c1360648"),
+        BrainWeights("gemma3_4b_q4","Gemma 3 4B IT · Q4_K_M · experimental",
             "bartowski/google_gemma-3-4b-it-GGUF",
             "google_gemma-3-4b-it-Q4_K_M.gguf",2489758112L,
             "4996030242583a40aa151ff93f49ed787ac8c25e4120c3ae4588b2e2a7d1ae94")
@@ -62,7 +69,8 @@ class BrainModelStore(context:Context) {
     }
     fun installed(): List<BrainWeights> = BrainCatalog.models.filter{location(it)!=null}
     fun selected():BrainWeights?=BrainCatalog.get(prefs.getString("selected","").orEmpty())
-        ?.takeIf{location(it)!=null}?:installed().lastOrNull()
+        ?.takeIf{location(it)!=null}?:installed().firstOrNull{it.id.startsWith("qwen3_")}
+        ?:installed().lastOrNull()
     fun select(id:String) {
         require(BrainCatalog.get(id)!=null)
         check(prefs.edit().putString("selected",id).commit())
