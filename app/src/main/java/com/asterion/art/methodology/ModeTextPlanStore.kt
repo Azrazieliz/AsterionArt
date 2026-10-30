@@ -163,8 +163,8 @@ data class ModeTextPlan(
                 .append(schema.designsPerImage)
                 .append(" INDEPENDENT DESIGNS.\n")
             append("USER DIRECTION: ").append(userDirection).append("\n")
-            append(com.asterion.art.engine.CreativeIntensity.description(
-                intensities))
+            // Historical intensity fields remain deserializable solely
+            // for data preservation, not operative in non-Theme modes.
             append("BINDING SOURCE CONCEPTS: ").append(concepts.joinToString(" × "))
                 .append("\n")
             append("SOURCE IMAGE: ").append(sourceImageUri?:"none").append("\n")
