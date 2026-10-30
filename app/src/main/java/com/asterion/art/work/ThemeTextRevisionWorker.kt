@@ -132,7 +132,24 @@ class ThemeTextRevisionWorker(context:Context,parameters:WorkerParameters):
                             "coherent new visual theme, preserving legitimate "+
                             "source mechanisms from both with no unrelated additions."
                     }
+                    val binding=buildString {
+                        append("ORIGINAL B/E/T: ")
+                        append(listOf(plan.badassness,plan.eroticity,plan.tension)
+                            .joinToString("/"){it?.toString()?:"UNSPECIFIED"})
+                        append("\nKEYWORDS: ").append(plan.keywords.joinToString(" | "))
+                        plan.characterConfiguration?.let{
+                            append("\nCHARACTER CONFIGURATION: ").append(it)
+                        }
+                        plan.liquidDirection?.let{
+                            append("\nOPTIONAL LIQUID DIRECTION: ").append(it)
+                        }
+                        plan.extraParameters.forEach{(name,value)->
+                            append("\nOWNER AXIS ").append(name).append(": ")
+                                .append(value)
+                        }
+                    }
                     val prompt=operation+"\nOWNER DIRECTION: "+direction+
+                        "\nPRESERVE ALL BINDING ORIGINAL PARAMETERS: "+binding+
                         "\nSOURCE AUTHORITY:\n"+source+
                         "\nRETURN JSON {\"name\":\"...\",\"visual_system\":\"...\"} "+
                         "with one complete coherent and precise visual theme."
