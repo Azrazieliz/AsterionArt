@@ -177,7 +177,8 @@ internal class GenerationExecutor(
             var model = models.firstOrNull { it.id == preferredId }
             val imageSourceCount=(
                 com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
-                job.designReferenceUris+listOfNotNull(job.sourceImageUri)
+                job.designReferenceUris+job.directReferenceUris.values.flatten()+
+                listOfNotNull(job.sourceImageUri)
             ).distinct().size
             require(imageSourceCount<=10){
                 "More than 10 source images; select a bounded visual reference set"
@@ -254,7 +255,11 @@ internal class GenerationExecutor(
             // validated the structured sheets, do not re-author its prompt
             // through a slow second language model. Optional manual edits
             // are already included in the frozen generation authority.
-            val brainPlan=if(characterPlan!=null || restoredCompilation!=null)
+            // An owner-edited Route B or approved Theme text already IS the
+            // frozen model-facing specification. Never overwrite it through
+            // another unrelated neural design step after the bridge.
+            val brainPlan=if(characterPlan!=null || restoredCompilation!=null ||
+                !job.designPrompt.isNullOrBlank())
                 null else if(neural.available()) {
                 foreground("Asterion Brain · interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
@@ -392,7 +397,8 @@ internal class GenerationExecutor(
             val combinedSourceUris=(
                 com.asterion.art.model.SheetReferenceAuthority.primaryUris(sheets)+
                 listOfNotNull(extraOriginal?.sourceUris?.firstOrNull())+
-                job.designReferenceUris
+                job.designReferenceUris+
+                job.directReferenceUris.values.flatten()
             ).distinct()
             val referenceInputs = if (model.ditKind == "qwen21" ||
                 model.ditKind == "klein") {
