@@ -208,6 +208,45 @@ class CharacterPlanStore(context:Context) {
             persist(p.copy(status="FAILED",failure=reason.take(2000),
                 progressStage="Resolution failed"))
     }
+    /**
+     * Owner-edited Route B character design, still one complete 5-character
+     * sheet. Never allow a change to an already-authorized render. All source
+     * concept identities remain frozen, while geometry, fusion, materials and
+     * full renderer descriptions are individually editable.
+     */
+    @Synchronized fun reviseReadyCharacter(id:String,updated:FrozenCharacter):
+        CharacterPhaseOnePlan {
+        val current=load(id)
+        require(current.status=="READY" && current.authorizedJobId==null) {
+            "A rendering job has already been authorized; start a new design revision"
+        }
+        current.assertComplete()
+        val original=current.frozen.firstOrNull{it.number==updated.number}
+            ?:error("The selected character does not belong to this sheet")
+        require(original.primary==updated.primary) {
+            "Changing frozen primary concepts requires a new concept-selection plan"
+        }
+        updated.validate()
+        val revised=current.frozen.map{
+            if(it.number==updated.number)updated else it
+        }
+        require(CharacterSheetCompiler.audit(revised,current.sheets).isEmpty()) {
+            "Edited character conflicts with another saved identity"
+        }
+        val prompts=(1..current.sheets).map{index->
+            CharacterSheetCompiler.sheet(revised.subList((index-1)*5,index*5),index)
+        }
+        // Preserve the immutable original revision for undo/comparison.
+        // An existing backup is never overwritten on subsequent edits.
+        val history=File(folder,"history").also{it.mkdirs()}
+        val baseline=File(history,id+"-original.json")
+        if(!baseline.exists()) GeneratedImagePublisher.atomicWrite(
+            baseline,file(id).readBytes())
+        return current.copy(frozen=revised,prompts=prompts,
+            progressStage="Edited full character "+updated.id+
+                " with owner-authorized Route B specification").also(::persist)
+    }
+
     @Synchronized fun authorize(id:String,jobId:String) {
         val p=load(id)
         p.assertComplete()
