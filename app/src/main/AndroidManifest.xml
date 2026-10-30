@@ -36,6 +36,6 @@
             android:exported="false"
             android:foregroundServiceType="mediaProcessing|dataSync"/>
         <service android:name="androidx.work.impl.foreground.SystemForegroundService"
-            android:foregroundServiceType="dataSync" tools:node="merge"/>
+            android:foregroundServiceType="dataSync|mediaProcessing" tools:node="merge"/>
     </application>
 </manifest>

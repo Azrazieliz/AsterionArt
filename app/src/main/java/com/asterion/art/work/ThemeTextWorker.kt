@@ -97,7 +97,7 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                     show("Loading selected text model")
                     engine.loadModel(file.absolutePath,capacity)
                     BrainAdapterLibrary(applicationContext)
-                        .activeFor(model.id)?.let {engine.loadAdapter(it.absolutePath)}
+                        .activeFor(model.id,"THEME_TEXT")?.let {engine.loadAdapter(it.absolutePath)}
                     val system="You compile exact, visual, text-only creative records. "+
                         "Follow each task-specific methodology literally. "+
                         "Return strictly valid JSON, no Markdown or preamble. "+

@@ -161,15 +161,53 @@ class AsterionReasoner(context:Context) {
                 "[NEGATIVE]. Preserve all methodology counts and viewpoints."
         else "Return [POSITIVE] one complete detailed image/video model " +
                 "instruction [/POSITIVE] and [NEGATIVE] constraints [/NEGATIVE]."
-        val request="Compile the following verified owner authority into ONE " +
-            "complete coherent native generation specification. " +
-            "Preserve every binding methodology condition, reference identity, " +
-            "output format, concept interaction and owner-approved correction. " +
-            "Do not invent additional methodology stages. For distinct outputs " +
-            "include all "+candidateCount+" independent designs.\n"+
-            requestedOutput+"\nFULL AUTHORITY:\n"+authority+
-            "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
-        val selectedAdapter=BrainAdapterLibrary(app).activeFor(weights.id)
+        // Native GenerationPlanner has ALREADY compiled the complete owner
+        // methodology into the immutable recipe. Repeating the large method,
+        // concept catalog, and base render prompt in the LLM context causes
+        // an avoidable 4K overflow and 16K memory pressure. In this mode-bound
+        // route the LLM supplies novel design detail; the original complete
+        // method remains in the native recipe and saved source authority.
+        val compactMode = creationMode!=null && domain!=CreativeDomain.ARTWORK
+        val modeBrief=if(compactMode) {
+            val contract=com.asterion.art.methodology.DetailedMethodologies
+                .all.getValue(requireNotNull(creationMode))
+            // This is a typed, owner-defined renderer contract, never a
+            // generic approximation of the original reference methodology.
+            contract.rendererDirective
+        } else ""
+        val creativeEvidence=if(compactMode) {
+            concepts.distinct().joinToString("\n") { name->
+                val concept=taxonomy.find(name)
+                if(concept==null)"CONCEPT: "+name
+                else "CONCEPT: "+concept.name+" ("+concept.id+")\n"+
+                    concept.physicalInstruction(domain)
+            }
+        } else ""
+        val request=if(compactMode) {
+            "MODE: "+domain.name+"\n"+
+            "FIXED RENDERER CONTRACT (the native compiler owns full methodology):\n"+
+                modeBrief+"\n"+
+            "BINDING CONCEPT PHYSICS:\n"+creativeEvidence+"\n"+
+            "SOURCE OBSERVATIONS:\n"+sheetSources.joinToString("\n")+"\n"+
+            "OWNER GRADING:\n"+guidance+"\n"+
+            "Generate exactly "+candidateCount+" independently designed "+
+                "subjects as one coherent image specification. Do not "+
+                "invent or change methodology, design count, framing or "+
+                "the owner's reference identities. Specify novel body "+
+                "structure, topology, materials, individual distinctions, "+
+                "interaction geometry and precise illustrated features.\n"+
+            requestedOutput
+        } else {
+            "Compile the following verified owner authority into ONE " +
+                "complete coherent native generation specification. " +
+                "Preserve every binding methodology condition, reference identity, " +
+                "output format, concept interaction and owner-approved correction. " +
+                "Do not invent additional methodology stages. For distinct outputs " +
+                "include all "+candidateCount+" independent designs.\n"+
+                requestedOutput+"\nFULL AUTHORITY:\n"+authority+
+                "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
+        }
+        val selectedAdapter=BrainAdapterLibrary(app).activeFor(weights.id,domain.name)
         val adapterVersion=selectedAdapter?.let {
             it.absolutePath+":"+it.length()+":"+it.lastModified()
         }.orEmpty()
@@ -216,7 +254,8 @@ class AsterionReasoner(context:Context) {
                     it is InferenceEngine.State.Error
                 }
             }
-            onStage("Loading "+weights.label+" with "+contextSize+" tokens")
+            onStage("Loading "+weights.label+" with "+contextSize+
+                " effective tokens (requested "+models.contextTokens()+")")
             engine.loadModel(weightFile.absolutePath,contextSize)
             // LoRA is applied to its exact compatible selected base, never silently
             // substituted for an incompatible architecture.
@@ -259,6 +298,10 @@ class AsterionReasoner(context:Context) {
                 put("original_source_evidence",authority)
                 put("hierarchical_consolidation",false)
                 put("direct_original_authority_used",true)
+                put("mode_bound_creative_inference",compactMode)
+                put("native_methodology_unchanged",true)
+                put("mode_lora_file_installed",selectedAdapter!=null)
+                put("mode_lora_trained_by_asterion",false)
                 put("model_training_applied",false)
                 put("learning_method","user-authored detailed grading; contextual evidence only")
                 put("grading_evidence_applied",guidance.isNotBlank())

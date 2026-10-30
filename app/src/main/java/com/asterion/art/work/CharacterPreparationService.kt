@@ -110,7 +110,7 @@ class CharacterPreparationService : Service() {
                     Log.i(TAG,"Complete five-character population certified")
                 }
             } catch(e:TimeoutCancellationException) {
-                runCatching { store.fail(id,"Gemma request timed out at "+
+                runCatching { store.fail(id,"Selected reasoning model timed out at "+
                     store.load(id).progressStage+"; checkpoints preserved") }
             } catch(e:CancellationException) {
                 runCatching { store.fail(id,"Character service interrupted at "+

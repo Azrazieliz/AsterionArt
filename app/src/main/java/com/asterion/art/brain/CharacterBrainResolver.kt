@@ -66,8 +66,8 @@ class CharacterBrainResolver(context:Context) {
             val plan=plans.load(id)
             require(plan.status=="DESIGNING")
             val model=weights.selected()?:error(
-                "Install Gemma 3 before preparing original character designs")
-            val file=weights.location(model)?:error("Gemma 3 model file not verified")
+                "Install and select a local character reasoning model")
+            val file=weights.location(model)?:error("Selected character reasoning model file not verified")
             val selector=com.asterion.art.engine.CanonicalSelectorGraph.load(app)
             val selections=CharacterPrimaryResolver.resolve(
                 plan.slots,plan.sheets,taxonomy.list(),Random(plan.seed),selector)
@@ -81,7 +81,7 @@ class CharacterBrainResolver(context:Context) {
                     engine.restartConversation(SYSTEM)
                     val tokens=engine.countTokens(question)+engine.countTokens(SYSTEM)
                     require(tokens+maxOutput+160<context){
-                        "Full concept evidence exceeds available local Gemma 3 context"
+                        "Full concept evidence exceeds available local reasoning context"
                     }
                     // TTFT includes native prompt prefill and first-token decode.
                     // Stage stream duration excludes prompt processing.
@@ -117,10 +117,10 @@ class CharacterBrainResolver(context:Context) {
                         }
                     }
                 }
-                progress(completed.size,plan.total,"Loading Gemma 3 for anatomical design")
+                progress(completed.size,plan.total,"Loading selected character reasoning model")
                 timings.measure("model_load") {
                     engine.loadModel(file.absolutePath,context)
-                    BrainAdapterLibrary(app).activeFor(model.id)?.let{
+                    BrainAdapterLibrary(app).activeFor(model.id,"CHARACTER")?.let{
                         engine.loadAdapter(it.absolutePath)
                     }
                     engine.setSystemPrompt(SYSTEM)
@@ -209,14 +209,14 @@ class CharacterBrainResolver(context:Context) {
                     val study=authorityFor(descriptions)
                     require(fits(study)) {
                         "The exact character methodology and canonical concepts "+
-                            "exceed the installed Gemma 3 context. No multi-hour "+
+                            "exceed the installed model context. No multi-hour "+
                             "summarization or authority loss is permitted."
                     }
                     progress(index,plan.total,
                         "Using one complete canonical identity specification")
                     val baseInput=inputFor(study)
                     progress(index,plan.total,
-                        "Gemma 3 authoring full anatomical identity "+selection.id)
+                        "Authoring full anatomical identity "+selection.id)
                     val raw=answer(baseInput,outputLimit,"identity_json")
                     // One bounded structured authoring request, not a
                     // sequence of costly per-field hallucinated repairs.

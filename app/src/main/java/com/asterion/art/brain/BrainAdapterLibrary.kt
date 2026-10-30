@@ -14,7 +14,8 @@ data class InstalledBrainAdapter(
     val file:File,
     val sha256:String,
     val sizeBytes:Long,
-    val enabled:Boolean
+    val enabled:Boolean,
+    val modeKey:String?=null
 )
 
 /**
@@ -48,7 +49,7 @@ class BrainAdapterLibrary(context:Context) {
                     require(BrainCatalog.get(base)!=null)
                     InstalledBrainAdapter(v.getString("id"),base,file,
                         v.getString("sha256"),v.getLong("bytes"),
-                        v.optBoolean("enabled",false))
+                        v.optBoolean("enabled",false),v.optString("mode_key").ifBlank{null})
                 }.getOrNull()
             }
 
@@ -101,6 +102,7 @@ class BrainAdapterLibrary(context:Context) {
             put("id",info.id);put("base_id",info.baseId)
             put("sha256",info.sha256);put("bytes",info.sizeBytes)
             put("enabled",info.enabled)
+            put("mode_key",info.modeKey ?: "")
             put("base_weights_rewritten",false)
             put("trained_by_asterion",false)
         }
@@ -116,10 +118,30 @@ class BrainAdapterLibrary(context:Context) {
         all().forEach { persist(it.copy(enabled=it.id==id)) }
         return chosen.copy(enabled=true)
     }
-    fun activeFor(baseId:String):File? =
-        all().firstOrNull { it.baseId==baseId&&it.enabled&&
+    /** Bind a verified adapter to one exact creative mode, not all modes.
+     * No adapter is manufactured by this operation; weights must be trained
+     * and imported separately for the correct base model.
+     */
+    @Synchronized fun enableForMode(id:String,modeKey:String):InstalledBrainAdapter {
+        require(modeKey.matches(Regex("[A-Z_]{3,48}"))) { "Invalid mode identifier" }
+        val chosen=all().firstOrNull{it.id==id}?:error("Adapter does not exist")
+        require(chosen.file.length()==chosen.sizeBytes &&
+            sha256(chosen.file).equals(chosen.sha256,true)){
+            "Selected LoRA has changed since verification"
+        }
+        all().filter{it.baseId==chosen.baseId && it.modeKey==modeKey}
+            .forEach { persist(it.copy(enabled=false)) }
+        return chosen.copy(enabled=true,modeKey=modeKey).also(::persist)
+    }
+
+    fun activeFor(baseId:String,modeKey:String?=null):File? {
+        val valid=all().filter{it.baseId==baseId&&it.enabled&&
             it.file.length()==it.sizeBytes&&
-            sha256(it.file).equals(it.sha256,true) }?.file
+            sha256(it.file).equals(it.sha256,true)}
+        // Do not leak a specialized adapter into unrelated workflows.
+        return valid.firstOrNull { modeKey!=null && it.modeKey==modeKey }?.file
+            ?:valid.firstOrNull { it.modeKey==null }?.file
+    }
     @Synchronized fun disableAll() {
         all().filter{it.enabled}.forEach{persist(it.copy(enabled=false))}
     }

@@ -126,7 +126,7 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                     foreground("Loading current approved text model")
                     val capacity=models.contextTokens()
                     engine.loadModel(file.absolutePath,capacity)
-                    BrainAdapterLibrary(applicationContext).activeFor(weight.id)
+                    BrainAdapterLibrary(applicationContext).activeFor(weight.id,schema.key.uppercase())
                         ?.let{engine.loadAdapter(it.absolutePath)}
                     val system="You execute exactly ONE Asterion "+
                         schema.title+" methodology. Return JSON only. "+
