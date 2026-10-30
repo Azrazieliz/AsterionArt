@@ -16,6 +16,7 @@ import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import com.asterion.art.brain.BrainAdapterLibrary
 import com.asterion.art.brain.BrainInferenceLock
+import com.asterion.art.brain.BrainThinkingPolicy
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.methodology.ThemeText
 import com.asterion.art.methodology.ThemeTextStore
@@ -102,13 +103,14 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                         "Follow each task-specific methodology literally. "+
                         "Return strictly valid JSON, no Markdown or preamble. "+
                         "Do not add unrelated story, explanation or character identity."
-                    engine.setSystemPrompt(system)
+                    val effectiveSystem=BrainThinkingPolicy.system(model.id,system)
+                    engine.setSystemPrompt(effectiveSystem)
                     suspend fun call(message:String,maxOutput:Int):JSONObject {
                         require(engine.countTokens(message)+
-                            engine.countTokens(system)+maxOutput+256<capacity) {
+                            engine.countTokens(effectiveSystem)+maxOutput+256<capacity) {
                             "The selected text model cannot accept the full theme authority"
                         }
-                        engine.restartConversation(system)
+                        engine.restartConversation(effectiveSystem)
                         val sb=StringBuilder()
                         withTimeout(12L*60_000L) {
                             engine.sendUserPrompt(message,maxOutput).collect{sb.append(it)}

@@ -73,13 +73,14 @@ class CharacterBrainResolver(context:Context) {
                 plan.slots,plan.sheets,taxonomy.list(),Random(plan.seed),selector)
             val engine=AiChat.getInferenceEngine(app)
             val context=memoryContext()
+            val effectiveSystem=BrainThinkingPolicy.system(model.id,SYSTEM)
             val completed=plan.frozen.toMutableList()
             val timings=ReasoningStageTelemetry()
             var outcome="FAILED_OR_CANCELLED"
             suspend fun answer(question:String,maxOutput:Int,stage:String):String =
                 timings.measure(stage) {
-                    engine.restartConversation(SYSTEM)
-                    val tokens=engine.countTokens(question)+engine.countTokens(SYSTEM)
+                    engine.restartConversation(effectiveSystem)
+                    val tokens=engine.countTokens(question)+engine.countTokens(effectiveSystem)
                     require(tokens+maxOutput+160<context){
                         "Full concept evidence exceeds available local reasoning context"
                     }
@@ -123,7 +124,7 @@ class CharacterBrainResolver(context:Context) {
                     BrainAdapterLibrary(app).activeFor(model.id,"CHARACTER")?.let{
                         engine.loadAdapter(it.absolutePath)
                     }
-                    engine.setSystemPrompt(SYSTEM)
+                    engine.setSystemPrompt(effectiveSystem)
                 }
                 // Read the original canonical record ONCE, without asking the
                 // reasoning model to paraphrase, shorten or re-summarize it.
@@ -203,7 +204,7 @@ class CharacterBrainResolver(context:Context) {
                         "\nDESIGN EVIDENCE:\n"+evidence+"\n"
                     suspend fun fits(evidence:String):Boolean =
                         engine.countTokens(inputFor(evidence))+
-                            engine.countTokens(SYSTEM)+outputLimit+160<context
+                            engine.countTokens(effectiveSystem)+outputLimit+160<context
                     // A single complete authority must fit the measured
                     // context. Never spend hours reducing its binding detail.
                     val study=authorityFor(descriptions)

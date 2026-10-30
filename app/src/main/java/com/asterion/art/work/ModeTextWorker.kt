@@ -17,6 +17,7 @@ import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import com.asterion.art.brain.BrainAdapterLibrary
 import com.asterion.art.brain.BrainInferenceLock
+import com.asterion.art.brain.BrainThinkingPolicy
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.methodology.ModeTextDesign
@@ -134,7 +135,8 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                         "output image. Preserve source identities, exact "+
                         "source visual observations, owner instructions and "+
                         "mode-specific output counts. Do not switch methodologies."
-                    engine.setSystemPrompt(system)
+                    val effectiveSystem=BrainThinkingPolicy.system(weight.id,system)
+                    engine.setSystemPrompt(effectiveSystem)
                     val request=buildString{
                         append("EXECUTABLE METHODOLOGY: ").append(schema.directive)
                         append("\nMODE: ").append(schema.key)
@@ -161,10 +163,10 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                     }
                     val budget=minOf(capacity/2,9200)
                     require(engine.countTokens(request)+
-                        engine.countTokens(system)+budget+256<capacity){
+                        engine.countTokens(effectiveSystem)+budget+256<capacity){
                         "Exact mode-specific text input exceeds installed model context"
                     }
-                    engine.restartConversation(system)
+                    engine.restartConversation(effectiveSystem)
                     foreground("Authoring "+schema.designsPerImage+
                         " complete independent designs")
                     val response=withTimeout(15L*60_000L){

@@ -136,7 +136,8 @@ class AsterionReasoner(context:Context) {
         val weightFile=models.location(weights)?:return@withLock null
         require(jobId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
         require(candidateCount in 1..60)
-        val activeSystem=if(domain==CreativeDomain.ARTWORK)ARTWORK_SYSTEM else SYSTEM
+        val activeSystem=BrainThinkingPolicy.system(weights.id,
+            if(domain==CreativeDomain.ARTWORK)ARTWORK_SYSTEM else SYSTEM)
         val contextSize=contextForRam()
         // Construct exact binding authority BEFORE loading the local GGUF.
         // A previously completed job with the same source/model/methodology
