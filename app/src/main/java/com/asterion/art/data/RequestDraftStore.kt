@@ -19,7 +19,8 @@ class RequestDraftStore(context: Context) {
     @Synchronized fun load(key:String):JSONObject {
         checkKey(key)
         return runCatching {
-            JSONObject(prefs.getString(key,null) ?: return@runCatching "{}")
+            val saved=prefs.getString(key,null)
+            if(saved.isNullOrBlank())JSONObject() else JSONObject(saved)
         }.getOrDefault(JSONObject())
     }
 
