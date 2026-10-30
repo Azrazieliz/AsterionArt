@@ -173,7 +173,7 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                         axisName="";axisValue=""
                     }){Text("Add owner-defined axis")}
                     Button(modifier=Modifier.fillMaxWidth(),
-                        onClick={submitText}) {
+                        onClick=::submitText) {
                         Text("Create five independent text themes")
                     }
                 }
