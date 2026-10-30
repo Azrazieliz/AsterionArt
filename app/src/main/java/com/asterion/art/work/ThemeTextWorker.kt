@@ -120,11 +120,29 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                         else {
                             store.stage(id,"Independent roulette: selecting five atom sets")
                             show("Selecting five unrelated visual atom sets")
-                            // Sampling is performed by a seeded independent
-                            // taxonomy roulette, never by inference guided by
-                            // the user's B/E/T or keyword values.
-                            val chosen=com.asterion.art.engine.CreativeTaxonomyRegistry(
-                                applicationContext).themeRoulette(current.seed)
+                            val roulette=call(
+                                "INDEPENDENT FIVE-SET ATOMIC ROULETTE. SEED "+
+                                    current.seed+". Exactly five DIFFERENT sets "+
+                                    "each with 3 to 6 ORDINARY ONE-WORD atoms. "+
+                                    "Choose broadly and unpredictably from physical, "+
+                                    "historical, technical, fictional, natural, "+
+                                    "surreal, architectural and structural concepts. "+
+                                    "Each atom is one standalone visual word; "+
+                                    "do not output compound phrases, narrative, "+
+                                    "camera variants or predetermined stories. "+
+                                    "Do NOT derive the atoms from user keywords "+
+                                    "or score parameters: they are intentionally "+
+                                    "not given in this step. Output JSON only: "+
+                                    "{\"sets\":[[\"word\",\"word\",\"word\"], "+
+                                    "four further independent arrays]}.",1200)
+                            val array=roulette.getJSONArray("sets")
+                            require(array.length()==5) {
+                                "Five separate frozen roulette results required"
+                            }
+                            val chosen=(0 until 5).map { index ->
+                                val group=array.getJSONArray(index)
+                                (0 until group.length()).map{group.getString(it).trim()}
+                            }
                             store.freezeAtoms(id,chosen)
                             chosen
                         }
