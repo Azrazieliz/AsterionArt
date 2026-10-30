@@ -68,8 +68,9 @@ class CharacterBrainResolver(context:Context) {
             val model=weights.selected()?:error(
                 "Install Gemma 3 before preparing original character designs")
             val file=weights.location(model)?:error("Gemma 3 model file not verified")
+            val selector=com.asterion.art.engine.CanonicalSelectorGraph.load(app)
             val selections=CharacterPrimaryResolver.resolve(
-                plan.slots,plan.sheets,taxonomy.list(),Random(plan.seed))
+                plan.slots,plan.sheets,taxonomy.list(),Random(plan.seed),selector)
             val engine=AiChat.getInferenceEngine(app)
             val context=memoryContext()
             val completed=plan.frozen.toMutableList()
