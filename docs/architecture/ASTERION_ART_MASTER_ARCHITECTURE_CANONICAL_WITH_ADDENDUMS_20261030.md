@@ -745,3 +745,12 @@ Keep Character Creation's full five-independent-designs-per-image specification,
 ## E. Pending owner choices — not implemented canon
 
 The formal classification purpose and admission gate for *each* additional taxonomy; whether the existing SC taxonomy is expanded before creating a new Theme-source taxonomy; which new Theme-only parameters actually improve generation; and whether particular Originals need any additional controls. All require owner review. Candidate designs live in separate **PROPOSAL** documents and are not requirements.
+
+
+## ADD-15 — Final owner correction: Art Style Sheets are sufficient (2026-10-30)
+
+- **Reject the assistant-proposed Art Style taxonomy.** ASTERION already has user-approved **Art Style Sheets** and their mode-specific conditioning. No parallel style-leaf taxonomy, style index or implicit style ontology is authorized.
+- B/E/T is **Theme Creation-specific**. Do not display or apply B/E/T or default intensity values in Artwork Creation, Character Creation or other Originals. Existing historical intensity values may be deserialized for compatibility, but must not steer those modes.
+- The **existing** `Concepts.md` §4 BC/SF/SC recursive selector is not a new proposed taxonomy. Implement its canonical branch/view pools, strict constrained-X precedence and SC-only uniform draws as specified by `Character Creation v3` §12, without altering the classification itself or its IDs.
+- Theme taxonomy schema remains **undefined** by the owner. Do not invent category names or candidate leaves. Preserve the previously approved text-only Theme workflow, pending a separately authorized taxonomy specification.
+- Continue implementing established application systems; do not spend implementation time on new unrequested taxonomies, generic parameter sliders, performance optimization or model tailoring before actual device testing.
