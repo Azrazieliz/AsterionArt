@@ -136,7 +136,6 @@ class AsterionReasoner(context:Context) {
         val weightFile=models.location(weights)?:return@withLock null
         require(jobId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
         require(candidateCount in 1..60)
-        val engine=AiChat.getInferenceEngine(app)
         val activeSystem=if(domain==CreativeDomain.ARTWORK)ARTWORK_SYSTEM else SYSTEM
         val contextSize=contextForRam()
         // Construct exact binding authority BEFORE loading the local GGUF.
@@ -201,6 +200,7 @@ class AsterionReasoner(context:Context) {
             onStage("Reusing exact source-verified pre-render checkpoint")
             return@withLock cached
         }
+        val engine=AiChat.getInferenceEngine(app)
         suspend fun answer(prompt:String,n:Int):String {
             return withTimeout(3*60*1000L) {
                 engine.sendUserPrompt(prompt,n).toList().joinToString("").trim()
