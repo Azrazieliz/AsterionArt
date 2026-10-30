@@ -146,6 +146,25 @@ internal class GenerationExecutor(
                 if(characterPlan!=null) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,characterPlan.prompts.first(),
                         CharacterPhaseOne.NEGATIVE,1f)),job.sheetIds,job.settings)
+                else if(job.methodologyTextPlanId!=null &&
+                    job.creationMode==null) {
+                    // Route B Artwork remains Artwork: all five recovered
+                    // owner phases execute. The approved complete design text
+                    // remains authoritative throughout every stage.
+                    val strengths=listOf(1f,0.48f,0.32f,0.22f,0.13f)
+                    val stages=(1..5).map { number ->
+                        GenerationPass(number,
+                            requireNotNull(job.designPrompt)+
+                                "\nARTWORK QUALITY PHASE: "+
+                                com.asterion.art.engine.ArtworkFivePhaseContract
+                                    .at(number).name,
+                            job.designNegative.orEmpty(),
+                            strengths[number-1])
+                    }
+                    com.asterion.art.engine.ArtworkFivePhaseContract
+                        .validate(stages)
+                    GenerationRecipe(job.mode,stages,job.sheetIds,job.settings)
+                }
                 else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
                     job.mode,listOf(GenerationPass(1,job.designPrompt,
                         job.designNegative.orEmpty(),1f)),job.sheetIds,job.settings)
@@ -468,7 +487,10 @@ internal class GenerationExecutor(
                 characterPlan?.sheets,tunedSettings.batch)
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
-            val oneShotCharacterSheet = !job.designPrompt.isNullOrBlank() ||
+            val oneShotCharacterSheet =
+                (!job.designPrompt.isNullOrBlank() &&
+                    !(job.methodologyTextPlanId!=null &&
+                        job.creationMode==null)) ||
                 characterPlan!=null
             val stageSequence = if (oneShotCharacterSheet)
                 listOf(recipe.passes.first()) else recipe.passes
