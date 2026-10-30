@@ -139,6 +139,64 @@ class AsterionReasoner(context:Context) {
         val engine=AiChat.getInferenceEngine(app)
         val activeSystem=if(domain==CreativeDomain.ARTWORK)ARTWORK_SYSTEM else SYSTEM
         val contextSize=contextForRam()
+        // Construct exact binding authority BEFORE loading the local GGUF.
+        // A previously completed job with the same source/model/methodology
+        // and explicit owner grading must not redo expensive pre-render work.
+        val canonical=section(domain,concepts)
+        val guidance=learnedEvidence(
+            creationMode,renderMode,concepts,targetDesignId)
+        val authority=listOf(
+            "DOMAIN:\n"+domain.name,
+            "FULL METHODOLOGY:\n"+canonicalMethod,
+            "CANONICAL CONCEPT RECORDS:\n"+canonical,
+            "SOURCE EVIDENCE:\n"+sheetSources.joinToString("\n"),
+            "POSITIVE AUTHORITY:\n"+basePositive,
+            "NEGATIVE AUTHORITY:\n"+baseNegative
+        ).joinToString("\n\n")
+        val outputBudget=if(candidateCount>=10)minOf(4200,contextSize/4)
+            else minOf(2200,contextSize/4)
+        val requestedOutput=if(domain==CreativeDomain.CHARACTER &&
+            candidateCount==15)
+            "Output exactly [SHEET_1], [SHEET_2], [SHEET_3] with five " +
+                "distinct, fully described frozen characters in each, then " +
+                "[NEGATIVE]. Preserve all methodology counts and viewpoints."
+        else "Return [POSITIVE] one complete detailed image/video model " +
+                "instruction [/POSITIVE] and [NEGATIVE] constraints [/NEGATIVE]."
+        val request="Compile the following verified owner authority into ONE " +
+            "complete coherent native generation specification. " +
+            "Preserve every binding methodology condition, reference identity, " +
+            "output format, concept interaction and owner-approved correction. " +
+            "Do not invent additional methodology stages. For distinct outputs " +
+            "include all "+candidateCount+" independent designs.\n"+
+            requestedOutput+"\nFULL AUTHORITY:\n"+authority+
+            "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
+        val signature=java.security.MessageDigest.getInstance("SHA-256")
+            .digest((weights.id+"\n"+contextSize+"\n"+activeSystem+"\n"+request)
+                .toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val checkpoint=File(app.filesDir,"generation-plans/"+jobId+"-brain.json")
+        val cached=runCatching {
+            if(!checkpoint.isFile)return@runCatching null
+            val json=JSONObject(checkpoint.readText())
+            if(json.optString("source_signature")!=signature ||
+                json.optString("model")!=weights.id ||
+                json.optString("domain")!=domain.name ||
+                json.optInt("context_tokens")!=contextSize)
+                return@runCatching null
+            val positive=json.getString("final_positive")
+            require(positive.isNotBlank()) { "Saved plan has no positive specification" }
+            val sheets=json.optJSONArray("sheets")?:JSONArray()
+            NeuralDesignPlan(
+                weights.id,contextSize,domain,authority,
+                json.optString("synthesis",""),positive,
+                json.optString("final_negative",""),
+                (0 until sheets.length()).map{ sheets.getString(it) }
+            )
+        }.getOrNull()
+        if(cached!=null) {
+            onStage("Reusing exact source-verified pre-render checkpoint")
+            return@withLock cached
+        }
         suspend fun answer(prompt:String,n:Int):String {
             return withTimeout(3*60*1000L) {
                 engine.sendUserPrompt(prompt,n).toList().joinToString("").trim()
@@ -162,38 +220,8 @@ class AsterionReasoner(context:Context) {
                 engine.loadAdapter(adapter.absolutePath)
             }
             engine.setSystemPrompt(activeSystem)
-            val canonical=section(domain,concepts)
-            val guidance=learnedEvidence(
-                creationMode,renderMode,concepts,targetDesignId)
-            val authority=listOf(
-                "DOMAIN:\n"+domain.name,
-                "FULL METHODOLOGY:\n"+canonicalMethod,
-                "CANONICAL CONCEPT RECORDS:\n"+canonical,
-                "SOURCE EVIDENCE:\n"+sheetSources.joinToString("\n"),
-                "POSITIVE AUTHORITY:\n"+basePositive,
-                "NEGATIVE AUTHORITY:\n"+baseNegative
-            ).joinToString("\n\n")
-            // The compiler already has the canonical methodology, taxonomy,
-            // visual observations and owner feedback. No repeated Gemma evidence
-            // summaries, consolidation loops or synthetic design-rewrite stages.
-            // One bounded semantic compilation keeps the original authority intact.
-            val outputBudget=if(candidateCount>=10)minOf(4200,contextSize/4)
-                else minOf(2200,contextSize/4)
-            val requestedOutput=if(domain==CreativeDomain.CHARACTER &&
-                candidateCount==15)
-                "Output exactly [SHEET_1], [SHEET_2], [SHEET_3] with five " +
-                    "distinct, fully described frozen characters in each, then " +
-                    "[NEGATIVE]. Preserve all methodology counts and viewpoints."
-            else "Return [POSITIVE] one complete detailed image/video model " +
-                    "instruction [/POSITIVE] and [NEGATIVE] constraints [/NEGATIVE]."
-            val request="Compile the following verified owner authority into ONE " +
-                "complete coherent native generation specification. " +
-                "Preserve every binding methodology condition, reference identity, " +
-                "output format, concept interaction and owner-approved correction. " +
-                "Do not invent additional methodology stages. For distinct outputs " +
-                "include all "+candidateCount+" independent designs.\n"+
-                requestedOutput+"\nFULL AUTHORITY:\n"+authority+
-                "\nOWNER REVIEW GUIDANCE:\n"+guidance+"\n"
+            // Deterministically compiled request and checkpoint signature
+            // were prepared above, without loading the native reasoning engine.
             require(engine.countTokens(request)+engine.countTokens(activeSystem)+
                 outputBudget+256<contextSize) {
                 "Complete owner methodology and reference evidence exceed " +
@@ -209,9 +237,10 @@ class AsterionReasoner(context:Context) {
             val result=NeuralDesignPlan(
                 weights.id,contextSize,domain,authority,third,
                 valid.positive,valid.negative,valid.sheetPrompts)
-            val path=File(app.filesDir,"generation-plans/"+jobId+"-brain.json")
+            val path=checkpoint
             val source=JSONObject().apply {
                 put("schema","asterion.neural-planning.v1")
+                put("source_signature",signature)
                 put("model",result.modelId)
                 put("context_tokens",result.actualContext)
                 put("domain",result.domain.name)
