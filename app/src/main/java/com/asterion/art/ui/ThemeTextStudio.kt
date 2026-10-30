@@ -40,6 +40,10 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
     var keywords by remember { mutableStateOf(draft.optString("keywords")) }
     var characterConfig by remember {mutableStateOf(draft.optString("config"))}
     var liquid by remember {mutableStateOf(draft.optString("liquid"))}
+    var sheetMode by remember {
+        mutableStateOf(draft.optString("sheet_mode").takeIf{it.isNotBlank()}
+            ?.let{runCatching{RenderMode.valueOf(it)}.getOrNull()})
+    }
     var axisName by remember {mutableStateOf("")}
     var axisValue by remember {mutableStateOf("")}
     // Owner-named axes are an extension container, not invented semantics.
@@ -65,6 +69,7 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
             put("b",b);put("e",e);put("t",t)
             put("keywords",keywords);put("config",characterConfig)
             put("liquid",liquid);put("custom",JSONObject(axes))
+            put("sheet_mode",sheetMode?.name ?: "")
             put("plan",active?:"")
         })
     }
@@ -288,13 +293,23 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
                         Text("APPROVED · "+approved.name,color=Green)
                         Text("The text is complete. Image creation is a separate "+
                             "explicit background job.",color=Mist)
-                        Button(enabled=current.renderJobId==null,
+                        Text("THEME SHEET RENDER MODE",color=Gold)
+                        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                            listOf(RenderMode.ANIME,RenderMode.COSPLAY,
+                                RenderMode.REALISTIC).forEach{option->
+                                FilterChip(selected=sheetMode==option,
+                                    onClick={sheetMode=option},
+                                    label={Text(option.display)})
+                            }
+                        }
+                        Button(enabled=current.renderJobId==null &&
+                            sheetMode!=null,
                             modifier=Modifier.fillMaxWidth(),
                             onClick={
                                 runCatching {
                                     val settings=repo.settings.copy(ratio="9:16",batch=1)
                                     val job=GenerationJobStore(context).create(
-                                        mode=RenderMode.ANIME,
+                                        mode=requireNotNull(sheetMode),
                                         sheets=emptyList(),settings=settings,
                                         designPrompt=current.renderAuthority(),
                                         themeTextPlanId=current.id)
