@@ -28,7 +28,8 @@ data class GenerationJob(
     val userScenePrompt: String = "",
     val userNegativePrompt: String = "",
     val themeTextPlanId:String? = null,
-    val methodologyTextPlanId:String? = null
+    val methodologyTextPlanId:String? = null,
+    val intensities:Map<String,String> = emptyMap()
 )
 
 class GenerationJobStore(context: Context) {
@@ -46,14 +47,16 @@ class GenerationJobStore(context: Context) {
                directReferenceUris: Map<SheetRole,List<String>> = emptyMap(),
                userScenePrompt:String="",userNegativePrompt:String="",
                themeTextPlanId:String?=null,
-               methodologyTextPlanId:String?=null): GenerationJob {
+               methodologyTextPlanId:String?=null,
+               intensities:Map<String,String> = emptyMap()): GenerationJob {
+        com.asterion.art.engine.CreativeIntensity.validate(intensities)
         val job = GenerationJob(UUID.randomUUID().toString(), mode, sheets.distinct(),
             settings, System.currentTimeMillis(),creationMode,sourceImageUri,
             concepts.distinct(),designPrompt,designNegative,parentDesignIds.distinct(),
             characterPlanId,designReferenceUris.distinct(),
             directReferenceUris.mapValues{(_,uris)->uris.distinct()},
             userScenePrompt,userNegativePrompt,themeTextPlanId,
-            methodologyTextPlanId)
+            methodologyTextPlanId,intensities)
         val s = JSONObject().apply {
             put("ratio", settings.ratio)
             put("steps", settings.steps)
@@ -88,6 +91,8 @@ class GenerationJobStore(context: Context) {
             put("character_phase1_plan",job.characterPlanId ?: JSONObject.NULL)
             put("theme_text_plan",job.themeTextPlanId?:JSONObject.NULL)
             put("methodology_text_plan",job.methodologyTextPlanId?:JSONObject.NULL)
+            put("intensity_v2",
+                com.asterion.art.engine.CreativeIntensity.json(job.intensities))
             put("settings", s)
         }
         val tmp = File(folder, job.id + ".tmp")
@@ -147,7 +152,9 @@ class GenerationJobStore(context: Context) {
             root.optString("theme_text_plan","")
                 .takeIf{it.isNotBlank()&&it!="null"},
             root.optString("methodology_text_plan","")
-                .takeIf{it.isNotBlank()&&it!="null"}
+                .takeIf{it.isNotBlank()&&it!="null"},
+            com.asterion.art.engine.CreativeIntensity.fromJson(
+                root.optJSONObject("intensity_v2"))
         )
     }
 }
