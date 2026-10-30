@@ -66,6 +66,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +83,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.data.GenerationJobStore
+import com.asterion.art.data.RequestDraftStore
+import org.json.JSONObject
 import com.asterion.art.model.ArtPolicies
 import com.asterion.art.model.CreationMode
 import com.asterion.art.model.RenderMode
@@ -360,11 +363,40 @@ private fun SummaryCard(label: String, count: String, modifier: Modifier) {
 
 @Composable
 private fun SheetBuilderScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+
     val context = LocalContext.current
-    var kind by remember { mutableStateOf(SheetRole.CHARACTER) }
-    var sources by remember { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
-    var activeSlot by remember { mutableStateOf("PRIMARY") }
+    val drafts = remember(context) { RequestDraftStore(context) }
+    val initial = remember(context) { drafts.load("sheet-builder") }
+    var kind by remember { mutableStateOf(runCatching {
+        SheetRole.valueOf(initial.optString("role","CHARACTER"))
+    }.getOrDefault(SheetRole.CHARACTER)) }
+    var sources by remember { mutableStateOf(
+        initial.optJSONArray("sources")?.let { arr ->
+            (0 until arr.length()).mapNotNull { index ->
+                val item=arr.optJSONObject(index) ?: return@mapNotNull null
+                val uri=item.optString("uri")
+                val slot=item.optString("slot")
+                (uri to slot).takeIf { uri.isNotBlank() &&
+                    SheetLayouts.isValid(kind,slot) }
+            }
+        }.orEmpty()
+    ) }
+    var activeSlot by remember { mutableStateOf(
+        initial.optString("slot","PRIMARY").takeIf{
+            SheetLayouts.isValid(kind,it)
+        } ?: "PRIMARY"
+    ) }
     var note by remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        drafts.save("sheet-builder",JSONObject().apply {
+            put("role",kind.name);put("slot",activeSlot)
+            put("sources",org.json.JSONArray().apply {
+                sources.forEach { (uri,slot) ->
+                    put(JSONObject().put("uri",uri).put("slot",slot))
+                }
+            })
+        })
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             val remaining = SheetRenderer.MAX_REFS - sources.size
@@ -602,16 +634,52 @@ private fun SheetGalleryCard(sheet: SheetRecord) {
 
 @Composable
 private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
+
     val context = LocalContext.current
-    var mode by remember { mutableStateOf(RenderMode.ANIME) }
-    var creationMode by remember { mutableStateOf<CreationMode?>(null) }
-    var sourceArtwork by remember { mutableStateOf<String?>(null) }
-    var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val drafts = remember(context) { RequestDraftStore(context) }
+    val initial = remember(context) { drafts.load("artwork") }
+    var mode by remember { mutableStateOf(runCatching {
+        RenderMode.valueOf(initial.optString("mode","ANIME"))
+    }.getOrDefault(RenderMode.ANIME)) }
+    var creationMode by remember { mutableStateOf<CreationMode?>(
+        initial.optString("creation_mode").takeIf{it.isNotBlank()}?.let{
+            runCatching{CreationMode.valueOf(it)}.getOrNull()
+        }
+    ) }
+    var sourceArtwork by remember { mutableStateOf(
+        initial.optString("source_image").takeIf { it.isNotBlank() }
+    ) }
+    var selected by remember { mutableStateOf(
+        RequestDraftStore.readStrings(initial,"sheet_ids").toSet()
+    ) }
     var sourceWarning by remember { mutableStateOf<String?>(null) }
-    var userScenePrompt by rememberSaveable { mutableStateOf("") }
-    var userNegativePrompt by rememberSaveable { mutableStateOf("") }
+    var userScenePrompt by remember { mutableStateOf(
+        initial.optString("user_scene")
+    ) }
+    var userNegativePrompt by remember { mutableStateOf(
+        initial.optString("user_negative")
+    ) }
     var directReferenceRole by remember { mutableStateOf(SheetRole.CHARACTER) }
-    var directReferences by remember { mutableStateOf<Map<SheetRole,List<String>>>(emptyMap()) }
+    var directReferences by remember { mutableStateOf(
+        RequestDraftStore.readRoleSources(initial,"direct_refs")
+            .mapNotNull { (role,uris) ->
+                runCatching{SheetRole.valueOf(role)}.getOrNull()?.let{
+                    it to uris
+                }
+            }.toMap()
+    ) }
+    SideEffect {
+        drafts.save("artwork",JSONObject().apply {
+            put("mode",mode.name)
+            put("creation_mode",creationMode?.name ?: "")
+            put("source_image",sourceArtwork ?: "")
+            put("sheet_ids",RequestDraftStore.strings(selected.sorted()))
+            put("user_scene",userScenePrompt)
+            put("user_negative",userNegativePrompt)
+            put("direct_refs",RequestDraftStore.roleSources(
+                directReferences.mapKeys{it.key.name}))
+        })
+    }
     val directReferencePicker=rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if(uris.isNotEmpty()) {
