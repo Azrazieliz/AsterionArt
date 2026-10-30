@@ -51,5 +51,5 @@ class ForegroundRenderQueueStore(context:Context) {
         if(updated.size!=items.size)write(updated)
     }
 
-    fun pending():List<QueuedNativeRender>=synchronized(LOCK){read()}
+    fun pending():List<QueuedNativeRender> = synchronized(LOCK) { read() }
 }
