@@ -17,17 +17,15 @@ fun CreativeIntensityEditor(
     values:Map<String,String>,
     onChange:(Map<String,String>)->Unit
 ) {
-    var expanded by remember{mutableStateOf(false)}
-    var category by remember{mutableStateOf("")}
+    var scope by remember{mutableStateOf("independent")}
     var level by remember{mutableStateOf("")}
     var custom by remember{mutableStateOf("")}
     var showExpanded by remember{mutableStateOf(false)}
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Text("CREATIVE INTENSITY · V2",color=Gold)
-        Text("0 = off · 1 = already prominent · 2 strong · 3 very strong · "+
-            "4 extreme · 5 dominant · 6 overwhelming · 7 massive · "+
-            "8 pervasive · 9 near maximal · 10 maximum · "+
-            "values above 10 continue without an artificial ceiling.",
+        Text("Continuous scale: 0 = off, 1 = already prominent. "+
+            "Values above 1 increase intensity without an upper limit. "+
+            "Decimals are supported. No fixed set of ten levels.",
             color=Mist,style=MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
             listOf("B","E","T").forEach { key ->
@@ -64,31 +62,27 @@ fun CreativeIntensityEditor(
                     TextButton(onClick={onChange(values-key)}){Text("Remove")}
                 }
             }
-            Box {
-                OutlinedButton(onClick={expanded=true}) {
-                    Text(category.ifBlank{"Choose B/E/T subaxis or new parameter"})
-                }
-                DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {
-                    CreativeIntensity.axes.filter{it.key !in setOf("B","E","T")}
-                        .forEach{item->
-                            DropdownMenuItem(
-                                text={Text(item.name+" · "+item.key)},
-                                onClick={category=item.key;expanded=false})
-                        }
+            Text("PARAMETER SCOPE — USER DEFINED",color=Gold)
+            Row(horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                listOf("independent","B","E","T").forEach{selected->
+                    FilterChip(
+                        selected=scope==selected,
+                        onClick={scope=selected},
+                        label={Text(selected)})
                 }
             }
             OutlinedTextField(custom,{custom=it},
                 modifier=Modifier.fillMaxWidth(),
-                label={Text("Optional additional owner-named parameter")})
+                label={Text("New parameter name (no predefined categories)")})
             OutlinedTextField(level,{level=it},
                 modifier=Modifier.fillMaxWidth(),singleLine=true,
-                label={Text("Intensity (1 starts prominent; no fixed maximum)")})
-            Button(enabled=(category.isNotBlank()||custom.isNotBlank()) &&
+                label={Text("Intensity (decimal; no maximum)")})
+            Button(enabled=custom.isNotBlank() &&
                 runCatching { CreativeIntensity.parse(level) }.isSuccess,
                 onClick={
-                    val key=custom.trim().ifBlank{category}
+                    val key=(if(scope=="independent")"" else scope+".")+custom.trim()
                     onChange(values+(key to CreativeIntensity.parse(level).toPlainString()))
-                    category="";custom="";level=""
+                    custom="";level=""
                 },modifier=Modifier.fillMaxWidth()) {
                 Text("Add intensity axis")
             }
