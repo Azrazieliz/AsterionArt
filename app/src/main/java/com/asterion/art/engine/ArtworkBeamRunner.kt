@@ -66,7 +66,7 @@ class ArtworkBeamRunner(private val checkpointRoot:File) {
         stopped:()->Boolean,
         render:suspend (pass:GenerationPass,parent:ByteArray?,
             seed:Long,child:Int,total:Int,parentId:String?)->ByteArray,
-        onStage:suspend (Int,List<ArtworkBeamNode>)->Unit={}
+        onStage:suspend (Int,List<ArtworkBeamNode>)->Unit={_,_->}
     ):ArtworkBeamResult {
         ArtworkFivePhaseContract.validate(stages)
         checkpointRoot.mkdirs()
@@ -75,7 +75,7 @@ class ArtworkBeamRunner(private val checkpointRoot:File) {
         val generated=mutableListOf<Int>()
         stages.forEach { stage ->
             check(!stopped()){"Artwork beam interrupted"}
-            val inputs:List<Pair<String?,ByteArray?>>=
+            val inputs:List<Pair<String?,ByteArray?>> = 
                 if(stage.number==1)listOf(null to initialPng)
                 else parents.map{it.id to it.png}
             val candidates=mutableListOf<ArtworkBeamNode>()
