@@ -952,7 +952,8 @@ private fun QueueScreen(repo: ArtRepository) {
                                 job.designPrompt.isNullOrBlank()
                         }.getOrDefault(false)
                     }
-                    if(resumableCharacter && task.status!=TaskStatus.COMPLETED &&
+                    if(task.kind==TaskKind.STILL_IMAGE &&
+                        task.status!=TaskStatus.COMPLETED &&
                         task.status!=TaskStatus.CANCELLED) {
                         OutlinedButton(onClick={
                             scope.launch {
@@ -964,9 +965,9 @@ private fun QueueScreen(repo: ArtRepository) {
                                             .cancelAllWorkByTag("asterion-job-"+task.targetId)
                                             .result.get()
                                     }
+                                    repo.requeueStillImageTask(task.id)
                                     GenerationForegroundService.enqueue(
                                         context,task.targetId,task.id)
-                                    repo.updateTask(task.id,TaskStatus.QUEUED)
                                     repo.reload()
                                 }catch(e:Exception) {
                                     repo.updateTask(task.id,TaskStatus.FAILED,
@@ -974,7 +975,7 @@ private fun QueueScreen(repo: ArtRepository) {
                                         (e.message?:e.javaClass.simpleName))
                                 }
                             }
-                        }){ Text("Resume original with protected checkpoints") }
+                        }){ Text("Resume image from saved checkpoints") }
                     }
                     if (task.status == TaskStatus.RUNNING || task.status == TaskStatus.QUEUED) {
                         OutlinedButton(onClick = {
