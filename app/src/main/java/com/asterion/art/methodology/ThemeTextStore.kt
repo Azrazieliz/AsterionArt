@@ -37,6 +37,7 @@ data class ThemeTextPlan(
     val seed:Long,
     val status:String="DRAFT",
     val stage:String="",
+    val frozenAtomSets:List<List<String>> = emptyList(),
     val themes:List<ThemeText> = emptyList(),
     val approvedThemeId:String? = null,
     val renderJobId:String? = null
@@ -114,6 +115,9 @@ class ThemeTextStore(context:Context) {
             put("config",plan.characterConfiguration?:JSONObject.NULL)
             put("liquid",plan.liquidDirection?:JSONObject.NULL)
             put("seed",plan.seed);put("status",plan.status);put("stage",plan.stage)
+            put("frozen_atoms",JSONArray().apply {
+                plan.frozenAtomSets.forEach{put(JSONArray(it))}
+            })
             put("themes",JSONArray().apply {
                 plan.themes.forEach { theme ->
                     put(JSONObject().apply {
@@ -145,6 +149,9 @@ class ThemeTextStore(context:Context) {
             extras.keys().asSequence().associateWith{extras.getString(it)},
             optional("config"),optional("liquid"),j.getLong("seed"),
             j.getString("status"),j.optString("stage"),
+            j.optJSONArray("frozen_atoms")?.let{outer->
+                (0 until outer.length()).map{strings(outer.getJSONArray(it))}
+            }.orEmpty(),
             (0 until items.length()).map{index->
                 val c=items.getJSONObject(index)
                 ThemeText(c.getString("id"),c.getString("name"),
@@ -169,9 +176,23 @@ class ThemeTextStore(context:Context) {
         val p=load(id)
         if(p.status=="GENERATING")persist(p.copy(stage=message))
     }
+    @Synchronized fun freezeAtoms(id:String,sets:List<List<String>>) {
+        val p=load(id)
+        require(p.status=="GENERATING" && p.frozenAtomSets.isEmpty())
+        require(sets.size==5 && sets.map{it.joinToString("|")}.distinct().size==5)
+        require(sets.all{set->set.size in 3..6 && set.all{atom->
+            atom.isNotBlank() && !atom.contains(Regex("\\s"))
+        }})
+        persist(p.copy(frozenAtomSets=sets,
+            stage="Frozen five independent roulette results"))
+    }
     @Synchronized fun finish(id:String,proposals:List<ThemeText>) {
         val p=load(id)
         require(p.status=="GENERATING")
+        require(p.frozenAtomSets.size==5)
+        require(proposals.size==5 && proposals.indices.all{
+            proposals[it].atoms==p.frozenAtomSets[it]
+        })
         persist(p.copy(status="READY",themes=proposals,
             approvedThemeId=null,stage="Five distinct text themes ready"))
     }
