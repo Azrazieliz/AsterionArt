@@ -673,11 +673,6 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     var userNegativePrompt by remember { mutableStateOf(
         initial.optString("user_negative")
     ) }
-    var intensity by remember {
-        mutableStateOf(com.asterion.art.engine.CreativeIntensity.defaults+
-            com.asterion.art.engine.CreativeIntensity.fromJson(
-                initial.optJSONObject("intensity_v2")))
-    }
     var directReferenceRole by remember { mutableStateOf(SheetRole.CHARACTER) }
     var directReferences by remember { mutableStateOf(
         RequestDraftStore.readRoleSources(initial,"direct_refs")
@@ -696,9 +691,6 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             put("sheet_ids",RequestDraftStore.strings(selected.sorted()))
             put("user_scene",userScenePrompt)
             put("user_negative",userNegativePrompt)
-            put("intensity_v2",
-                com.asterion.art.engine.CreativeIntensity.json(
-                    intensity.filterValues{it.isNotBlank()}))
             put("direct_refs",RequestDraftStore.roleSources(
                 directReferences.mapKeys{it.key.name}))
         })
@@ -895,7 +887,6 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                             val job = GenerationJobStore(context).create(
                                 mode, selected.toList(), preferred,creationMode,sourceArtwork,
                                 directReferenceUris=directReferences.filterValues{it.isNotEmpty()},
-                                intensities=intensity,
                                 userScenePrompt=userScenePrompt,
                                 userNegativePrompt=userNegativePrompt)
                             val task = repo.recordTask(job.id, TaskKind.STILL_IMAGE)
@@ -911,9 +902,6 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 }
             }
         }
-        item {
-            CreativeIntensityEditor(intensity){intensity=it}
-        }
         if(route=="B") item {
             ModeTextBoard(
                 repo=repo,mode=null,renderMode=mode,
@@ -921,7 +909,6 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                 concepts=emptyList(),direction=userScenePrompt,
                 exclusions=userNegativePrompt,
                 directReferences=directReferences.filterValues{it.isNotEmpty()},
-                intensities=intensity,
                 eligible=ready && creationMode==null &&
                     repo.sheets.filter{it.id in selected}.all{it.outputUri!=null},
                 onImageQueued={navigate(Page.JOBS)})
