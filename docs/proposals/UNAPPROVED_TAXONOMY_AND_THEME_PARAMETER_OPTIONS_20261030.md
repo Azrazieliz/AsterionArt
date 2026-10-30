@@ -30,15 +30,13 @@ The discarded 14-category list was a **dictionary of subject areas**, not a taxo
 
 **Mode behavior:** Stage-one roulette; text-only molecule formation; alteration/fusion of approved text themes; Theme Sheet bridge. Does not apply to Character Creation's SC wildcard selection.
 
-## Candidate new taxonomy B — Reproducible art-style grammars (second to consider)
+## Art Style taxonomy — explicitly rejected by owner
 
-**Taxonomic object:** reusable *rendering grammars*, not media franchises, moods, subject matter or existing characters depicted on reference images.
-
-**Leaf contract:** canonical visual grammar defining drawing/linework, shape abstraction, shading, material rendering, color relations, finish, constraints, permissible hybridization, and how its properties persist when subjects, scenes, poses or themes change.
-
-**Admission gate:** a style must be reproducible on unrelated source images and distinguishable by rendering treatment alone; a label such as a theme, genre, mood, palette name or character reference does not suffice. The classification must have a single canonical primary path; line/shading/medium properties are searchable facets and may overlap without creating duplicate leaves.
-
-**Operational use:** Style Sheet assembly, Art Style Correction and Artwork style authority. On style correction, protected source identities/camera/pose/content remain protected, and style leaves affect only permitted rendering dimensions. The existing approved Art Style methodology remains the authority.
+The app already has **Art Style Sheets**, which are the operative
+style authorities for Artwork and Art Style Correction. No Art Style
+taxonomy, style-leaf registry or competing style-selection mechanism
+is to be created. Reference conditioning must continue using the
+owner's Art Style Sheets and established methodology contracts.
 
 ## Do not make weapon/outfit/creature/video taxonomies automatically
 
@@ -50,7 +48,7 @@ These can be evaluated after the owner selects specific design bottlenecks. For 
 - MK: non-selectable materialization mechanism.
 - T: non-selectable topology and reciprocal-fusion structure.
 - Proposed Theme atoms: selectable atomic Theme-source identity, if approved.
-- Proposed style leaves: selectable rendering grammar, if approved.
+- Art Style Sheets: approved reusable style references; never duplicate as a taxonomy.
 - Mode methodology: execution procedure and permitted transformations, never a mere source leaf.
 
 Taxonomy links should carry typed relationships and preservation guards, e.g. `allows-materialization`, `needs-invariant`, `applies-style-to`; they are not new canonical parenthood.
@@ -67,7 +65,7 @@ B/E/T retains its original meaning with owner-expanded scope only inside Theme C
 
 ## Approval questions
 
-1. Is the first genuinely **new** taxonomy Theme-source identities or reproducible art-style grammars? The existing SC taxonomy can be expanded independently without changing its rules.
+1. The only new taxonomy candidate currently under consideration is the owner-defined Theme-source taxonomy. There is no approved new taxonomy schema, so do not create it before the owner defines its classes and admissions.
 2. Should Theme atoms admit **only intrinsic visual identities** (per the proposed gate), or can explicitly specified *organizational relationships* also be separately selectable leaves? Keeping mechanisms non-selectable as MK/T analogues is the safer clear distinction, but it requires owner decision.
 3. Do any of the three Theme-only parameter candidates add real control beyond the existing atomic roulette and molecular synthesis methodology? Only accepted axes will be built; otherwise retain B/E/T and existing exact operations.
 
