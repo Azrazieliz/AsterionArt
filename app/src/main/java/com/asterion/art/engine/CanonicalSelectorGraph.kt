@@ -101,7 +101,6 @@ class CanonicalSelectorGraph private constructor(
         unique(facetsExact,"facet")?.let{return it}
         // Composite query facets: every meaningful word must be consumed,
         // and recognised independent constraints are intersected, not unioned.
-        val remaining=term.toMutableList()
         val facetPairs=facets.flatMap{entry->
             entry.terms.map{key(it) to entry}
         }.sortedByDescending{it.first.length}
@@ -118,7 +117,7 @@ class CanonicalSelectorGraph private constructor(
             "and","with","of","in","a","an")
         if(matched.isNotEmpty() && rest.trim().split(Regex("\\s+"))
                 .filter{it.isNotBlank()}.all{it in filler}) {
-            val sets=matched.map{it.targets.flatMap(::descendants).toSet()}
+            val sets=matched.map{it.targets.flatMap{target->descendants(target)}.toSet()}
             val intersection=sets.drop(1).fold(sets.first()){acc,next->
                 acc.intersect(next)
             }.sorted()
