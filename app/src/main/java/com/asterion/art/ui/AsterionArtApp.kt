@@ -915,7 +915,7 @@ private fun QueueScreen(repo: ArtRepository) {
     }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Header("Background processing", "Job history",
-            "Import, image, sheet, edit and video tasks persist. Native character rendering runs in a direct foreground service to avoid Android JobScheduler timeouts.") }
+            "Import, image, sheet, edit and video tasks persist. Native still-image generation continues in a durable foreground-service queue after the app closes.") }
         if (repo.tasks.isEmpty()) item { Text("No jobs submitted yet.", color = Mist) }
         items(repo.tasks.sortedByDescending { it.createdAt }) { task ->
             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
@@ -991,11 +991,10 @@ private fun QueueScreen(repo: ArtRepository) {
                                         else "asterion-video-"+task.targetId)
                                 task.kind in setOf(TaskKind.STILL_IMAGE,TaskKind.IMAGE_EDIT) -> {
                                     wm.cancelAllWorkByTag("asterion-job-"+task.targetId)
-                                    if(resumableCharacter)
-                                        runCatching {
-                                            GenerationForegroundService.cancel(
-                                                context,task.targetId)
-                                        }
+                                    runCatching {
+                                        GenerationForegroundService.cancel(
+                                            context,task.targetId)
+                                    }
                                 }
                                 task.kind==TaskKind.SHEET_RENDER ->
                                     wm.cancelUniqueWork("asterion-sheet-"+task.targetId)
