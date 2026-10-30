@@ -55,6 +55,10 @@ fun MethodologyStudioV3(
     val taxonomy=remember { com.asterion.art.engine.ConceptTaxonomy(context) }
     val isCharacter = method == CreationMode.CHARACTER
     var showMethodDetails by remember(method) { mutableStateOf(false) }
+    var route by remember(method) {
+        mutableStateOf(initial.optString("route","A").takeIf{
+            it in setOf("A","B")} ?: "A")
+    }
     var selectedConcepts by remember(method) { mutableStateOf(
         RequestDraftStore.readStrings(initial,"concepts").toSet()
     ) }
@@ -102,6 +106,7 @@ fun MethodologyStudioV3(
     }
     SideEffect {
         drafts.save(draftKey,JSONObject().apply {
+            put("route",route)
             put("concepts",RequestDraftStore.strings(selectedConcepts.sorted()))
             put("sheets",RequestDraftStore.strings(selectedSheets.sorted()))
             put("illustration",illustration ?: "")
@@ -191,6 +196,19 @@ fun MethodologyStudioV3(
         item {
             Card(colors=CardDefaults.cardColors(containerColor=Panel)) {
                 Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(7.dp)) {
+                    Text("EXECUTION ROUTE",color=Gold)
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                        FilterChip(selected=route=="A",onClick={route="A"},
+                            label={Text("A · Direct")})
+                        FilterChip(selected=route=="B",onClick={route="B"},
+                            label={Text("B · Text designs first")})
+                    }
+                    Text(if(route=="B")
+                        "Create exact mode-specific text design records for ONE "+
+                        "complete output image, edit independent candidates, "+
+                        "then explicitly bridge the entire specification to rendering."
+                        else "Direct pre-render inference followed by native "+
+                        "background generation.",color=Mist)
                     Text("OUTPUT CONTRACT",color=Gold)
                     Text(if(geometry.preserveOriginalFraming) "Original image dimensions and framing"
                         else geometry.ratio + "  ·  " + geometry.designsPerImage +
@@ -331,13 +349,14 @@ fun MethodologyStudioV3(
             OutlinedButton(onClick=openParameters) { Text("Advanced parameters") }
             if(errors.isNotEmpty()) Text(errors.joinToString(" · "),color=Red)
             if(message!=null) Text(message.orEmpty(),color=Red)
-            // One Start after validation. Manual prompt inspection remains optional.
-            Button(
+            // Direct Route A remains unchanged. Route B may only launch from
+            // its separately certified mode-specific full design population.
+            if(route=="A") Button(
                 modifier=Modifier.fillMaxWidth(),
                 enabled=eligible && (!isCharacter || action==StageAction.CATALOGUE),
                 onClick={enqueueApproved()}
             ) { Text("Start in background") }
-            OutlinedButton(
+            if(route=="A") OutlinedButton(
                 modifier=Modifier.fillMaxWidth(),
                 enabled=eligible && (!isCharacter || action==StageAction.CATALOGUE),
                 onClick={
@@ -368,6 +387,14 @@ fun MethodologyStudioV3(
                     else->"Inspect prompts (optional)"
                 })
             }
+        }
+        if(route=="B") item {
+            ModeTextBoard(
+                repo=repo,mode=method,renderMode=media,
+                sheetIds=chosen.map{it.id},sourceUri=illustration,
+                concepts=names,direction=ownerPositive,
+                exclusions=ownerNegative,eligible=eligible,
+                onImageQueued=onQueued)
         }
         item {
             Text("Methodology stages and rendering capabilities are verified separately. " +
