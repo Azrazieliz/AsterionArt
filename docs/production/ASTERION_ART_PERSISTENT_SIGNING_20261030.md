@@ -1,4 +1,4 @@
-# ASTERION ART — Persistent signing identities and preservation record
+> **UPDATE — MIGRATION COMPLETED (30 October 2026):** The phone now runs `com.asterion.art` version 0.2.3 using the permanent certificate `51e506a7…749d3773`. All 17 private-data files (5,734,455,667 bytes) were restored and individually SHA-256 verified. The original debug-signed APK and complete pre-migration archive remain backed up. **Use [the completed-migration authority](./ASTERION_ART_ANDROID_SIGNING_MIGRATION_COMPLETED_20261030.md) for current status.** The warnings below describe the earlier pre-migration state, not the present installation.\n\n# ASTERION ART — Persistent signing identities and preservation record
 
 Date: 2026-10-30. **Owner-requested action executed**: generate a new key and save it so future releases can reuse it rather than rotate keys every time.
 
