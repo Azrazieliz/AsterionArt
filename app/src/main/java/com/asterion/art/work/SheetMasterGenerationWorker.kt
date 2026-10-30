@@ -128,6 +128,17 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             }
             if(oneShot.isFailure) {
                 val cause=requireNotNull(oneShot.exceptionOrNull())
+                // The original owner Character Sheet V5 methodology requires
+                // ONE completed 9:16 image in ONE native generation call.
+                // Nine separately generated panels would constitute another
+                // product, regardless of whether those panels are new pixels.
+                if(sheet.role==SheetRole.CHARACTER) {
+                    throw IllegalStateException(
+                        "Character Sheet V5 requires one complete 9:16 render. "+
+                        "The selected native model cannot accept its full "+
+                        "specification; use a genuinely compatible encoder.",
+                        cause)
+                }
                 val message=cause.message.orEmpty()
                 if(!message.contains("context",ignoreCase=true) &&
                     !message.contains("exceeds",ignoreCase=true))

@@ -77,7 +77,7 @@ fun BrainModelSection() {
                         .getWorkInfosByTag("asterion-brain-download").get()
                         .filter { !it.state.isFinished }
                         .associate {
-                            val model=it.tags.firstOrNull{tag->tag.startsWith("gemma3_")}.orEmpty()
+                            val model=it.tags.firstOrNull{tag->tag.startsWith("gemma3_") || tag.startsWith("qwen3_")}.orEmpty()
                             model to it.progress.getInt("percent",0)
                         }
                 }.getOrDefault(emptyMap())
@@ -90,7 +90,7 @@ fun BrainModelSection() {
             verticalArrangement=Arrangement.spacedBy(9.dp)) {
             Text("ASTERION DESIGN BRAIN",color=Gold,
                 style=MaterialTheme.typography.titleMedium)
-            Text("Local, trainable Gemma 3 inference. It interprets concepts and methods before " +
+            Text("Owner-selectable local Qwen3 reasoning or experimental Gemma 3. The active model interprets concepts and methods before " +
                 "any image or video model runs. The image model retains its own text limit.",
                 color=Mist,style=MaterialTheme.typography.bodySmall)
             Text("Context: "+contextTokens+" native LLM tokens",color=Gold)
@@ -134,8 +134,8 @@ fun BrainModelSection() {
             }
             if(selected!=null) {
                 HorizontalDivider()
-                Text("LLAMA 3.2 LORA ADAPTERS",color=Gold)
-                Text("Select an adapter compatible with the active Gemma 3 base. " +
+                Text("MODEL-COMPATIBLE GGUF LoRA ADAPTERS",color=Gold)
+                Text("Select an adapter compatible with the exact active reasoning base. " +
                     "Loading it modifies live neural inference; it does not " +
                     "retrain the diffusion model.",color=Mist)
                 OutlinedButton(enabled=!adapterBusy,onClick={

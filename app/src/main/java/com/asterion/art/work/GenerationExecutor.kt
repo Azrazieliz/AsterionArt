@@ -730,39 +730,11 @@ internal class GenerationExecutor(
                         parents=job.parentDesignIds,sourceSheetIds=job.sheetIds,
                         previewUri=preview))
                 }
-                // Every independently generated character/creature and every
-                // original-system design can become its own authoritative
-                // sheet. The source is the newly created design's pixels,
-                // not a pasted panel pretending to be a full reference.
-                if(job.creationMode!=null &&
-                    job.creationMode!=CreationMode.STYLE_CORRECTION) {
-                    val role=if(job.creationMode==CreationMode.WEAPON)
-                        SheetRole.ELEMENT else SheetRole.CHARACTER
-                    val sourcesForSheet=memory.list().filter{
-                        it.jobId==job.id && it.sheetNumber==candidate
-                    }
-                    sourcesForSheet.forEach { design ->
-                        val source=design.previewUri ?:
-                            if(perSheet==1)uri.toString() else return@forEach
-                        runCatching {
-                            val fresh=ArtRepository(applicationContext)
-                            if(fresh.sheets.none{sheet->
-                                sheet.role==role&&source in sheet.sourceUris
-                            }) {
-                                val individual=fresh.addSheet(
-                                    role,listOf(source),listOf("PRIMARY"),
-                                    originatingOriginal=job.creationMode)
-                                val taskForSheet=fresh.recordTask(individual.id,
-                                    TaskKind.SHEET_RENDER)
-                                SheetMasterGenerationWorker.enqueue(applicationContext,
-                                    individual.id,taskForSheet.id)
-                            }
-                        }.onFailure { error ->
-                            android.util.Log.w("AsterionArt",
-                                "Cannot queue source-linked design master sheet",error)
-                        }
-                    }
-                }
+                // Completed Original designs retain their own image pixels.
+                // A reusable reference master is created ON DEMAND from the
+                // Design Library via OriginalSheetReuse, preserving the source.
+                // Do not launch five (or more) expensive neural sheet jobs
+                // automatically for a single Original catalogue.
                 val coreSync = runCatching {
                     CoreResultUploader(applicationContext).upload(
                         uri, job.id,job.mode,GeneratedImagePublisher.sha256(image))

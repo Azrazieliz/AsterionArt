@@ -9,9 +9,32 @@ import com.asterion.art.model.CreationMode
  * Other sheet roles retain distinct documented visual evidence authorities.
  */
 object SheetMasterPrompts {
-    const val PREFIX="Professional 9:16 portrait reference master sheet, clean "+
-        "precisely aligned analytical layout, white-blue paper, thin restrained "+
-        "dividers, serif main title, legible small section labels, generous whitespace. "
+    private fun presentation(role:SheetRole):String=when(role) {
+        SheetRole.CHARACTER ->
+            "Professional 9:16 portrait Character Master Sheet. Clean "+
+            "Francesca/Artoria-level analytical hierarchy: dominant full-body "+
+            "identity, readable face and eye closeups, consistent hair and "+
+            "anatomical viewpoints, outfit or source-appropriate structural "+
+            "construction, small material callouts and precise palette. "+
+            "Neutral pale paper, fine dividers, restrained labels and whitespace. "
+        SheetRole.THEME ->
+            "Professional 9:16 portrait THEME ENGINEERING BOARD. Source-driven "+
+            "light or dark presentation, never fixed white-blue character-sheet "+
+            "styling. One dominant canonical composition and clearly organized "+
+            "camera, subject hierarchy, physical interactions, material behavior, "+
+            "environment, lighting, palette and constraints. Visual facts and "+
+            "source-theme relationships outweigh decorative text. "
+        SheetRole.ART_STYLE ->
+            "Professional 9:16 ART STYLE ANALYSIS BOARD. Source-calibrated "+
+            "presentation with clean aligned visual examples, genuine "+
+            "linework/shading/material/morphology comparisons and deliberate "+
+            "palette; no imported character identity. "
+        SheetRole.ELEMENT ->
+            "Professional 9:16 ELEMENT CONSTRUCTION BOARD. Clear dominant "+
+            "element, structural projections, material interfaces, functional "+
+            "placement, variations and palette. Source-driven colors and "+
+            "readable anatomical/physical diagrams, not a character-sheet clone. "
+    }
     private fun specific(original:CreationMode):String=when(original) {
         CreationMode.CHARACTER ->
             "ORIGINAL CHARACTER identity reference. Reconstruct same frozen "+
@@ -70,7 +93,7 @@ object SheetMasterPrompts {
     }
     fun positive(role:SheetRole,evidence:String="",
         original:CreationMode?=null):String {
-        val study=if(original!=null)specific(original) else when(role) {
+        val study=when(role) {
             SheetRole.CHARACTER ->
                 "ONE finished character master sheet generated in ONE image. "+
                 "The provided character is the SOLE canonical identity in EVERY panel. "+
@@ -81,8 +104,14 @@ object SheetMasterPrompts {
                 "neutral full body at front, exact left profile, three-quarter and "+
                 "direct rear. Retain the same identity, body morphology, species "+
                 "features, hair, eyes and proportions across all views. "+
-                "DEFAULT OUTFIT CONSTRUCTION: full-body outfit front, exact "+
-                "side, rear with accurate fabric, layers, closures and accessories. "+
+                (if(original==CreationMode.CHARACTER)
+                    "UNCLAD ORIGINAL PHASE-1 FORM: do not invent an outfit, armor, "+
+                    "weapon or costume panels. Use this space for accurate "+
+                    "body morphology, structural concept-fusion, appendage roots "+
+                    "and full front/profile/rear identity reference. "
+                 else
+                    "DEFAULT OUTFIT CONSTRUCTION: full-body outfit front, exact "+
+                    "side, rear with accurate fabric, layers, closures and accessories. ")+
                 "Compact accurate PHYSICAL and OUTFIT COLOR PALETTE with material "+
                 "swatches. Optional crucial weapon/detail callouts only. "+
                 "No repetition, filler, lore, unrelated characters or arbitrary "+
@@ -116,7 +145,12 @@ object SheetMasterPrompts {
                 "compositional weight and clear prohibitions. "+
                 "Do not graft a separate floating foreign object onto a character."
         }
-        return PREFIX+study+(if(evidence.isBlank())"" else
+        // An Original is SOURCE authority for a new role-specific sheet.
+        // It must augment the full sheet contract, never replace the
+        // canonical Character/Theme/Art Style/Element requirements.
+        val originalAuthority=if(original==null)"" else
+            " ORIGINAL-SPECIFIC SOURCE CONSTRAINTS: "+specific(original)
+        return presentation(role)+study+originalAuthority+(if(evidence.isBlank())"" else
             " UNVERIFIED MACHINE OBSERVATIONS (CHECK AGAINST SOURCE PIXELS): "+evidence)
     }
     fun negative(role:SheetRole):String {

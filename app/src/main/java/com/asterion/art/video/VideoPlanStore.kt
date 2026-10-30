@@ -45,6 +45,7 @@ class VideoPlanStore(context: Context) {
         require(seconds in 1..5)
         require(totalSegments in 1..24)
         require(images.size==1 || totalSegments==images.size)
+        requireDuration(seconds,totalSegments)
         val prompts=compileMotion(preset,direction,ConceptTaxonomy(appContext))
         val plan=VideoPlan(UUID.randomUUID().toString(),images,preset,seconds,24,
             System.currentTimeMillis().and(0x7FFFFFFFL),System.currentTimeMillis(),
@@ -68,6 +69,17 @@ class VideoPlanStore(context: Context) {
         return plan
     }
     companion object {
+        /** Master contract: final published video duration is 10–30 seconds. */
+        fun requireDuration(secondsPerAnchor:Int,numberOfAnchors:Int):Int {
+            require(secondsPerAnchor in 1..5 && numberOfAnchors in 1..24)
+            val requested=secondsPerAnchor*numberOfAnchors
+            require(requested in 10..30) {
+                "Asterion Art video must be 10–30 seconds; selected "+
+                    "segment configuration yields "+requested+" seconds."
+            }
+            return requested
+        }
+
         fun compileMotion(preset: MotionPreset, direction: String = "",
                           resolver: ConceptResolver?=null): Pair<String,String> {
             val compiled=UniversalCreativePlanner.motion(preset.title,direction,resolver)
