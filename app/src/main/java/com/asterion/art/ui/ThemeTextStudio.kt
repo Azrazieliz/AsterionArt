@@ -36,8 +36,9 @@ fun ThemeTextStudio(repo:ArtRepository,onImageQueued:()->Unit) {
     val draft=remember(context){drafts.load("theme-text")}
     var intensity by remember {
         mutableStateOf(
-            (com.asterion.art.engine.CreativeIntensity.fromJson(
-                draft.optJSONObject("intensity_v2"))+
+            (com.asterion.art.engine.CreativeIntensity.defaults+
+                com.asterion.art.engine.CreativeIntensity.fromJson(
+                    draft.optJSONObject("intensity_v2"))+
                 mapOf("B" to draft.optString("b"),
                       "E" to draft.optString("e"),
                       "T" to draft.optString("t"))
