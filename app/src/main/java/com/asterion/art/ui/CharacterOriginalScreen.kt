@@ -42,6 +42,11 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     val drafts=remember(context){RequestDraftStore(context)}
     val initial=remember(context){drafts.load("original-character")}
     val catalog=remember{ConceptCatalog.load(context)}
+    val selector=remember(context) {
+        com.asterion.art.engine.CanonicalSelectorGraph.load(context)
+    }
+    var showSelectorTree by remember{mutableStateOf(false)}
+    var browsingNodeId by remember{mutableStateOf<String?>(null)}
     var route by remember{mutableStateOf(
         initial.optString("route","A").takeIf{it in setOf("A","B")} ?: "A"
     )}
@@ -295,6 +300,55 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                 "X{query} selects a matching canonical concept. Fixed concepts stay "+
                 "fixed, and every result is frozen before design.",color=Mist,
                 style=MaterialTheme.typography.bodySmall)
+        }
+        item {
+            OutlinedButton(
+                onClick={showSelectorTree=!showSelectorTree},
+                modifier=Modifier.fillMaxWidth()) {
+                Text(if(showSelectorTree)"Close recursive concept selector"
+                    else "Browse canonical concept families")
+            }
+            if(showSelectorTree) {
+                val current=browsingNodeId?.let{selector.nodes[it]}
+                Text(if(current==null)
+                    "18 canonical broad categories · no selection or draw yet"
+                    else current.name+" · canonical node "+current.id,
+                    color=Gold)
+                if(current!=null) {
+                    Text(current.description,color=Mist,
+                        style=MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick={browsingNodeId=null}){
+                        Text("All broad categories")
+                    }
+                    OutlinedButton(
+                        enabled=!locked&&slots.size<8,
+                        onClick={
+                            slots=slots+"X{"+current.name+"}"
+                        }) {
+                        Text("Add X{"+current.name+"} — "+
+                            selector.branch(current.id).leafIds.size+
+                            " eligible SC concepts")
+                    }
+                }
+                val next=if(current==null)
+                    selector.roots.map(selector.nodes::getValue)
+                else current.children.map(selector.nodes::getValue)
+                next.forEach{node->
+                    OutlinedCard(onClick={browsingNodeId=node.id}) {
+                        Column(Modifier.padding(10.dp),
+                            verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                            Text(node.name+" · "+node.id,color=Gold)
+                            Text(selector.branch(node.id).leafIds.size.toString()+
+                                " selectable concepts",
+                                color=Mist,
+                                style=MaterialTheme.typography.bodySmall)
+                            if(node.description.isNotBlank())
+                                Text(node.description,color=Mist,
+                                    style=MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
         }
         item {
             OutlinedTextField(value=search,onValueChange={search=it},
