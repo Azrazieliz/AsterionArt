@@ -649,6 +649,9 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     val context = LocalContext.current
     val drafts = remember(context) { RequestDraftStore(context) }
     val initial = remember(context) { drafts.load("artwork") }
+    var route by remember { mutableStateOf(
+        initial.optString("route","A").takeIf{it in setOf("A","B")} ?: "A"
+    ) }
     var mode by remember { mutableStateOf(runCatching {
         RenderMode.valueOf(initial.optString("mode","ANIME"))
     }.getOrDefault(RenderMode.ANIME)) }
@@ -681,6 +684,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
     ) }
     SideEffect {
         drafts.save("artwork",JSONObject().apply {
+            put("route",route)
             put("mode",mode.name)
             put("creation_mode",creationMode?.name ?: "")
             put("source_image",sourceArtwork ?: "")
@@ -744,6 +748,12 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
             Header("Image generator", "Artwork creation",
                 "Use Character, Theme and Art Style sheets, with an optional Element sheet. "+
                     "Create sheets from individual references in Sheet Creation.")
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                FilterChip(selected=route=="A",onClick={route="A"},
+                    label={Text("A · Direct")})
+                FilterChip(selected=route=="B",onClick={route="B"},
+                    label={Text("B · Text design first")})
+            }
         }
         item {
             OutlinedButton(onClick={
@@ -866,7 +876,7 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                         Spacer(Modifier.width(8.dp))
                         Text("Configure parameters")
                     }
-                    Button(
+                    if(route=="A") Button(
                         enabled = ready && mode != RenderMode.ANIMATION &&
                             repo.sheets.filter { it.id in selected }.all { it.outputUri != null },
                         onClick = {
@@ -891,6 +901,17 @@ private fun CreationScreen(repo: ArtRepository, navigate: (Page) -> Unit) {
                     }
                 }
             }
+        }
+        if(route=="B") item {
+            ModeTextBoard(
+                repo=repo,mode=null,renderMode=mode,
+                sheetIds=selected.toList(),sourceUri=sourceArtwork,
+                concepts=emptyList(),direction=userScenePrompt,
+                exclusions=userNegativePrompt,
+                directReferences=directReferences.filterValues{it.isNotEmpty()},
+                eligible=ready && creationMode==null &&
+                    repo.sheets.filter{it.id in selected}.all{it.outputUri!=null},
+                onImageQueued={navigate(Page.JOBS)})
         }
         item {
             Text("Requires a compatible installed on-device QNN model. " +
