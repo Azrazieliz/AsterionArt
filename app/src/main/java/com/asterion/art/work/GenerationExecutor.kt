@@ -614,38 +614,24 @@ internal class GenerationExecutor(
                         }.toString(2).toByteArray(Charsets.UTF_8))
                     result.winner.png
                 } else if(characterPlan!=null) {
-                    // Five independent Character Creation triptychs use a
-                    // 16:45 output crop. Anima/SDXL still load their fixed
-                    // 1024-square QNN CANVAS; the native server crops 16:45.
+                    // A 16:45 image containing front+profile+rear caused multiple
+                    // figures and repeated sideways heads on actual device tests.
+                    // Generate ONE view per real native invocation. Front is frozen
+                    // and supplied as a native visual reference for the later views.
+                    // Legacy v2 multi-figure checkpoints are intentionally unused.
                     val nativeSettings=candidateSettings.copy(ratio="16:45",batch=1)
+                    val angles=com.asterion.art.methodology.CharacterViewComposer.View.entries
                     val tiles=(0 until CharacterPhaseOne.PER_SHEET).map{cell ->
                         if(stopped())throw CancellationException("Generation cancelled")
                         val d=characterPlan.frozen[(candidate-1)*5+cell]
-                        // A frozen identity is one COMPLETE native image instruction.
-                        // Do not replay slices of its anatomy as separate img2img jobs.
-                        // v2 checkpoint paths avoid reusing old sliced-prompt results.
-                        val checkpoint=File(intermediate,
-                            "unified_v2_sheet_"+candidate+"_"+d.id+"_triptych.png")
-                        val triptych=if(checkpoint.isFile && checkpoint.length()>1024L) {
-                            val existing=checkpoint.readBytes()
-                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
-                                existing,"Restored frozen character "+d.id)
-                            existing
+                        val prefix="unified_v3_sheet_"+candidate+"_"+d.id
+                        val triptychPath=File(intermediate,prefix+"_triptych.png")
+                        val triptych=if(triptychPath.isFile&&triptychPath.length()>1024L) {
+                            triptychPath.readBytes().also{
+                                com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                    it,"Restored independent-view triptych "+d.id)
+                            }
                         } else {
-                            thermalGate()
-                            // The frozen canonical plan remains complete on
-                            // disk. Verify a separate model-facing payload
-                            // using the *actual* native tokenizer rather than
-                            // forcing thousands of prose tokens into the NPU.
-                            val conditioning=com.asterion.art.methodology
-                                .CharacterNativeConditioning.select(
-                                    d,taxonomy::find,engine::inspectText)
-                            val directive=conditioning.prompt
-                            repo.updateTaskProgress(taskId,0,0,
-                                "Native character conditioning "+d.id+": "+
-                                conditioning.counted.count+"/"+
-                                conditioning.counted.limit+" tokens ("+
-                                conditioning.variant+")")
                             val negativeAuthority=
                                 com.asterion.art.engine.NegativePromptAuthority.merge(
                                     CharacterPhaseOne.NEGATIVE,
@@ -658,68 +644,114 @@ internal class GenerationExecutor(
                                         job.userNegativePrompt).joinToString(", "),
                                     engine::inspectText)
                             val finalNegative=negativeChoice.prompt
-                            val actualPromptTrace=File(intermediate,
-                                "actual-native-stage-inputs.jsonl")
-                            val invocation=JSONObject().apply {
-                                put("candidate",candidate)
-                                put("identity",d.id)
-                                put("stage",1)
-                                put("model",model.id)
-                                put("positive",directive)
-                                put("native_text_variant",conditioning.variant)
-                                put("native_token_count",conditioning.counted.count)
-                                put("native_token_limit",conditioning.counted.limit)
-                                put("negative",finalNegative)
-                                put("negative_variant",negativeChoice.variant)
-                                put("negative_token_count",negativeChoice.counted.count)
-                                put("denoise",1.0)
-                                put("seed",seed+cell*104729L+1)
+                            val images=linkedMapOf<
+                                com.asterion.art.methodology.CharacterViewComposer.View,
+                                ByteArray>()
+                            for((viewIndex,view) in angles.withIndex()) {
+                                if(stopped())throw CancellationException("Generation cancelled")
+                                val checkpoint=File(intermediate,
+                                    prefix+"_"+view.label+".png")
+                                val png=if(checkpoint.isFile&&checkpoint.length()>1024L) {
+                                    checkpoint.readBytes().also{
+                                        com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                            it,"Restored "+d.id+" "+view.label)
+                                    }
+                                } else {
+                                    thermalGate()
+                                    val choice=com.asterion.art.methodology
+                                        .CharacterNativeConditioning.selectView(
+                                            d,view,taxonomy::find,engine::inspectText)
+                                    val stageLabel="Sheet "+candidate+"/"+count+
+                                        " / "+d.id+" / "+view.label+
+                                        " (native "+choice.counted.count+"/"+
+                                        choice.counted.limit+" tokens)"
+                                    foreground(stageLabel)
+                                    val front=images[
+                                        com.asterion.art.methodology.CharacterViewComposer.View.FRONT]
+                                    val refs=if(front==null)referenceInputs else
+                                        (referenceInputs+listOf(front)).takeLast(10)
+                                    val stageSeed=seed+cell*104729L+1L
+                                    val actualPromptTrace=File(intermediate,
+                                        "actual-native-stage-inputs.jsonl")
+                                    val invocation=JSONObject().apply {
+                                        put("candidate",candidate)
+                                        put("identity",d.id)
+                                        put("view",view.label)
+                                        put("stage",viewIndex+1)
+                                        put("model",model.id)
+                                        put("positive",choice.prompt)
+                                        put("native_text_variant",choice.variant)
+                                        put("native_token_count",choice.counted.count)
+                                        put("native_token_limit",choice.counted.limit)
+                                        put("negative",finalNegative)
+                                        put("negative_variant",negativeChoice.variant)
+                                        put("native_reference_count",refs.size)
+                                        put("frontal_reference_passed",front!=null)
+                                        put("seed",stageSeed)
+                                    }
+                                    GeneratedImagePublisher.atomicWrite(actualPromptTrace,
+                                        (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
+                                            invocation.toString()+"\n")
+                                            .toByteArray(Charsets.UTF_8))
+                                    val started=android.os.SystemClock.elapsedRealtime()
+                                    val result=engine.generate(
+                                        GenerationPass(viewIndex+1,choice.prompt,finalNegative,1f),
+                                        nativeSettings,resolution.first,resolution.second,
+                                        null,stageSeed,
+                                        {stopped()},{step,totalSteps->
+                                            if(totalSteps>0&&step>=0&&step%4==0)
+                                                repo.updateTaskProgress(taskId,
+                                                    (candidate-1)*15+cell*3+viewIndex,
+                                                    count*15,stageLabel)
+                                        },referencePngs=refs)
+                                    com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                        result.png,d.id+" original "+view.label)
+                                    GeneratedImagePublisher.atomicWrite(checkpoint,result.png)
+                                    val duration=android.os.SystemClock.elapsedRealtime()-started
+                                    val metrics=File(intermediate,
+                                        "native-independent-view-timings.tsv")
+                                    GeneratedImagePublisher.atomicWrite(metrics,
+                                        (metrics.takeIf{it.exists()}?.readText().orEmpty()+
+                                            d.id+"\t"+view.label+"\t"+duration+"\n")
+                                            .toByteArray(Charsets.UTF_8))
+                                    result.png
+                                }
+                                images[view]=png
+                                // Each complete native angle is a full-resolution
+                                // progressive asset, not a crop from a prior image.
+                                val published=File(intermediate,
+                                    prefix+"_"+view.label+"_preview.uri")
+                                if(!published.isFile) {
+                                    val uri=GeneratedImagePublisher.publish(
+                                        applicationContext,
+                                        "original-"+job.id+"-"+d.id+"-"+view.label,
+                                        viewIndex+1,png)
+                                    GeneratedImagePublisher.atomicWrite(published,
+                                        uri.toString().toByteArray(Charsets.UTF_8))
+                                    repo.registerAsset(uri.toString(),sourceJobId=job.id)
+                                }
+                                repo.updateTaskProgress(taskId,
+                                    (candidate-1)*15+cell*3+viewIndex+1,
+                                    count*15,
+                                    d.id+" / completed "+view.label+
+                                    " ("+(viewIndex+1)+"/3 independent views)")
                             }
-                            GeneratedImagePublisher.atomicWrite(actualPromptTrace,
-                                (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
-                                    invocation.toString()+"\n").toByteArray(Charsets.UTF_8))
-                            if(stopped())throw CancellationException()
-                            val stageLabel="Sheet "+candidate+"/"+count+
-                                " Â· identity "+d.id+" Â· complete native prompt"
-                            foreground(stageLabel)
-                            val started=android.os.SystemClock.elapsedRealtime()
-                            val result=engine.generate(
-                                GenerationPass(1,directive,finalNegative,1f),
-                                nativeSettings,resolution.first,resolution.second,
-                                null,seed+cell*104729L+1,
-                                {stopped()},{step,totalSteps->
-                                    if(totalSteps>0&&step>=0&&step%4==0)
-                                        repo.updateTaskProgress(taskId,
-                                            (candidate-1)*100+cell*20+
-                                                step*20/(5*totalSteps),
-                                            count*100,stageLabel)
-                                },referencePngs=referenceInputs)
+                            val composed=com.asterion.art.methodology
+                                .CharacterViewComposer.compose(images)
                             com.asterion.art.engine.RenderFidelityGate.requireValidImage(
-                                result.png,"Frozen character "+d.id)
-                            GeneratedImagePublisher.atomicWrite(checkpoint,result.png)
-                            val duration=android.os.SystemClock.elapsedRealtime()-started
-                            val metrics=File(intermediate,"native-unified-pass-timings.tsv")
-                            GeneratedImagePublisher.atomicWrite(metrics,
-                                (metrics.takeIf{it.exists()}?.readText().orEmpty()+
-                                    d.id+"\t1\t"+duration+"\n").toByteArray(Charsets.UTF_8))
-                            result.png
+                                composed,d.id+" independently generated triptych")
+                            GeneratedImagePublisher.atomicWrite(triptychPath,composed)
+                            composed
                         }
                         val published=File(intermediate,
-                            "unified_v2_sheet_"+candidate+"_"+d.id+"_preview.uri")
+                            prefix+"_triptych_preview.uri")
                         if(!published.isFile) {
-                            // Progressive gallery output: expose each completed,
-                            // newly generated triptych before the full five-
-                            // character sheet is assembled. Never crop an input.
                             val uri=GeneratedImagePublisher.publish(applicationContext,
                                 "triptych-"+job.id+"-"+d.id,1,triptych)
                             GeneratedImagePublisher.atomicWrite(published,
                                 uri.toString().toByteArray(Charsets.UTF_8))
                             repo.registerAsset(uri.toString(),sourceJobId=job.id)
                         }
-                        repo.updateTaskProgress(taskId,
-                            (candidate-1)*5+cell+1,count*5,
-                            "Rendered original "+d.id+" Â· "+
-                                (cell+1)+"/5 triptychs checkpointed")
                         triptych
                     }
                     CharacterSheetComposer.assemble(tiles)

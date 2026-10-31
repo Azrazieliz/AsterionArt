@@ -47,6 +47,40 @@ class CharacterNativeConditioningTest {
             CharacterNativeConditioning.select(original,records::get,limit(3))
         }.isFailure)
     }
+    @Test fun each_native_request_requires_exactly_one_view_and_one_figure() {
+        val original=design(2)
+        for(view in CharacterViewComposer.View.entries) {
+            val selected=CharacterNativeConditioning.selectView(
+                original,view,records::get,limit(10000))
+            assertTrue(selected.counted.fits)
+            assertTrue(selected.prompt.contains("ONE solitary"))
+            assertTrue(selected.prompt.contains("Concept1"))
+            assertTrue(selected.prompt.contains("Concept2"))
+            assertTrue(selected.prompt.contains(view.direction.substringBefore(" " ),
+                ignoreCase=true)||
+                (view==CharacterViewComposer.View.PROFILE &&
+                    selected.prompt.contains("90-degree side")))
+        }
+        val front=CharacterNativeConditioning.selectView(original,
+            CharacterViewComposer.View.FRONT,records::get,limit(77))
+        assertTrue(front.counted.fits)
+        assertTrue(front.prompt.contains("front",true))
+        assertFalse(front.prompt.contains("front, side, back",true))
+    }
+
+    @Test fun triptych_placements_use_three_nonoverlapping_regions() {
+        val regions=CharacterViewComposer.placements()
+        assertEquals(3,regions.size)
+        assertEquals(0,regions.first().left)
+        assertEquals(640,regions.last().right)
+        assertEquals(regions[0].right,regions[1].left)
+        assertEquals(regions[1].right,regions[2].left)
+        assertTrue(regions[0].right-regions[0].left>
+            regions[1].right-regions[1].left)
+        assertEquals(CharacterViewComposer.View.entries,
+            regions.map{it.view})
+    }
+
     @Test fun detailed_variant_preferred_when_real_tokenizer_accepts_it() {
         val original=design(3)
         val best=CharacterNativeConditioning.select(original,records::get,limit(10000))
