@@ -1075,8 +1075,11 @@ internal class GenerationExecutor(
         } catch (e: Exception) {
             val nativeLog=File(applicationContext.cacheDir,
                 "asterion-native-last.log")
+            val jobCreated=runCatching {
+                GenerationJobStore(applicationContext).load(jobId).createdAt
+            }.getOrDefault(System.currentTimeMillis())
             val nativeTail=if(nativeLog.isFile &&
-                nativeLog.lastModified()>=job.createdAt) runCatching {
+                nativeLog.lastModified()>=jobCreated) runCatching {
                 nativeLog.readText().takeLast(1000)
             }.getOrDefault("") else ""
             val message=buildString {
@@ -1088,7 +1091,7 @@ internal class GenerationExecutor(
             }
             runCatching {
                 val report=File(applicationContext.filesDir,
-                    "generation-checkpoints/"+job.id+"/last-failure.txt")
+                    "generation-checkpoints/"+jobId+"/last-failure.txt")
                 GeneratedImagePublisher.atomicWrite(report,
                     (e.stackTraceToString()+"\n"+message)
                         .toByteArray(Charsets.UTF_8))
