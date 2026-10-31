@@ -123,10 +123,6 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     fun requestResolution() {
         runCatching {
             CharacterPhaseOne.validateSlots(slots)
-            require(model!=null) {
-                "Select and install an approved reasoning model under " +
-                    "Models before resolving Character Creation designs."
-            }
             // Route B is strictly one finished image at a time: exactly
             // five independently generated designs in that image. Route A
             // retains the existing approved 1–5-sheet batch behavior.
@@ -242,9 +238,10 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                         onValueChange={if(!locked)sheets=it.roundToInt()},
                         valueRange=1f..CharacterPhaseOne.MAX_SHEETS.toFloat(),
                         steps=CharacterPhaseOne.MAX_SHEETS-2,enabled=!locked)
-                    Text("All characters are designed before any image call. "+
-                        "Each sheet contains five exact front/profile/rear triples. "+
-                        "Larger populations require proportionally more local reasoning time.",
+                    Text("Canonical anatomical plans compile locally without a "+
+                        "reasoning-model wait. Each sheet still contains five "+
+                        "independent front/profile/rear identities. Visual quality "+
+                        "is checked after native image synthesis.",
                         color=Mist,style=MaterialTheme.typography.bodySmall)
                 }
             }

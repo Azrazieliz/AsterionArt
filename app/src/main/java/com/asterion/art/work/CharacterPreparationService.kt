@@ -107,7 +107,7 @@ class CharacterPreparationService : Service() {
                         store.stage(id,stage)
                         show("Designed $done/$total · $stage")
                     }.assertComplete()
-                    Log.i(TAG,"Complete five-character population certified")
+                    Log.i(TAG,"Canonical five-character population specifications certified")
                 }
             } catch(e:TimeoutCancellationException) {
                 runCatching { store.fail(id,"Selected reasoning model timed out at "+

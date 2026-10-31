@@ -180,7 +180,7 @@ class CharacterPlanStore(context:Context) {
         }
         return if(plan.status=="DESIGNING")plan
         else plan.copy(status="DESIGNING",
-            progressStage="Loading local Qwen3 design model").also(::persist)
+            progressStage="Compiling canonical physical anatomy locally").also(::persist)
     }
     @Synchronized fun stage(id:String,description:String) {
         val p=load(id)

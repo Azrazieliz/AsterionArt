@@ -61,7 +61,17 @@ class CharacterBrainResolver(context:Context) {
             else->target
         }
     }
-    suspend fun resolve(id:String,progress:(Int,Int,String)->Unit={_,_,_->}):CharacterPhaseOnePlan =
+    /** Fast canonical compiler is default. Keep the original trained neural path
+     * available behind an explicit developer preference; never require Qwen
+     * merely to obtain valid Phase-1 image conditioning. */
+    suspend fun resolve(id:String,progress:(Int,Int,String)->Unit={_,_,_->}):CharacterPhaseOnePlan {
+        val neural=app.getSharedPreferences("asterion_brain",Context.MODE_PRIVATE)
+            .getBoolean("character_neural_design_opt_in",false)
+        return if(neural) resolveNeural(id,progress)
+            else DeterministicCharacterResolver(app).resolve(id,progress)
+    }
+
+    private suspend fun resolveNeural(id:String,progress:(Int,Int,String)->Unit):CharacterPhaseOnePlan =
         BrainInferenceLock.mutex.withLock {
             val plan=plans.load(id)
             require(plan.status=="DESIGNING")
