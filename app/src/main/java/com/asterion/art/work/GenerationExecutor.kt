@@ -187,8 +187,10 @@ internal class GenerationExecutor(
             val engine = EmbeddedEngineFactory.open(applicationContext)
             currentEngine = engine
             val models = engine.installedModels()
-            val taggedPreferred = ModelOutputRouting(applicationContext)
-                .preferred(job.mode, models)
+            val outputRouting = ModelOutputRouting(applicationContext)
+            val taggedPreferred = outputRouting.forMode(
+                UniversalCreativePlanner.domain(job.creationMode).name,models
+            ) ?: outputRouting.preferred(job.mode, models)
             val preferredId = taggedPreferred?.id ?: GenerationPlanner.selectModelId(
                 models.map { it.id to it.name }, job.mode)
             val visualModel = models.firstOrNull { it.ditKind == "qwen21" }
@@ -272,10 +274,16 @@ internal class GenerationExecutor(
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
             val preRenderStart=android.os.SystemClock.elapsedRealtime()
-            val neural=AsterionReasoner(applicationContext)
-            val requiresAutoCompilation=characterPlan==null &&
+            // The validated deterministic GenerationRecipe is sufficient to
+            // begin native image generation. Full GGUF prompt rewriting is
+            // optional, never a mandatory 15-minute pre-generation gate.
+            val neuralOptIn=applicationContext.getSharedPreferences(
+                "asterion_brain",Context.MODE_PRIVATE)
+                .getBoolean("render_neural_design_opt_in",false)
+            val neural=if(neuralOptIn)AsterionReasoner(applicationContext) else null
+            val requiresAutoCompilation=neuralOptIn && characterPlan==null &&
                 restoredCompilation==null && job.designPrompt.isNullOrBlank()
-            require(!requiresAutoCompilation || neural.available()) {
+            require(!requiresAutoCompilation || neural?.available()==true) {
                 "The approved pre-render compilation is unavailable: no verified "+
                     "adaptable reasoning model is installed. Cannot skip it and "+
                     "pretend an uncompiled image prompt is the requested result."
@@ -287,10 +295,10 @@ internal class GenerationExecutor(
             // An owner-edited Route B or approved Theme text already IS the
             // frozen model-facing specification. Never overwrite it through
             // another unrelated neural design step after the bridge.
-            val brainPlan=if(characterPlan!=null || restoredCompilation!=null ||
-                !job.designPrompt.isNullOrBlank())
-                null else if(neural.available()) {
-                foreground("Asterion Brain · interpreting and designing")
+            val brainPlan=if(!neuralOptIn || characterPlan!=null ||
+                restoredCompilation!=null || !job.designPrompt.isNullOrBlank())
+                null else if(neural!=null && neural.available()) {
+                foreground("Asterion Brain Â· interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
                 val spec=job.creationMode?.let { selected ->
                     if(selected==CreationMode.CHARACTER)
@@ -314,7 +322,9 @@ internal class GenerationExecutor(
                     onStage={ stage -> repo.updateTaskProgress(taskId,0,0,stage) },
                     creationMode=job.creationMode,
                     renderMode=job.mode,
-                    targetDesignId=job.parentDesignIds.singleOrNull()
+                    targetDesignId=job.parentDesignIds.singleOrNull(),
+                    ownerDirection=job.userScenePrompt,
+                    ownerExclusions=job.userNegativePrompt
                 )
             } else null
             require(!requiresAutoCompilation || brainPlan!=null) {
@@ -365,7 +375,7 @@ internal class GenerationExecutor(
             var size = model.generationSize.coerceIn(512, 1536)
             var resolution = com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(model,if(characterPlan!=null)"16:45" else job.settings.ratio)
-            repo.updateTaskProgress(taskId,0,0,"Loading QNN model · "+model.name)
+            repo.updateTaskProgress(taskId,0,0,"Loading QNN model Â· "+model.name)
             foreground("Loading " + model.name)
             val loadStarted=android.os.SystemClock.elapsedRealtime()
             engine.prepare(model, resolution.first, resolution.second) { stopped() }
@@ -491,7 +501,7 @@ internal class GenerationExecutor(
             val turboAuto=com.asterion.art.nativeengine.NativeTurboDefaults
                 .applies(job.settings,model)
             if(turboAuto)repo.updateTaskProgress(taskId,0,0,
-                "Anima Turbo · optimized for on-device NPU: 8 steps, CFG 1")
+                "Anima Turbo Â· optimized for on-device NPU: 8 steps, CFG 1")
             val artworkBeam=job.creationMode==null &&
                 (job.designPrompt.isNullOrBlank() ||
                     job.methodologyTextPlanId!=null)
@@ -524,7 +534,7 @@ internal class GenerationExecutor(
                 val image:ByteArray=if(artworkBeam) {
                     // ONE highest-ranked image survives every stage.
                     // Each stage renders only the user-selected batch count,
-                    // never batch × number of previously retained candidates.
+                    // never batch Ã— number of previously retained candidates.
                     val beams=com.asterion.art.engine.ArtworkBeamRunner(
                         File(intermediate,"owner30-artwork-best-one-v2"))
                     val result=beams.execute(
@@ -539,7 +549,7 @@ internal class GenerationExecutor(
                             val label="Artwork "+
                                 com.asterion.art.engine.ArtworkFivePhaseContract
                                     .at(pass.number).name+
-                                " · variation "+child+"/"+total
+                                " Â· variation "+child+"/"+total
                             foreground(label)
                             val applied=if(pass.number==1 && parent!=null &&
                                 model.ditKind !in listOf("qwen21","klein"))
@@ -604,88 +614,161 @@ internal class GenerationExecutor(
                         }.toString(2).toByteArray(Charsets.UTF_8))
                     result.winner.png
                 } else if(characterPlan!=null) {
-                    // Five independent Character Creation triptychs use a
-                    // 16:45 output crop. Anima/SDXL still load their fixed
-                    // 1024-square QNN CANVAS; the native server crops 16:45.
+                    // A 16:45 image containing front+profile+rear caused multiple
+                    // figures and repeated sideways heads on actual device tests.
+                    // Generate ONE view per real native invocation. Front is frozen
+                    // and supplied as a native visual reference for the later views.
+                    // Legacy v2 multi-figure checkpoints are intentionally unused.
                     val nativeSettings=candidateSettings.copy(ratio="16:45",batch=1)
+                    val angles=com.asterion.art.methodology.CharacterViewComposer.View.entries
                     val tiles=(0 until CharacterPhaseOne.PER_SHEET).map{cell ->
                         if(stopped())throw CancellationException("Generation cancelled")
                         val d=characterPlan.frozen[(candidate-1)*5+cell]
-                        // A frozen identity is one COMPLETE native image instruction.
-                        // Do not replay slices of its anatomy as separate img2img jobs.
-                        // v2 checkpoint paths avoid reusing old sliced-prompt results.
-                        val checkpoint=File(intermediate,
-                            "unified_v2_sheet_"+candidate+"_"+d.id+"_triptych.png")
-                        val triptych=if(checkpoint.isFile && checkpoint.length()>1024L) {
-                            val existing=checkpoint.readBytes()
-                            com.asterion.art.engine.RenderFidelityGate.requireValidImage(
-                                existing,"Restored frozen character "+d.id)
-                            existing
-                        } else {
-                            thermalGate()
-                            val directive=CharacterSheetCompiler.individual(d)
-                            engine.verifyText(directive)
-                            val finalNegative=com.asterion.art.engine.NegativePromptAuthority.merge(
-                                CharacterPhaseOne.NEGATIVE,recipe.passes.first().negative,
-                                job.designNegative,job.userNegativePrompt)
-                            engine.verifyText(finalNegative)
-                            val actualPromptTrace=File(intermediate,
-                                "actual-native-stage-inputs.jsonl")
-                            val invocation=JSONObject().apply {
-                                put("candidate",candidate)
-                                put("identity",d.id)
-                                put("stage",1)
-                                put("model",model.id)
-                                put("positive",directive)
-                                put("negative",finalNegative)
-                                put("denoise",1.0)
-                                put("seed",seed+cell*104729L+1)
+                        val prefix="unified_v3_sheet_"+candidate+"_"+d.id
+                        val triptychPath=File(intermediate,prefix+"_triptych.png")
+                        val triptych=if(triptychPath.isFile&&triptychPath.length()>1024L) {
+                            triptychPath.readBytes().also{
+                                com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                    it,"Restored independent-view triptych "+d.id)
                             }
-                            GeneratedImagePublisher.atomicWrite(actualPromptTrace,
-                                (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
-                                    invocation.toString()+"\n").toByteArray(Charsets.UTF_8))
-                            if(stopped())throw CancellationException()
-                            val stageLabel="Sheet "+candidate+"/"+count+
-                                " · identity "+d.id+" · complete native prompt"
-                            foreground(stageLabel)
-                            val started=android.os.SystemClock.elapsedRealtime()
-                            val result=engine.generate(
-                                GenerationPass(1,directive,finalNegative,1f),
-                                nativeSettings,resolution.first,resolution.second,
-                                null,seed+cell*104729L+1,
-                                {stopped()},{step,totalSteps->
-                                    if(totalSteps>0&&step>=0&&step%4==0)
-                                        repo.updateTaskProgress(taskId,
-                                            (candidate-1)*100+cell*20+
-                                                step*20/(5*totalSteps),
-                                            count*100,stageLabel)
-                                },referencePngs=referenceInputs)
+                        } else {
+                            val negativeAuthority=
+                                com.asterion.art.engine.NegativePromptAuthority.merge(
+                                    CharacterPhaseOne.NEGATIVE,
+                                    recipe.passes.first().negative,
+                                    job.designNegative,job.userNegativePrompt)
+                            val negativeChoice=com.asterion.art.methodology
+                                .CharacterNativeConditioning.selectNegative(
+                                    negativeAuthority,
+                                    listOfNotNull(job.designNegative,
+                                        job.userNegativePrompt).joinToString(", "),
+                                    engine::inspectText)
+                            val finalNegative=negativeChoice.prompt
+                            val images=linkedMapOf<
+                                com.asterion.art.methodology.CharacterViewComposer.View,
+                                ByteArray>()
+                            for((viewIndex,view) in angles.withIndex()) {
+                                if(stopped())throw CancellationException("Generation cancelled")
+                                val checkpoint=File(intermediate,
+                                    prefix+"_"+view.label+".png")
+                                val png=if(checkpoint.isFile&&checkpoint.length()>1024L) {
+                                    checkpoint.readBytes().also{
+                                        com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                            it,"Restored "+d.id+" "+view.label)
+                                    }
+                                } else {
+                                    thermalGate()
+                                    val choice=com.asterion.art.methodology
+                                        .CharacterNativeConditioning.selectView(
+                                            d,view,taxonomy::find,engine::inspectText)
+                                    val stageLabel="Sheet "+candidate+"/"+count+
+                                        " / "+d.id+" / "+view.label+
+                                        " (native "+choice.counted.count+"/"+
+                                        choice.counted.limit+" tokens)"
+                                    foreground(stageLabel)
+                                    val front=images[
+                                        com.asterion.art.methodology.CharacterViewComposer.View.FRONT]
+                                    val supportsNativeReferenceImages=
+                                        model.ditKind in setOf("klein","qwen21")
+                                    val refs=if(front!=null && supportsNativeReferenceImages)
+                                        (referenceInputs+listOf(front)).takeLast(10)
+                                        else referenceInputs
+                                    // Anima/SDXL's native route accepts img2img,
+                                    // not FLUX/Qwen's multi-image editing path.
+                                    // High denoise lets the pose change; the
+                                    // original front pixels still anchor identity.
+                                    val img2imgFront=if(front!=null &&
+                                        !supportsNativeReferenceImages)front else null
+                                    val viewDenoise=if(img2imgFront!=null)0.84f else 1f
+                                    val stageSeed=seed+cell*104729L+1L
+                                    val actualPromptTrace=File(intermediate,
+                                        "actual-native-stage-inputs.jsonl")
+                                    val invocation=JSONObject().apply {
+                                        put("candidate",candidate)
+                                        put("identity",d.id)
+                                        put("view",view.label)
+                                        put("stage",viewIndex+1)
+                                        put("model",model.id)
+                                        put("positive",choice.prompt)
+                                        put("native_text_variant",choice.variant)
+                                        put("native_token_count",choice.counted.count)
+                                        put("native_token_limit",choice.counted.limit)
+                                        put("negative",finalNegative)
+                                        put("negative_variant",negativeChoice.variant)
+                                        put("native_reference_count",refs.size)
+                                        put("frontal_reference_passed",front!=null)
+                                        put("frontal_reference_route",when {
+                                            front==null->"initial_text_to_image"
+                                            supportsNativeReferenceImages->"native_reference_images"
+                                            else->"native_img2img"
+                                        })
+                                        put("denoise",viewDenoise)
+                                        put("seed",stageSeed)
+                                    }
+                                    GeneratedImagePublisher.atomicWrite(actualPromptTrace,
+                                        (actualPromptTrace.takeIf{it.exists()}?.readText().orEmpty()+
+                                            invocation.toString()+"\n")
+                                            .toByteArray(Charsets.UTF_8))
+                                    val started=android.os.SystemClock.elapsedRealtime()
+                                    val result=engine.generate(
+                                        GenerationPass(viewIndex+1,choice.prompt,finalNegative,
+                                            viewDenoise),
+                                        nativeSettings,resolution.first,resolution.second,
+                                        img2imgFront,stageSeed,
+                                        {stopped()},{step,totalSteps->
+                                            if(totalSteps>0&&step>=0&&step%4==0)
+                                                repo.updateTaskProgress(taskId,
+                                                    (candidate-1)*15+cell*3+viewIndex,
+                                                    count*15,stageLabel)
+                                        },referencePngs=refs)
+                                    com.asterion.art.engine.RenderFidelityGate.requireValidImage(
+                                        result.png,d.id+" original "+view.label)
+                                    GeneratedImagePublisher.atomicWrite(checkpoint,result.png)
+                                    val duration=android.os.SystemClock.elapsedRealtime()-started
+                                    val metrics=File(intermediate,
+                                        "native-independent-view-timings.tsv")
+                                    GeneratedImagePublisher.atomicWrite(metrics,
+                                        (metrics.takeIf{it.exists()}?.readText().orEmpty()+
+                                            d.id+"\t"+view.label+"\t"+duration+"\n")
+                                            .toByteArray(Charsets.UTF_8))
+                                    result.png
+                                }
+                                images[view]=png
+                                // Each complete native angle is a full-resolution
+                                // progressive asset, not a crop from a prior image.
+                                val published=File(intermediate,
+                                    prefix+"_"+view.label+"_preview.uri")
+                                if(!published.isFile) {
+                                    val uri=GeneratedImagePublisher.publish(
+                                        applicationContext,
+                                        "original-"+job.id+"-"+d.id+"-"+view.label,
+                                        viewIndex+1,png)
+                                    GeneratedImagePublisher.atomicWrite(published,
+                                        uri.toString().toByteArray(Charsets.UTF_8))
+                                    repo.registerAsset(uri.toString(),sourceJobId=job.id)
+                                }
+                                repo.updateTaskProgress(taskId,
+                                    (candidate-1)*15+cell*3+viewIndex+1,
+                                    count*15,
+                                    d.id+" / completed "+view.label+
+                                    " ("+(viewIndex+1)+"/3 independent views)")
+                            }
+                            val composed=com.asterion.art.methodology
+                                .CharacterViewComposer.compose(images)
                             com.asterion.art.engine.RenderFidelityGate.requireValidImage(
-                                result.png,"Frozen character "+d.id)
-                            GeneratedImagePublisher.atomicWrite(checkpoint,result.png)
-                            val duration=android.os.SystemClock.elapsedRealtime()-started
-                            val metrics=File(intermediate,"native-unified-pass-timings.tsv")
-                            GeneratedImagePublisher.atomicWrite(metrics,
-                                (metrics.takeIf{it.exists()}?.readText().orEmpty()+
-                                    d.id+"\t1\t"+duration+"\n").toByteArray(Charsets.UTF_8))
-                            result.png
+                                composed,d.id+" independently generated triptych")
+                            GeneratedImagePublisher.atomicWrite(triptychPath,composed)
+                            composed
                         }
                         val published=File(intermediate,
-                            "unified_v2_sheet_"+candidate+"_"+d.id+"_preview.uri")
+                            prefix+"_triptych_preview.uri")
                         if(!published.isFile) {
-                            // Progressive gallery output: expose each completed,
-                            // newly generated triptych before the full five-
-                            // character sheet is assembled. Never crop an input.
                             val uri=GeneratedImagePublisher.publish(applicationContext,
                                 "triptych-"+job.id+"-"+d.id,1,triptych)
                             GeneratedImagePublisher.atomicWrite(published,
                                 uri.toString().toByteArray(Charsets.UTF_8))
                             repo.registerAsset(uri.toString(),sourceJobId=job.id)
                         }
-                        repo.updateTaskProgress(taskId,
-                            (candidate-1)*5+cell+1,count*5,
-                            "Rendered original "+d.id+" · "+
-                                (cell+1)+"/5 triptychs checkpointed")
                         triptych
                     }
                     CharacterSheetComposer.assemble(tiles)
@@ -710,11 +793,11 @@ internal class GenerationExecutor(
                     }
                     thermalGate()
                     val stageLabel = "Image " + candidate + "/" + count +
-                        (if(oneShotCharacterSheet) " · one-shot master sheet"
+                        (if(oneShotCharacterSheet) " Â· one-shot master sheet"
                          else if(job.creationMode==null && stageSequence.size==5)
-                             " · "+com.asterion.art.engine.ArtworkFivePhaseContract
-                                 .at(stage.number).name+" · pass "+stage.number+"/5"
-                         else " · original "+stage.number+"/"+stageSequence.size)
+                             " Â· "+com.asterion.art.engine.ArtworkFivePhaseContract
+                                 .at(stage.number).name+" Â· pass "+stage.number+"/5"
+                         else " Â· original "+stage.number+"/"+stageSequence.size)
                     repo.updateTaskProgress(taskId, ((candidate-1)*passesPerCandidate+stage.number-1)*100,
                         (count*passesPerCandidate+2)*100, stageLabel)
                     foreground(stageLabel)
@@ -1039,7 +1122,30 @@ internal class GenerationExecutor(
                 "Interrupted by Android; native checkpoints are retained")
             false
         } catch (e: Exception) {
-            repo.updateTask(taskId, TaskStatus.FAILED, e.message ?: "Generation failed")
+            val nativeLog=File(applicationContext.cacheDir,
+                "asterion-native-last.log")
+            val jobCreated=runCatching {
+                GenerationJobStore(applicationContext).load(jobId).createdAt
+            }.getOrDefault(System.currentTimeMillis())
+            val nativeTail=if(nativeLog.isFile &&
+                nativeLog.lastModified()>=jobCreated) runCatching {
+                nativeLog.readText().takeLast(1000)
+            }.getOrDefault("") else ""
+            val message=buildString {
+                append(e.message?:e.javaClass.simpleName)
+                if(nativeTail.isNotBlank()) {
+                    append("\nNative runtime output:\n")
+                    append(nativeTail)
+                }
+            }
+            runCatching {
+                val report=File(applicationContext.filesDir,
+                    "generation-checkpoints/"+jobId+"/last-failure.txt")
+                GeneratedImagePublisher.atomicWrite(report,
+                    (e.stackTraceToString()+"\n"+message)
+                        .toByteArray(Charsets.UTF_8))
+            }
+            repo.updateTask(taskId,TaskStatus.FAILED,message.take(2200))
             false
         } finally {
             currentEngine?.release()

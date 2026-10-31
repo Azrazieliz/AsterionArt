@@ -17,6 +17,7 @@ import com.asterion.art.brain.BrainCatalog
 import com.asterion.art.brain.BrainDownloadWorker
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.brain.BrainAdapterLibrary
+import com.asterion.art.engine.CreativeDomain
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -144,6 +145,19 @@ fun BrainModelSection() {
                 modelAdapters.forEach { adapter ->
                     Text(adapter.id.take(24)+" · "+adapter.baseId+
                         if(adapter.enabled)" · ACTIVE" else "",color=Mist)
+                    if(adapter.baseId==selected) {
+                        Text("MODE-SPECIFIC LoRA (trained adapter required)",color=Gold)
+                        LazyRow(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                            items(CreativeDomain.entries.map{it.name}+listOf("THEME_TEXT")) { key ->
+                                FilterChip(
+                                    selected=adapter.enabled && adapter.modeKey==key,
+                                    onClick={runCatching{adapters.enableForMode(adapter.id,key)}
+                                        .onSuccess{modelAdapters=adapters.all();message="Mode LoRA bound to "+key}
+                                        .onFailure{message=it.message.orEmpty()}},
+                                    label={Text(key.replace('_',' '))})
+                            }
+                        }
+                    }
                     if(adapter.baseId==selected && !adapter.enabled) {
                         OutlinedButton(onClick={
                             runCatching { adapters.enable(adapter.id) }

@@ -21,6 +21,25 @@ class ModelOutputRouting(context: Context) {
         check(prefs.edit().putStringSet(id,current.map { it.name }.toSet()).commit())
     }
 
+
+    /** Route a trained, converted per-mode QNN checkpoint when installed.
+     * This only selects actual weights; binding an arbitrary checkpoint
+     * does not train or condition that model.
+     */
+    fun forMode(modeKey:String,models:List<DreamModel>):DreamModel? {
+        require(modeKey.matches(Regex("[A-Z_]{3,48}")))
+        val id=prefs.getString("native_mode_"+modeKey,null)?:return null
+        return models.firstOrNull { it.id==id }
+    }
+    fun setMode(modeKey:String,modelId:String?) {
+        require(modeKey.matches(Regex("[A-Z_]{3,48}")))
+        require(modelId==null || modelId.matches(Regex("[A-Za-z0-9_-]{8,100}")))
+        val edit=prefs.edit()
+        if(modelId==null)edit.remove("native_mode_"+modeKey)
+        else edit.putString("native_mode_"+modeKey,modelId)
+        check(edit.commit())
+    }
+
     fun preferred(mode: RenderMode, models: List<DreamModel>): DreamModel? {
         if(models.isEmpty()) return null
         val candidates=models.filter { mode in tags(it.id) }

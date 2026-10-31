@@ -16,6 +16,7 @@ import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import com.asterion.art.brain.BrainAdapterLibrary
 import com.asterion.art.brain.BrainInferenceLock
+import com.asterion.art.brain.BrainThinkingPolicy
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.methodology.ThemeText
 import com.asterion.art.methodology.ThemeTextStore
@@ -79,6 +80,26 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
         return try {
             show("Preparing textual atomic roulette")
             store.begin(id)
+            // Default: bounded CPU-only visual compiler. The previous heavy
+            // reasoning backend is retained only for an explicit opt-in.
+            val useNeural=applicationContext.getSharedPreferences(
+                "asterion_brain",Context.MODE_PRIVATE)
+                .getBoolean("theme_neural_design_opt_in",false)
+            if(!useNeural) {
+                val current=store.load(id)
+                val atoms=if(current.frozenAtomSets.size==5)current.frozenAtomSets
+                    else com.asterion.art.methodology.AtomicThemeRoulette
+                        .generate(current.seed).also {store.freezeAtoms(id,it)}
+                for(index in store.load(id).draftThemes.size until 5) {
+                    store.stage(id,"Compiling frozen visual theme "+(index+1)+"/5")
+                    show("Compiling visual theme "+(index+1)+"/5")
+                    val theme=com.asterion.art.methodology.DeterministicThemeCompiler
+                        .compile(store.load(id),atoms[index],index)
+                    store.appendDraftTheme(id,theme)
+                }
+                store.finish(id,store.load(id).draftThemes)
+                return Result.success()
+            }
             BrainInferenceLock.mutex.withLock {
                 val selected=BrainModelStore(applicationContext)
                 val model=selected.selected() ?:error(
@@ -97,18 +118,19 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                     show("Loading selected text model")
                     engine.loadModel(file.absolutePath,capacity)
                     BrainAdapterLibrary(applicationContext)
-                        .activeFor(model.id)?.let {engine.loadAdapter(it.absolutePath)}
+                        .activeFor(model.id,"THEME_TEXT")?.let {engine.loadAdapter(it.absolutePath)}
                     val system="You compile exact, visual, text-only creative records. "+
                         "Follow each task-specific methodology literally. "+
                         "Return strictly valid JSON, no Markdown or preamble. "+
                         "Do not add unrelated story, explanation or character identity."
-                    engine.setSystemPrompt(system)
+                    val effectiveSystem=BrainThinkingPolicy.system(model.id,system)
+                    engine.setSystemPrompt(effectiveSystem)
                     suspend fun call(message:String,maxOutput:Int):JSONObject {
                         require(engine.countTokens(message)+
-                            engine.countTokens(system)+maxOutput+256<capacity) {
+                            engine.countTokens(effectiveSystem)+maxOutput+256<capacity) {
                             "The selected text model cannot accept the full theme authority"
                         }
-                        engine.restartConversation(system)
+                        engine.restartConversation(effectiveSystem)
                         val sb=StringBuilder()
                         withTimeout(12L*60_000L) {
                             engine.sendUserPrompt(message,maxOutput).collect{sb.append(it)}
@@ -118,31 +140,13 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                     var current=store.load(id)
                     val sets=if(current.frozenAtomSets.size==5)current.frozenAtomSets
                         else {
-                            store.stage(id,"Independent roulette: selecting five atom sets")
+                            store.stage(id,"Seeded independent roulette: five frozen atom sets")
                             show("Selecting five unrelated visual atom sets")
-                            val roulette=call(
-                                "INDEPENDENT FIVE-SET ATOMIC ROULETTE. SEED "+
-                                    current.seed+". Exactly five DIFFERENT sets "+
-                                    "each with 3 to 6 ORDINARY ONE-WORD atoms. "+
-                                    "Choose broadly and unpredictably from physical, "+
-                                    "historical, technical, fictional, natural, "+
-                                    "surreal, architectural and structural concepts. "+
-                                    "Each atom is one standalone visual word; "+
-                                    "do not output compound phrases, narrative, "+
-                                    "camera variants or predetermined stories. "+
-                                    "Do NOT derive the atoms from user keywords "+
-                                    "or score parameters: they are intentionally "+
-                                    "not given in this step. Output JSON only: "+
-                                    "{\"sets\":[[\"word\",\"word\",\"word\"], "+
-                                    "four further independent arrays]}.",1200)
-                            val array=roulette.getJSONArray("sets")
-                            require(array.length()==5) {
-                                "Five separate frozen roulette results required"
-                            }
-                            val chosen=(0 until 5).map { index ->
-                                val group=array.getJSONArray(index)
-                                (0 until group.length()).map{group.getString(it).trim()}
-                            }
+                            // The independent atom roulette is seeded native
+                            // logic, not a costly LLM request. It is independent
+                            // from keywords and B/E/T by construction.
+                            val chosen=com.asterion.art.methodology
+                                .AtomicThemeRoulette.generate(current.seed)
                             store.freezeAtoms(id,chosen)
                             chosen
                         }
@@ -172,44 +176,93 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
                                 .append(value)
                         }
                     }
-                    val request=buildString {
-                        append("Produce exactly FIVE genuinely DIFFERENT TEXT-ONLY ")
-                        append("visual theme systems from the five frozen atomic sets. ")
-                        append("Each set must retain every original word; no rerolls, ")
-                        append("new atoms, semantic substitutes, or keyword-driven ")
-                        append("atom changes. Up to three atoms may form a heavy ")
-                        append("atom; molecular synthesis integrates all constraints ")
-                        append("into visible physical, spatial, material and interaction ")
-                        append("systems without inventing narratives. ")
-                        append("The five themes must differ structurally, not just ")
-                        append("in camera, palette or background. Preserve character ")
-                        append("modularity, visual relationships, simple macro / rich ")
-                        append("micro, and the specified character configuration. ")
-                        append("LIQUID IS OPTIONAL unless directed. ")
-                        append("No illustrations or visual preview instructions. ")
-                        append("Do not attach or request any image. ")
-                        append("OWNER PARAMETERS:\n").append(params)
-                        append("\nFROZEN ROULETTE SETS:\n")
-                        sets.forEachIndexed{index,atoms->
-                            append("THEME ").append(index+1).append(": ")
-                            append(atoms.joinToString(", ")).append("\n")
+                    // One independent frozen atom set per bounded inference.
+                    // A duplicate/invalid result is retried locally without
+                    // re-running already persisted source-independent themes.
+                    for(index in store.load(id).draftThemes.size until 5) {
+                        val atoms=sets[index]
+                        show("Authoring detailed theme "+(index+1)+"/5")
+                        store.stage(id,"Authoring independent theme "+(index+1)+"/5")
+                        var completed=false
+                        var failure="Not generated yet"
+                        for(attempt in 1..3) {
+                            val previous=store.load(id).draftThemes
+                            val request=buildString {
+                                append("AUTHOR EXACTLY ONE original TEXT-ONLY ")
+                                append("visual theme, not five. This is theme ")
+                                append(index+1).append(" of five independently ")
+                                append("authored creations.\n")
+                                append("FROZEN ATOMS: ")
+                                append(atoms.joinToString(", "))
+                                append("\nOWNER PARAMETERS:\n")
+                                append(params)
+                                append("\nMETHODOLOGY: Each original atom remains ")
+                                append("explicit, unaltered and visible in the ")
+                                append("fully constructed visual system. ")
+                                append("Up to three atoms may combine as a heavy ")
+                                append("atom. Integrate EVERY atom with the ")
+                                append("owner parameters through physical ")
+                                append("geometry, composition, spatial and ")
+                                append("material interaction systems, not ")
+                                append("camera or palette substitutions. ")
+                                append("No narratives, unrelated invented ")
+                                append("characters or background fillers. ")
+                                append("Simple macro, rich micro, modular ")
+                                append("character integration and clear ")
+                                append("visual relations. Liquid optional ")
+                                append("unless the owner requests it. ")
+                                append("Preserve the selected character ")
+                                append("configuration. No image is generated ")
+                                append("in this text-only mode.\n")
+                                if(previous.isNotEmpty()) {
+                                    append("PREVIOUS UNIQUE THEME SYSTEMS; ")
+                                    append("do not repeat their structures:\n")
+                                    previous.forEach { theme ->
+                                        append(theme.name).append(": ")
+                                        append(theme.visualSystem.take(240))
+                                        append("\n")
+                                    }
+                                }
+                                if(attempt>1) {
+                                    append("PREVIOUS OUTPUT REJECTED: ")
+                                    append(failure.take(180))
+                                    append(". Correct the violation while ")
+                                    append("retaining every required atom.\n")
+                                }
+                                append("RETURN JSON ONLY with exactly two ")
+                                append("nonempty string keys: ")
+                                append("""{"name":"unique descriptive name","visual_system":"complete detailed physical visual system retaining all original frozen atoms"}""")
+                                append("The visual_system must be a coherent ")
+                                append("specific construction, at least 400 ")
+                                append("characters, and clearly DIFFERENT ")
+                                append("from all previous themes. ")
+                                append("Do not return placeholders, repeated ")
+                                append("template answers or lists of synonyms.")
+                            }
+                            try {
+                                val item=call(request,1700)
+                                val candidate=ThemeText(
+                                    "T"+(index+1),item.getString("name").trim(),
+                                    atoms,item.getString("visual_system").trim())
+                                store.appendDraftTheme(id,candidate)
+                                completed=true
+                                break
+                            } catch(error:Exception) {
+                                if(error is kotlinx.coroutines.CancellationException)
+                                    throw error
+                                failure=error.message?:
+                                    error.javaClass.simpleName
+                                android.util.Log.w("AsterionThemeText",
+                                    "Theme "+(index+1)+" attempt "+attempt+
+                                        " invalid: "+failure)
+                                if(attempt==3) throw IllegalArgumentException(
+                                    "Theme "+(index+1)+"/5 failed validation "+
+                                        "after three attempts: "+failure,error)
+                            }
                         }
-                        append("Return exactly JSON {\"themes\":[")
-                        append("{\"name\":\"...\",\"visual_system\":\"...\"}, ")
-                        append("... total five entries]}. Names must be distinct. ")
-                        append("Each visual_system must be a detailed complete ")
-                        append("physically implementable text theme, not a short label.")
+                        check(completed) { "Theme "+(index+1)+" was not persisted" }
                     }
-                    val outcome=call(request,6000).getJSONArray("themes")
-                    require(outcome.length()==5){"Incomplete set of five themes"}
-                    val generated=(0 until 5).map { index ->
-                        val item=outcome.getJSONObject(index)
-                        ThemeText("T"+(index+1),item.getString("name").trim(),
-                            sets[index],item.getString("visual_system").trim())
-                    }
-                    val checked=current.copy(themes=generated)
-                    checked.requireFive()
-                    store.finish(id,generated)
+                    store.finish(id,store.load(id).draftThemes)
                 } finally {
                     try {
                         withContext(NonCancellable+Dispatchers.IO){engine.cleanUp()}
@@ -218,6 +271,9 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
             }
             Result.success()
         } catch(e:Exception) {
+            android.util.Log.e("AsterionThemeText",
+                "Text-theme generation failed at "+
+                    runCatching{store.load(id).stage}.getOrDefault("unknown"),e)
             store.fail(id,e.message?:"Text theme generation incomplete")
             Result.failure()
         }

@@ -123,10 +123,6 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
     fun requestResolution() {
         runCatching {
             CharacterPhaseOne.validateSlots(slots)
-            require(model!=null) {
-                "Select and install an approved reasoning model under " +
-                    "Models before resolving Character Creation designs."
-            }
             // Route B is strictly one finished image at a time: exactly
             // five independently generated designs in that image. Route A
             // retains the existing approved 1–5-sheet batch behavior.
@@ -176,8 +172,10 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                 Column(Modifier.heightIn(max=500.dp)
                     .verticalScroll(rememberScrollState()),
                     verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Text("All "+ready.total+" characters have been designed and frozen. "+
-                        "Each character will be rendered independently as a clinical "+
+                    Text("The "+ready.total+" canonical source-conditioned entries "+
+                        "are frozen. Original character artistry is not verified "+
+                        "until images are generated and visually reviewed. "+
+                        "Each entry will be rendered as a clinical "+
                         "front/side/rear reference, then five are assembled onto "+
                         "one uninterrupted white sheet. The selected native model "+
                         "may use separate verified conditioning passes. "+
@@ -242,9 +240,10 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                         onValueChange={if(!locked)sheets=it.roundToInt()},
                         valueRange=1f..CharacterPhaseOne.MAX_SHEETS.toFloat(),
                         steps=CharacterPhaseOne.MAX_SHEETS-2,enabled=!locked)
-                    Text("All characters are designed before any image call. "+
-                        "Each sheet contains five exact front/profile/rear triples. "+
-                        "Larger populations require proportionally more local reasoning time.",
+                    Text("Canonical anatomical plans compile locally without a "+
+                        "reasoning-model wait. Each sheet still contains five "+
+                        "independent front/profile/rear identities. Visual quality "+
+                        "is checked after native image synthesis.",
                         color=Mist,style=MaterialTheme.typography.bodySmall)
                 }
             }
@@ -373,9 +372,11 @@ fun CharacterOriginalScreen(repo:ArtRepository,onQueued:()->Unit) {
                         modifier=Modifier.fillMaxWidth())
                 }
                 "READY","AUTHORIZED"->{
-                    Text("CHARACTER RESOLUTION COMPLETE",color=Gold)
-                    Text("Full frozen roster and "+plan?.prompts?.size+
-                        " self-contained sheet context(s) ready for review.",color=Mist)
+                    Text("CANONICAL CONDITIONING READY · NOT ARTWORK",color=Gold)
+                    Text("The saved source concepts and anatomical constraints are "+
+                        "prepared for native image generation. Deterministic text is "+
+                        "not an AI-authored finished character; visual design quality "+
+                        "must be established by the generated artwork.",color=Mist)
                     val ready=requireNotNull(plan)
                     if(route=="B" && ready.sheets==1 &&
                         ready.status=="READY") {

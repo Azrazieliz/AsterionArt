@@ -22,7 +22,12 @@ class MainActivity : ComponentActivity() {
         // not, provision the same pinned GGUF assets once using WorkManager.
         // Installed weights are never copied, replaced or downloaded again.
         if (!EmbeddedInferenceInstallWorker.enqueueIfBundled(applicationContext)) {
-            if (BrainModelStore(applicationContext).selected()==null)
+            // CPU-only creative compilation is the default. Do not force an
+            // unsolicited GGUF download just to begin image generation.
+            val neuralDownloadOptIn=applicationContext.getSharedPreferences(
+                "asterion_brain",MODE_PRIVATE)
+                .getBoolean("auto_neural_model_download_opt_in",false)
+            if (neuralDownloadOptIn && BrainModelStore(applicationContext).selected()==null)
                 BrainDownloadWorker.enqueue(applicationContext,BrainCatalog.models.first().id)
             if (VisionModelStore(applicationContext).installed()==null)
                 VisionDownloadWorker.enqueue(applicationContext)

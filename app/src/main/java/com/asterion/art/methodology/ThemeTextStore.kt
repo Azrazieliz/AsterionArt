@@ -42,7 +42,8 @@ data class ThemeTextPlan(
     val revisions:List<ThemeText> = emptyList(),
     val approvedThemeId:String? = null,
     val renderJobId:String? = null,
-    val intensityV2:Map<String,String> = emptyMap()
+    val intensityV2:Map<String,String> = emptyMap(),
+    val draftThemes:List<ThemeText> = emptyList()
 ) {
     val available:List<ThemeText> get()=themes+revisions
     val approved:ThemeText? get()=available.firstOrNull{it.id==approvedThemeId}
@@ -140,6 +141,16 @@ class ThemeTextStore(context:Context) {
                     })
                 }
             })
+            put("draft_themes",JSONArray().apply {
+                plan.draftThemes.forEach { theme ->
+                    put(JSONObject().apply {
+                        put("id",theme.id);put("name",theme.name)
+                        put("atoms",JSONArray(theme.atoms))
+                        put("visual",theme.visualSystem)
+                        put("parents",JSONArray(theme.revisedFrom))
+                    })
+                }
+            })
             put("revisions",JSONArray().apply{
                 plan.revisions.forEach { theme ->
                     put(JSONObject().apply{
@@ -184,7 +195,10 @@ class ThemeTextStore(context:Context) {
             }.orEmpty(),
             optional("approved"),optional("render_job"),
             com.asterion.art.engine.CreativeIntensity.fromJson(
-                j.optJSONObject("intensity_v2"))
+                j.optJSONObject("intensity_v2")),
+            j.optJSONArray("draft_themes")?.let { arr ->
+                (0 until arr.length()).map { theme(arr.getJSONObject(it)) }
+            }.orEmpty()
         )
     }
     @Synchronized fun recent():List<ThemeTextPlan> = directory.listFiles()
@@ -213,6 +227,29 @@ class ThemeTextStore(context:Context) {
         persist(p.copy(frozenAtomSets=sets,
             stage="Frozen five independent roulette results"))
     }
+    @Synchronized fun appendDraftTheme(id:String,theme:ThemeText) {
+        val p=load(id)
+        require(p.status=="GENERATING" && p.frozenAtomSets.size==5) {
+            "Theme design requires frozen independent atoms"
+        }
+        require(p.draftThemes.size in 0..4)
+        val next=p.draftThemes.size
+        require(theme.id=="T"+(next+1) && theme.atoms==p.frozenAtomSets[next]) {
+            "Theme checkpoint must match its exact frozen atom set"
+        }
+        require(theme.visualSystem.length>=400) {
+            "Theme "+theme.id+" is incomplete: detailed visual system required"
+        }
+        require(theme.atoms.all { theme.visualSystem.contains(it,ignoreCase=true) }) {
+            "Theme "+theme.id+" omitted one or more frozen source atoms"
+        }
+        require(p.draftThemes.none {
+            it.name.trim().equals(theme.name.trim(),ignoreCase=true) ||
+            it.visualSystem.trim().equals(theme.visualSystem.trim(),ignoreCase=true)
+        }) { "Theme "+theme.id+" repeats a previously checkpointed design" }
+        persist(p.copy(draftThemes=p.draftThemes+theme,
+            stage="Theme "+(next+1)+"/5 independently authored and checkpointed"))
+    }
     @Synchronized fun finish(id:String,proposals:List<ThemeText>) {
         val p=load(id)
         require(p.status=="GENERATING")
@@ -220,7 +257,10 @@ class ThemeTextStore(context:Context) {
         require(proposals.size==5 && proposals.indices.all{
             proposals[it].atoms==p.frozenAtomSets[it]
         })
-        persist(p.copy(status="READY",themes=proposals,
+        require(p.draftThemes==proposals) {
+            "Only five validated sequential checkpoints can be published"
+        }
+        persist(p.copy(status="READY",themes=proposals,draftThemes=emptyList(),
             approvedThemeId=null,stage="Five distinct text themes ready"))
     }
     @Synchronized fun fail(id:String,message:String) {

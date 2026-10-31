@@ -17,6 +17,7 @@ import com.arm.aichat.AiChat
 import com.arm.aichat.InferenceEngine
 import com.asterion.art.brain.BrainAdapterLibrary
 import com.asterion.art.brain.BrainInferenceLock
+import com.asterion.art.brain.BrainThinkingPolicy
 import com.asterion.art.brain.BrainModelStore
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.methodology.ModeTextDesign
@@ -111,6 +112,17 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                         }
                     }
                 }
+                val useNeural=applicationContext.getSharedPreferences(
+                    "asterion_brain",Context.MODE_PRIVATE)
+                    .getBoolean("mode_neural_design_opt_in",false)
+                if(!useNeural) {
+                    foreground("Compiling mode-specific native image conditioning")
+                    val records=com.asterion.art.methodology
+                        .DeterministicModeTextCompiler.compile(plan,evidence,
+                            com.asterion.art.engine.ConceptTaxonomy(applicationContext))
+                    store.finish(id,records)
+                    return@withLock
+                }
                 val models=BrainModelStore(applicationContext)
                 val weight=models.selected()?:error("No reasoning model selected")
                 val file=models.location(weight)?:error("Selected reasoning model missing")
@@ -126,7 +138,7 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                     foreground("Loading current approved text model")
                     val capacity=models.contextTokens()
                     engine.loadModel(file.absolutePath,capacity)
-                    BrainAdapterLibrary(applicationContext).activeFor(weight.id)
+                    BrainAdapterLibrary(applicationContext).activeFor(weight.id,schema.key.uppercase())
                         ?.let{engine.loadAdapter(it.absolutePath)}
                     val system="You execute exactly ONE Asterion "+
                         schema.title+" methodology. Return JSON only. "+
@@ -134,7 +146,8 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                         "output image. Preserve source identities, exact "+
                         "source visual observations, owner instructions and "+
                         "mode-specific output counts. Do not switch methodologies."
-                    engine.setSystemPrompt(system)
+                    val effectiveSystem=BrainThinkingPolicy.system(weight.id,system)
+                    engine.setSystemPrompt(effectiveSystem)
                     val request=buildString{
                         append("EXECUTABLE METHODOLOGY: ").append(schema.directive)
                         append("\nMODE: ").append(schema.key)
@@ -161,10 +174,10 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                     }
                     val budget=minOf(capacity/2,9200)
                     require(engine.countTokens(request)+
-                        engine.countTokens(system)+budget+256<capacity){
+                        engine.countTokens(effectiveSystem)+budget+256<capacity){
                         "Exact mode-specific text input exceeds installed model context"
                     }
-                    engine.restartConversation(system)
+                    engine.restartConversation(effectiveSystem)
                     foreground("Authoring "+schema.designsPerImage+
                         " complete independent designs")
                     val response=withTimeout(15L*60_000L){

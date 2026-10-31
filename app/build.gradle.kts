@@ -11,8 +11,8 @@ android {
         applicationId = "com.asterion.art"
         minSdk = 30
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.2.3"
+        versionCode = 11
+        versionName = "0.2.9"
     }
     signingConfigs {
         create("persistentRelease") {
