@@ -633,12 +633,31 @@ internal class GenerationExecutor(
                             existing
                         } else {
                             thermalGate()
-                            val directive=CharacterSheetCompiler.individual(d)
-                            engine.verifyText(directive)
-                            val finalNegative=com.asterion.art.engine.NegativePromptAuthority.merge(
-                                CharacterPhaseOne.NEGATIVE,recipe.passes.first().negative,
-                                job.designNegative,job.userNegativePrompt)
-                            engine.verifyText(finalNegative)
+                            // The frozen canonical plan remains complete on
+                            // disk. Verify a separate model-facing payload
+                            // using the *actual* native tokenizer rather than
+                            // forcing thousands of prose tokens into the NPU.
+                            val conditioning=com.asterion.art.methodology
+                                .CharacterNativeConditioning.select(
+                                    d,taxonomy::find,engine::inspectText)
+                            val directive=conditioning.prompt
+                            repo.updateTaskProgress(taskId,0,0,
+                                "Native character conditioning "+d.id+": "+
+                                conditioning.counted.count+"/"+
+                                conditioning.counted.limit+" tokens ("+
+                                conditioning.variant+")")
+                            val negativeAuthority=
+                                com.asterion.art.engine.NegativePromptAuthority.merge(
+                                    CharacterPhaseOne.NEGATIVE,
+                                    recipe.passes.first().negative,
+                                    job.designNegative,job.userNegativePrompt)
+                            val negativeChoice=com.asterion.art.methodology
+                                .CharacterNativeConditioning.selectNegative(
+                                    negativeAuthority,
+                                    listOfNotNull(job.designNegative,
+                                        job.userNegativePrompt).joinToString(", "),
+                                    engine::inspectText)
+                            val finalNegative=negativeChoice.prompt
                             val actualPromptTrace=File(intermediate,
                                 "actual-native-stage-inputs.jsonl")
                             val invocation=JSONObject().apply {
@@ -647,7 +666,12 @@ internal class GenerationExecutor(
                                 put("stage",1)
                                 put("model",model.id)
                                 put("positive",directive)
+                                put("native_text_variant",conditioning.variant)
+                                put("native_token_count",conditioning.counted.count)
+                                put("native_token_limit",conditioning.counted.limit)
                                 put("negative",finalNegative)
+                                put("negative_variant",negativeChoice.variant)
+                                put("negative_token_count",negativeChoice.counted.count)
                                 put("denoise",1.0)
                                 put("seed",seed+cell*104729L+1)
                             }
@@ -1049,7 +1073,27 @@ internal class GenerationExecutor(
                 "Interrupted by Android; native checkpoints are retained")
             false
         } catch (e: Exception) {
-            repo.updateTask(taskId, TaskStatus.FAILED, e.message ?: "Generation failed")
+            val nativeLog=File(applicationContext.cacheDir,
+                "asterion-native-last.log")
+            val nativeTail=if(nativeLog.isFile &&
+                nativeLog.lastModified()>=job.createdAt) runCatching {
+                nativeLog.readText().takeLast(1000)
+            }.getOrDefault("") else ""
+            val message=buildString {
+                append(e.message?:e.javaClass.simpleName)
+                if(nativeTail.isNotBlank()) {
+                    append("\nNative runtime output:\n")
+                    append(nativeTail)
+                }
+            }
+            runCatching {
+                val report=File(applicationContext.filesDir,
+                    "generation-checkpoints/"+job.id+"/last-failure.txt")
+                GeneratedImagePublisher.atomicWrite(report,
+                    (e.stackTraceToString()+"\n"+message)
+                        .toByteArray(Charsets.UTF_8))
+            }
+            repo.updateTask(taskId,TaskStatus.FAILED,message.take(2200))
             false
         } finally {
             currentEngine?.release()

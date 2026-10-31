@@ -966,7 +966,18 @@ private fun QueueScreen(repo: ArtRepository) {
                                 style=MaterialTheme.typography.bodySmall,color=Mist)
                         }
                     }
-                    if (task.error != null) Text(task.error, color = Red)
+                    if (task.error != null) {
+                        Text(task.error, color = Red)
+                        OutlinedButton(onClick={
+                            val clipboard=context.getSystemService(
+                                android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                                "Asterion image-generation failure",
+                                "Task "+task.id+" / "+task.targetId+"\n"+
+                                    task.error))
+                        }) { Text("Copy exact failure details") }
+                    }
                     Text(task.id.take(13), style = MaterialTheme.typography.bodySmall, color = Mist)
                     val resumableCharacter=remember(task.targetId) {
                         runCatching {

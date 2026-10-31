@@ -56,14 +56,6 @@ object CanonicalAnatomyCompiler {
         val mixed=seed xor (selection.number.toLong()*0x4F1BBCDCBFA54001L) xor
             selection.names.joinToString("|").hashCode().toLong()
         val random=Random(mixed)
-        val height=proportion(random,151,194)
-        val shoulders=proportion(random,76,108)
-        val hips=proportion(random,85,123)
-        val leg=proportion(random,44,58)
-        val faceWidth=proportion(random,74,111)
-        val eyeTilt=proportion(random,-13,18)
-        val hairMass=proportion(random,16,48)
-        val axis=proportion(random,-12,12)
         val bodyPlaces=listOf(
             "skull and cranial vault", "cervical and shoulder support",
             "sternum and anterior ribcage", "spinal and dorsal load path",
@@ -102,21 +94,16 @@ object CanonicalAnatomyCompiler {
             "The structure must collapse or change shape if any one concept is removed. "+
             evidence.joinToString(" "){it.primary.name+": "+it.fusion.take(160)}
         val names=selection.names.joinToString(" × ")
-        val anatomy="Original female-readable anatomical identity "+selection.id+
-            " physically embodies "+names+". Structural targets: "+
-            "standing height "+height+" cm design scale; shoulder-to-neutral "+
-            "reference "+shoulders+"%, hip-to-reference "+hips+
-            "%, relative leg contribution "+leg+"%, major silhouette axis "+
-            axis+" degrees. These are design proportions, not copied templates. "+
-            anchors.joinToString(" ")
-        val face="Independently construct the face of "+selection.id+
-            " from "+names+": cranial width "+faceWidth+
-            "% of local style baseline, eye outer-corner tilt "+eyeTilt+
-            " degrees, directional hair-volume displacement "+hairMass+
-            "% of head width; continuously integrate concept-derived materials "+
-            "through bone, brows, eye sockets, iris architecture, cheek planes, "+
-            "hair roots and hair masses. "+
-            evidence.joinToString(" "){it.primary.name+" facial influence: "+it.core.take(160)}
+        val anatomy="Anatomical design evidence for "+selection.id+
+            ", preserving every selected primary: "+names+". "+
+            "Ground body construction in the source-specific morphology: "+
+            evidence.joinToString(" "){it.primary.name+": "+it.body}+
+            " Distinct attachment regions: "+anchors.joinToString(" ")
+        val face="Face/eye/hair evidence for "+names+": "+
+            evidence.joinToString(" "){it.primary.name+": "+it.core.take(210)}+
+            " Apply only anatomically relevant physical features to cranial "+
+            "structures, eye sockets and hair rooting. The exact novel facial "+
+            "shape must be synthesized and visually evaluated by the image model."
         val topology="Body-owned rooted topology for "+names+
             ", with load paths from axial skeleton to appendage attachment, "+
             "hands, feet and rear silhouette. "+anchors.joinToString(" ")+
@@ -129,12 +116,11 @@ object CanonicalAnatomyCompiler {
                 e.primary.name+" governs material boundaries and surface rendering: "+
                 e.body+". Boundary guard: "+e.boundary+"."
             }+" Preserve readable mass and restrained macro-to-micro hierarchy."
-        val differentiation="Unique frozen design "+selection.id+"; seed "+mixed+
-            " fixes its own silhouette measurements, concept attachment graph, "+
-            "facial planes, substrate transitions and higher-order structures. "+
-            "Do not reuse another identity's appendage roots, iris design, "+
-            "hair profile or same body-matter distribution. Priority concepts: "+names+
-            ". Shape anchors: "+order.joinToString(" -> ")+"."
+        val differentiation="Source-grounded composition order for "+selection.id+
+            " from "+names+": "+order.joinToString(" -> ")+
+            ". Reuse the exact frozen canonical selections but not another "+
+            "character's source-specific morphology. This record specifies "+
+            "a conditioning system, not a verified visual identity."
         val render="Render exactly one original, full-length female-readable "+
             "hand-illustrated 2D anime/manhwa anatomical character "+
             selection.id+" built from "+names+
