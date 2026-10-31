@@ -112,6 +112,17 @@ class ModeTextWorker(context:Context,params:WorkerParameters):
                         }
                     }
                 }
+                val useNeural=applicationContext.getSharedPreferences(
+                    "asterion_brain",Context.MODE_PRIVATE)
+                    .getBoolean("mode_neural_design_opt_in",false)
+                if(!useNeural) {
+                    foreground("Compiling mode-specific native image conditioning")
+                    val records=com.asterion.art.methodology
+                        .DeterministicModeTextCompiler.compile(plan,evidence,
+                            com.asterion.art.engine.ConceptTaxonomy(applicationContext))
+                    store.finish(id,records)
+                    return@withLock
+                }
                 val models=BrainModelStore(applicationContext)
                 val weight=models.selected()?:error("No reasoning model selected")
                 val file=models.location(weight)?:error("Selected reasoning model missing")

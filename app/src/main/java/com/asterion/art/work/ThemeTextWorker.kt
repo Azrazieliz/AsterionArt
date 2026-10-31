@@ -80,6 +80,26 @@ class ThemeTextWorker(context:Context,params:WorkerParameters):
         return try {
             show("Preparing textual atomic roulette")
             store.begin(id)
+            // Default: bounded CPU-only visual compiler. The previous heavy
+            // reasoning backend is retained only for an explicit opt-in.
+            val useNeural=applicationContext.getSharedPreferences(
+                "asterion_brain",Context.MODE_PRIVATE)
+                .getBoolean("theme_neural_design_opt_in",false)
+            if(!useNeural) {
+                val current=store.load(id)
+                val atoms=if(current.frozenAtomSets.size==5)current.frozenAtomSets
+                    else com.asterion.art.methodology.AtomicThemeRoulette
+                        .generate(current.seed).also {store.freezeAtoms(id,it)}
+                for(index in store.load(id).draftThemes.size until 5) {
+                    store.stage(id,"Compiling frozen visual theme "+(index+1)+"/5")
+                    show("Compiling visual theme "+(index+1)+"/5")
+                    val theme=com.asterion.art.methodology.DeterministicThemeCompiler
+                        .compile(store.load(id),atoms[index],index)
+                    store.appendDraftTheme(id,theme)
+                }
+                store.finish(id,store.load(id).draftThemes)
+                return Result.success()
+            }
             BrainInferenceLock.mutex.withLock {
                 val selected=BrainModelStore(applicationContext)
                 val model=selected.selected() ?:error(
