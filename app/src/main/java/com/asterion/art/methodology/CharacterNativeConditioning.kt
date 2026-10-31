@@ -90,11 +90,11 @@ object CharacterNativeConditioning {
         }
         val angle=when(view) {
             CharacterViewComposer.View.FRONT ->
-                "exact front orthographic, both eyes and shoulders facing viewer"
+                "true-front orthographic, both eyes and shoulders facing viewer"
             CharacterViewComposer.View.PROFILE ->
                 "exact LEFT 90-degree profile, one visible eye, face looking left"
             CharacterViewComposer.View.REAR ->
-                "direct back orthographic, back of head, spine, heels, no face"
+                "direct rear orthographic, back of head, spine, heels, no face"
         }
         val identity=if(view==CharacterViewComposer.View.FRONT)
             "Invent one singular original character"
