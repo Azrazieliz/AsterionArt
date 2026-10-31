@@ -668,8 +668,18 @@ internal class GenerationExecutor(
                                     foreground(stageLabel)
                                     val front=images[
                                         com.asterion.art.methodology.CharacterViewComposer.View.FRONT]
-                                    val refs=if(front==null)referenceInputs else
+                                    val supportsNativeReferenceImages=
+                                        model.ditKind in setOf("klein","qwen21")
+                                    val refs=if(front!=null && supportsNativeReferenceImages)
                                         (referenceInputs+listOf(front)).takeLast(10)
+                                        else referenceInputs
+                                    // Anima/SDXL's native route accepts img2img,
+                                    // not FLUX/Qwen's multi-image editing path.
+                                    // High denoise lets the pose change; the
+                                    // original front pixels still anchor identity.
+                                    val img2imgFront=if(front!=null &&
+                                        !supportsNativeReferenceImages)front else null
+                                    val viewDenoise=if(img2imgFront!=null)0.84f else 1f
                                     val stageSeed=seed+cell*104729L+1L
                                     val actualPromptTrace=File(intermediate,
                                         "actual-native-stage-inputs.jsonl")
@@ -687,6 +697,12 @@ internal class GenerationExecutor(
                                         put("negative_variant",negativeChoice.variant)
                                         put("native_reference_count",refs.size)
                                         put("frontal_reference_passed",front!=null)
+                                        put("frontal_reference_route",when {
+                                            front==null->"initial_text_to_image"
+                                            supportsNativeReferenceImages->"native_reference_images"
+                                            else->"native_img2img"
+                                        })
+                                        put("denoise",viewDenoise)
                                         put("seed",stageSeed)
                                     }
                                     GeneratedImagePublisher.atomicWrite(actualPromptTrace,
@@ -695,9 +711,10 @@ internal class GenerationExecutor(
                                             .toByteArray(Charsets.UTF_8))
                                     val started=android.os.SystemClock.elapsedRealtime()
                                     val result=engine.generate(
-                                        GenerationPass(viewIndex+1,choice.prompt,finalNegative,1f),
+                                        GenerationPass(viewIndex+1,choice.prompt,finalNegative,
+                                            viewDenoise),
                                         nativeSettings,resolution.first,resolution.second,
-                                        null,stageSeed,
+                                        img2imgFront,stageSeed,
                                         {stopped()},{step,totalSteps->
                                             if(totalSteps>0&&step>=0&&step%4==0)
                                                 repo.updateTaskProgress(taskId,
