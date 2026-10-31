@@ -274,10 +274,16 @@ internal class GenerationExecutor(
             // before the large QNN model is loaded. The GGUF context and KV
             // cache are released in AsterionReasoner.compile's finally block.
             val preRenderStart=android.os.SystemClock.elapsedRealtime()
-            val neural=AsterionReasoner(applicationContext)
-            val requiresAutoCompilation=characterPlan==null &&
+            // The validated deterministic GenerationRecipe is sufficient to
+            // begin native image generation. Full GGUF prompt rewriting is
+            // optional, never a mandatory 15-minute pre-generation gate.
+            val neuralOptIn=applicationContext.getSharedPreferences(
+                "asterion_brain",Context.MODE_PRIVATE)
+                .getBoolean("render_neural_design_opt_in",false)
+            val neural=if(neuralOptIn)AsterionReasoner(applicationContext) else null
+            val requiresAutoCompilation=neuralOptIn && characterPlan==null &&
                 restoredCompilation==null && job.designPrompt.isNullOrBlank()
-            require(!requiresAutoCompilation || neural.available()) {
+            require(!requiresAutoCompilation || neural?.available()==true) {
                 "The approved pre-render compilation is unavailable: no verified "+
                     "adaptable reasoning model is installed. Cannot skip it and "+
                     "pretend an uncompiled image prompt is the requested result."
@@ -289,9 +295,9 @@ internal class GenerationExecutor(
             // An owner-edited Route B or approved Theme text already IS the
             // frozen model-facing specification. Never overwrite it through
             // another unrelated neural design step after the bridge.
-            val brainPlan=if(characterPlan!=null || restoredCompilation!=null ||
-                !job.designPrompt.isNullOrBlank())
-                null else if(neural.available()) {
+            val brainPlan=if(!neuralOptIn || characterPlan!=null ||
+                restoredCompilation!=null || !job.designPrompt.isNullOrBlank())
+                null else if(neural!=null && neural.available()) {
                 foreground("Asterion Brain Â· interpreting and designing")
                 val domain=UniversalCreativePlanner.domain(job.creationMode)
                 val spec=job.creationMode?.let { selected ->
