@@ -42,6 +42,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    // AndroidX Lifecycle lint detector currently throws IncompatibleClassChangeError
+    // under this AGP/Kotlin UAST combination; keep every other lint check enabled.
+    lint { disable += "NullSafeMutableLiveData" }
     buildFeatures { compose = true }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
