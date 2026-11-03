@@ -124,8 +124,19 @@ class BrainDownloadWorker(context:Context,params:WorkerParameters):
             // Retain partial download to resume after cancellation.
             Result.failure(Data.Builder().putString("message","Cancelled").build())
         } catch(e:Exception) {
+            // Do not duplicate successful native downloads. When the Hugging Face
+            // transport fails, automatically ask the paired Downloader for the
+            // same pinned original; it handles retries and TeraBox handoff.
+            // A separate model import is still required after the file arrives.
+            val external=if(e is java.io.IOException ||
+                e.message.orEmpty().startsWith("Hugging Face HTTP"))
+                com.asterion.art.integrations.AsterionDownloaderBridge.requestAsset(
+                    applicationContext,model.downloadUrl,model.label,"ASSETS")
+                else false
             Result.failure(Data.Builder()
-                .putString("message",e.message?:"GGUF import failed").build())
+                .putString("message",(e.message?:"GGUF import failed")+
+                    if(external)" · Asterion Downloader recovery requested" else "")
+                .putBoolean("downloader_request_sent",external).build())
         }
     }
 }
