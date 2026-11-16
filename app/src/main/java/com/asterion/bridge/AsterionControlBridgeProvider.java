@@ -96,6 +96,55 @@ public final class AsterionControlBridgeProvider extends ContentProvider {
         return id != null && id.matches("[A-Za-z0-9_.:-]{8,100}");
     }
 
+    /** Actual stored WorkManager counts; not proof that an AI model ran. */
+    private JSONObject workManagerEvidence(Context ctx) throws Exception {
+        java.io.File standard = ctx.getDatabasePath("androidx.work.workdb");
+        java.io.File privateDb = new java.io.File(ctx.getNoBackupFilesDir(),
+            "androidx.work.workdb");
+        java.io.File file = standard.isFile() ? standard : privateDb;
+        JSONObject result = new JSONObject()
+            .put("source", "androidx.work.workdb / WorkSpec")
+            .put("database_present", file.isFile())
+            .put("stored_work_counts_verified", false)
+            .put("work_execution_now_verified", false)
+            .put("scope", "all_app_workmanager_tasks_not_only_ai");
+        if (!file.isFile()) return result;
+        android.database.sqlite.SQLiteDatabase database = null;
+        android.database.Cursor cursor = null;
+        try {
+            database = android.database.sqlite.SQLiteDatabase.openDatabase(
+                file.getAbsolutePath(), null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READONLY);
+            cursor = database.rawQuery(
+                "SELECT state, COUNT(*) FROM WorkSpec GROUP BY state", null);
+            JSONObject counts = new JSONObject();
+            int total = 0;
+            while (cursor.moveToNext()) {
+                int state = cursor.getInt(0), count = cursor.getInt(1);
+                final String label;
+                switch (state) {
+                    case 0: label = "enqueued"; break;
+                    case 1: label = "running_in_stored_db"; break;
+                    case 2: label = "succeeded"; break;
+                    case 3: label = "failed"; break;
+                    case 4: label = "blocked"; break;
+                    case 5: label = "cancelled"; break;
+                    default: continue;
+                }
+                counts.put(label, count);
+                total += count;
+            }
+            return result.put("counts", counts).put("total_records", total)
+                .put("stored_work_counts_verified", true)
+                .put("work_execution_now_verified", false);
+        } catch (android.database.sqlite.SQLiteException error) {
+            return result.put("read_error_class", error.getClass().getSimpleName());
+        } finally {
+            if (cursor != null) cursor.close();
+            if (database != null) database.close();
+        }
+    }
+
     private JSONObject processEvidence() throws Exception {
         Context ctx = context();
         PackageManager pm = ctx.getPackageManager();
@@ -136,6 +185,10 @@ public final class AsterionControlBridgeProvider extends ContentProvider {
                 }
             }
         }
+        JSONObject work = workManagerEvidence(ctx);
+        evidence.put("workmanager", work)
+            .put("engine_telemetry_available",
+                work.optBoolean("stored_work_counts_verified", false));
         return evidence.put("android_historical_exits", exits)
             .put("android_historical_exits_count", exits.length());
     }
