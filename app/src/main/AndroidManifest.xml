@@ -8,6 +8,7 @@
     <uses-permission android:name="com.ailm.android.permission.READ_ART_SHEETS"/>
     <uses-permission android:name="com.ailm.android.permission.WRITE_ART_RESULTS"/>
     <queries>
+        <package android:name="com.asterion.control" />
         <package android:name="com.azrael.pixivdumpsync.nocturne"/>
         <package android:name="com.azrael.pixivdumpsync"/>
         <package android:name="com.zhenxiang.superimage.pro"/>
@@ -37,5 +38,12 @@
         </activity>
         <service android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync" tools:node="merge"/>
+    
+        <!-- Read-only v1 integration; every Binder call pins the original owner Control signer. -->
+        <provider
+            android:name="com.asterion.bridge.AsterionControlBridgeProvider"
+            android:authorities="${applicationId}.asterion.bridge"
+            android:exported="true"
+            android:grantUriPermissions="false" />
     </application>
 </manifest>
