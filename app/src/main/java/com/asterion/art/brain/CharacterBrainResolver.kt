@@ -77,6 +77,9 @@ class CharacterBrainResolver(context:Context) {
             require(plan.status=="DESIGNING")
             val model=weights.selected()?:error(
                 "Install and select a local character reasoning model")
+            // Persist the selected prompt model before loading/inference so a
+            // failed or cancelled attempt remains attributable in diagnostics.
+            plans.persist(plan.copy(modelId=model.id))
             val file=weights.location(model)?:error("Selected character reasoning model file not verified")
             val selector=com.asterion.art.engine.CanonicalSelectorGraph.load(app)
             val selections=CharacterPrimaryResolver.resolve(
