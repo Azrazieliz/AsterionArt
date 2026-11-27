@@ -12,6 +12,7 @@ import android.os.Bundle
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Read-only Asterion v1 partner endpoint for Asterion Control.
@@ -25,6 +26,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
     companion object {
         private const val PREFS = "asterion_art_control_bridge"
         private const val ENABLED = "diagnostics_enabled"
+        private const val CONTROL_SIGNER = "control_signer_sha256"
         private const val CONTROL_PACKAGE = "com.asterion.control"
         private const val PROTOCOL_VERSION = 1
         private val REQUEST_ID = Regex("[A-Za-z0-9_.:-]{8,100}")
@@ -39,9 +41,25 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
                 .getBoolean(ENABLED, false)
 
         fun setEnabled(context: Context, enabled: Boolean) {
-            check(context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putBoolean(ENABLED, enabled).commit()) {
-                "Could not save Asterion Control diagnostics setting"
+            val app = context.applicationContext
+            val preferences = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            if (!enabled) {
+                check(preferences.edit().putBoolean(ENABLED, false).commit()) {
+                    "Could not disable Asterion Control diagnostics sharing"
+                }
+                return
+            }
+            val info = app.packageManager.getPackageInfo(
+                CONTROL_PACKAGE, PackageManager.GET_SIGNING_CERTIFICATES)
+            val signers = info.signingInfo?.apkContentsSigners
+                ?: throw SecurityException("Asterion Control signing identity unavailable")
+            require(signers.isNotEmpty()) { "Asterion Control has no APK signing certificate" }
+            val fingerprint = MessageDigest.getInstance("SHA-256")
+                .digest(signers[0].toByteArray())
+                .joinToString("") { "%02x".format(it) }
+            check(preferences.edit().putString(CONTROL_SIGNER, fingerprint)
+                .putBoolean(ENABLED, true).commit()) {
+                "Could not save Asterion Control diagnostics approval"
             }
         }
     }
@@ -68,12 +86,16 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         val result = when (method) {
             "asterion.v1.capabilities" -> capabilities()
             "asterion.v1.invoke" -> invoke(app, extras)
-            "asterion.v1.status" -> JSONObject()
-                .put("ok", true).put("status", "completed")
-                .put("request_id", arg ?: "").put("read_only", true)
-            "asterion.v1.cancel" -> JSONObject()
-                .put("ok", true).put("status", "not_cancellable")
-                .put("request_id", arg ?: "").put("read_only", true)
+            "asterion.v1.status" -> {
+                require(REQUEST_ID.matches(arg.orEmpty())) { "Invalid diagnostic request ID" }
+                JSONObject().put("ok", true).put("status", "completed")
+                    .put("request_id", arg).put("read_only", true)
+            }
+            "asterion.v1.cancel" -> {
+                require(REQUEST_ID.matches(arg.orEmpty())) { "Invalid diagnostic request ID" }
+                JSONObject().put("ok", true).put("status", "not_cancellable")
+                    .put("request_id", arg).put("read_only", true)
+            }
             else -> throw IllegalArgumentException("Unsupported Asterion partner method")
         }
         return Bundle().apply { putString("result_json", result.toString()) }
@@ -87,6 +109,18 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         }
         if (!isEnabled(app)) {
             throw SecurityException("Asterion Art diagnostics sharing is disabled by the owner")
+        }
+        val expected = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(CONTROL_SIGNER, null)
+            ?: throw SecurityException("Asterion Control signing identity has not been approved in Art")
+        val info = app.packageManager.getPackageInfo(
+            CONTROL_PACKAGE, PackageManager.GET_SIGNING_CERTIFICATES)
+        val signer = info.signingInfo?.apkContentsSigners?.firstOrNull()
+            ?: throw SecurityException("Asterion Control signing identity unavailable")
+        val actual = MessageDigest.getInstance("SHA-256").digest(signer.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        if (actual != expected) {
+            throw SecurityException("Asterion Control signing identity changed; re-approve locally in Art")
         }
     }
 
