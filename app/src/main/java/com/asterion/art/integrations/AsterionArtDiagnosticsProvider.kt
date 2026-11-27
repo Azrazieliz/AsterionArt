@@ -104,8 +104,8 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
     private fun authorize(app: Context) {
         val callerUid = Binder.getCallingUid()
         val packages = app.packageManager.getPackagesForUid(callerUid).orEmpty()
-        if (CONTROL_PACKAGE !in packages) {
-            throw SecurityException("Only the installed Asterion Control package may read Art diagnostics")
+        if (packages.size != 1 || packages[0] != CONTROL_PACKAGE) {
+            throw SecurityException("Only the isolated Asterion Control package UID may read Art diagnostics")
         }
         if (!isEnabled(app)) {
             throw SecurityException("Asterion Art diagnostics sharing is disabled by the owner")
@@ -234,11 +234,15 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             referenceCounts.put(role, direct.optJSONArray(role)?.length() ?: 0)
         }
         val brainFile = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, "brain-plan")
-        val brain = runCatching { if (brainFile.isFile) JSONObject(brainFile.readText()) else null }
-            .getOrNull()
+        val brain = runCatching {
+            if (brainFile.isFile && brainFile.length() <= 4_000_000L)
+                JSONObject(brainFile.readText()) else null
+        }.getOrNull()
         val traceFile = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, "native-prompt-trace")
-        val trace = runCatching { if (traceFile.isFile) JSONObject(traceFile.readText()) else null }
-            .getOrNull()
+        val trace = runCatching {
+            if (traceFile.isFile && traceFile.length() <= 4_000_000L)
+                JSONObject(traceFile.readText()) else null
+        }.getOrNull()
         return JSONObject()
             .put("job_id", id)
             .put("mode", plan.optString("mode"))
