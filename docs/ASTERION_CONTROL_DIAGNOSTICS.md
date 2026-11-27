@@ -24,6 +24,7 @@ Both applications must be installed on the same Android device. The Control pack
 - `diagnostics.snapshot`: Art build/device metadata, recent task outcomes and recent generation-job IDs.
 - `diagnostics.job`: one job's mode, prompt lengths, settings, reference counts, image-model identity, prompting-model identity/path, Character Creation state, visual-audit status, stage count and available evidence files.
 - `diagnostics.read`: paged text from one allowlisted artifact for a known job ID.
+- `diagnostics.bridge-events`: paged, metadata-only history of provider calls, including method/action, request ID, caller package, outcome, elapsed time, response size and exception class. Request payloads, prompt text, image data and credentials are never recorded.
 
 Allowed artifacts:
 
@@ -37,7 +38,7 @@ Allowed artifacts:
 - `character-telemetry`: Character Creation model-load, first-token, streaming and stage timings.
 - `character-visual-audit`: local multimodal findings and concerns; source image URIs are redacted and the report is explicitly not an automated certification.
 
-Long artifacts are paged in bounded 3,000-character chunks. Job IDs and artifact names are validated against fixed allowlists; arbitrary paths are never accepted.
+Long artifacts and bridge-event history are paged in bounded 3,000-character chunks. Job IDs and artifact names are validated against fixed allowlists; arbitrary paths are never accepted. The event journal retains at most 128 recent records and is stored in Art app-private storage.
 
 ## Security and data boundary
 
@@ -46,7 +47,8 @@ Long artifacts are paged in bounded 3,000-character chunks. Job IDs and artifact
 - No network listener, GitHub token, Control bearer token, image bytes, model weights, arbitrary filesystem access, mutation, generation or editing operation is exposed.
 - All diagnostic files remain inside Art's private app data directory.
 - Prompt text and saved failure reports are owner-authored/private content; sharing is disabled until the owner enables it.
+- Bridge-event records contain call metadata only; request and response bodies are excluded.
 
 ## Runtime compatibility note
 
-The current connected Control Windows relay returned `Unsupported operation` for the `phone_app_bridges` discovery request. The Control source branch contains the Asterion v1 partner routes, but the currently running relay has not yet exposed them. Therefore this Art-side provider can be built and source-tested now, but end-to-end discovery/invocation requires the existing Control relay update to be deployed and a local owner approval on the phone. No replacement bridge is required.
+Live read-only verification on 2026-11-27 isolated the blocker before Android provider invocation:\n\n- Existing Windows worker health returned `complete / ok:true` and reported Control worker version `0.8.0`.\n- Existing phone status returned `complete / ok:true`: Samsung SM-S948B, Android 17, Control app `0.9.38`, paired and reachable, authenticated native WSS connected over Wi-Fi.\n- `phone_app_bridges` returned `ok:false`, `status:error`, `elapsed_ms:9`, `error: "Unsupported operation"`. The failure is the existing Windows relay/command executor rejecting the operation before it reaches Art on Android; it is not an Art provider authorization failure.\n- The current Control source branch `work/control-native-ai-reconstruction-20261126` already contains the `phone_app_bridges`, `phone_app_capabilities`, `phone_app_invoke` and `phone_app_operation` mappings using the existing WSS-first transport. The installed/runtime worker is therefore behind the source branch. Control\u2019s own 2026-11-26 progress report records that in-place Windows deployment was blocked by execution safety checks and no successful deployment receipt exists.\n- At the time of the check, the phone reported 5% battery and severe thermal status. No screen interaction, local owner approval, app installation or provider call was attempted.\n\n**Next required operation:** deploy the already-reviewed Control relay source update into the existing Windows worker using its approved deployment path, then let the existing supervisor reload it at a safe idle checkpoint. Do not replace the worker, re-pair the phone, revive a retired gateway, or bypass deployment safety checks. After that, install the original-key-signed Art 0.2.10 update, enable sharing in Art, locally approve Art in Control, and confirm that discovery and the first `diagnostics.snapshot`/`diagnostics.job`/`diagnostics.read` calls succeed. The new Art-side `diagnostics.bridge-events` journal will then expose provider-side request outcomes and latency; it cannot record a command rejected before Android receives it. No image-generation model or generation pipeline is changed by this diagnostics integration.
