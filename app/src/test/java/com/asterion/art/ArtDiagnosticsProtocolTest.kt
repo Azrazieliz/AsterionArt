@@ -71,7 +71,7 @@ class ArtDiagnosticsProtocolTest {
         try {
             repeat(140) { sequence ->
                 ArtDiagnosticsProtocol.appendBridgeEvent(
-                    root, """{"sequence":$sequence,"outcome":"completed"}"""
+                    root, """{"sequence":$sequence,"outcome":"completed","padding":"${"x".repeat(1900)}"}"""
                 )
             }
             val records = ArtDiagnosticsProtocol.readBridgeEvents(root).lines()
