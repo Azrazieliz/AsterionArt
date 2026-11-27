@@ -16,6 +16,9 @@ class ArtDiagnosticsProtocolTest {
         assertTrue(ArtDiagnosticsProtocol.validArtifact("job-plan"))
         assertTrue(ArtDiagnosticsProtocol.validArtifact("native-prompt-trace"))
         assertTrue(ArtDiagnosticsProtocol.validArtifact("brain-plan"))
+        assertTrue(ArtDiagnosticsProtocol.validArtifact("character-plan"))
+        assertTrue(ArtDiagnosticsProtocol.validArtifact("character-telemetry"))
+        assertTrue(ArtDiagnosticsProtocol.validArtifact("character-visual-audit"))
         assertFalse(ArtDiagnosticsProtocol.validArtifact("../../shared_prefs"))
         assertFalse(ArtDiagnosticsProtocol.validArtifact("image-output"))
     }
@@ -30,6 +33,25 @@ class ArtDiagnosticsProtocolTest {
         assertEquals("89", last.text)
         assertNull(last.nextOffset)
         assertEquals(source.length, last.totalChars)
+    }
+
+    @Test fun characterEvidencePathsStayInsideTheirDedicatedPrivateFolders() {
+        val root = createTempDir(prefix = "asterion-art-character-diagnostics")
+        try {
+            val jobId = "4b2f6a10-2a11-4b3f-a4c9"
+            val characterId = "charplan-123456"
+            val plan = ArtDiagnosticsProtocol.artifactFile(
+                root, jobId, "character-plan", characterId)
+            val telemetry = ArtDiagnosticsProtocol.artifactFile(
+                root, jobId, "character-telemetry", characterId)
+            val audit = ArtDiagnosticsProtocol.artifactFile(
+                root, jobId, "character-visual-audit")
+            assertTrue(plan.path.startsWith(File(root, "character-phase1/plans").canonicalPath))
+            assertTrue(telemetry.path.startsWith(File(root, "character-phase1/telemetry").canonicalPath))
+            assertTrue(audit.path.startsWith(File(root, "vision-assessments").canonicalPath))
+        } finally {
+            root.deleteRecursively()
+        }
     }
 
     @Test fun diagnosticPathsStayInsideTheTwoAppPrivateFolders() {
