@@ -134,9 +134,11 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             errorType = failure.javaClass.simpleName
             throw failure
         } finally {
-            // Metadata only: never capture payload_json, prompts, images, credentials or paths.
-            runCatching {
-                ArtDiagnosticsProtocol.appendBridgeEvent(app.filesDir, JSONObject()
+            // Do not let an arbitrary local app fill the journal with rejected calls.
+            if (callerPackages.size == 1 && callerPackages[0] == CONTROL_PACKAGE) {
+                // Metadata only: never capture payload_json, prompts, images, credentials or paths.
+                runCatching {
+                    ArtDiagnosticsProtocol.appendBridgeEvent(app.filesDir, JSONObject()
                     .put("at_epoch_ms", System.currentTimeMillis())
                     .put("method", method.take(64))
                     .put("action", requestedAction)
@@ -149,6 +151,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
                     .put("response_chars", responseChars)
                     .put("error_type", errorType ?: JSONObject.NULL)
                     .toString())
+                }
             }
         }
     }
