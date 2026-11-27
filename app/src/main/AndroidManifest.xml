@@ -10,6 +10,7 @@
     <uses-permission android:name="com.ailm.android.permission.READ_ART_SHEETS"/>
     <uses-permission android:name="com.ailm.android.permission.WRITE_ART_RESULTS"/>
     <queries>
+        <package android:name="com.asterion.control" />
         <package android:name="com.zhenxiang.superimage.pro"/>
         <package android:name="ru.tech.imageresizershrinker"/>
         <package android:name="com.tumuyan.ncnn.realsr"/>
@@ -23,6 +24,11 @@
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/loopback_network_security_config"
         android:supportsRtl="true">
+        <provider
+            android:name=".integrations.AsterionArtDiagnosticsProvider"
+            android:authorities="${applicationId}.asterion.bridge"
+            android:exported="true"
+            android:grantUriPermissions="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
