@@ -34,7 +34,7 @@ Allowed artifacts:
 - \`model-load-ms\`: native model load timing.
 - \`character-capsules\`: frozen character-design evidence where applicable.
 
-Long artifacts are paged in bounded chunks. Job IDs and artifact names are validated against fixed allowlists; arbitrary paths are never accepted.
+Long artifacts are paged in bounded 3,000-character chunks. Job IDs and artifact names are validated against fixed allowlists; arbitrary paths are never accepted.
 
 ## Security and data boundary
 
