@@ -141,10 +141,11 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
                 .put("error", item.optString("error").take(1200)))
         }
         val plans = File(app.filesDir, "generation-plans")
-        val planFiles = plans.listFiles()?.filter {
+        val allPlanFiles = plans.listFiles()?.filter {
             it.isFile && it.name.endsWith(".json") && !it.name.endsWith("-brain.json") &&
                 !it.name.endsWith("-capsules.json")
-        }.orEmpty().sortedByDescending { it.lastModified() }.take(12)
+        }.orEmpty()
+        val planFiles = allPlanFiles.sortedByDescending { it.lastModified() }.take(12)
         val jobs = JSONArray().apply {
             planFiles.forEach { file ->
                 val parsed = runCatching { JSONObject(file.readText()) }.getOrNull() ?: return@forEach
@@ -155,8 +156,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
                     .put("plan_available", true))
             }
         }
-        val versionCode = if (Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode
-            else @Suppress("DEPRECATION") packageInfo.versionCode.toLong()
+        val versionCode = packageInfo.longVersionCode
         return JSONObject()
             .put("schema", "asterion.art.diagnostics.v1")
             .put("app", "Asterion Art")
@@ -169,7 +169,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             .put("sharing_enabled", true)
             .put("tasks", tasks)
             .put("recent_generation_jobs", jobs)
-            .put("generation_plan_count", planFiles.size)
+            .put("generation_plan_count", allPlanFiles.size)
             .put("diagnostic_artifacts_are_app_private", true)
             .put("image_bytes_exported", false)
             .put("secrets_exported", false)
