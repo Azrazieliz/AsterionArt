@@ -23,8 +23,6 @@ import com.asterion.art.video.VideoPlanStore
 import com.asterion.art.video.WanNeuralTimeline
 import com.asterion.art.video.VideoFrameContinuation
 import com.asterion.art.video.VideoSeamMetrics
-import com.asterion.art.brain.AsterionReasoner
-import com.asterion.art.engine.CreativeDomain
 import com.asterion.art.learning.CreativeMemoryStore
 import com.asterion.art.learning.SavedDesign
 import com.asterion.art.model.RenderMode
@@ -77,20 +75,9 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
             repo.updateTask(task,TaskStatus.RUNNING)
             val plan=VideoPlanStore(applicationContext).load(id)
-            val designBrain=AsterionReasoner(applicationContext)
-            val neuralPlan=if(designBrain.available())designBrain.compile(
-                domain=CreativeDomain.VIDEO,
-                canonicalMethod="Create a temporally continuous true video from the " +
-                    "provided first-frame references; maintain identity across frames.",
-                concepts=listOf(plan.preset.title,plan.direction),
-                basePositive=plan.positivePrompt,
-                baseNegative=plan.negativePrompt,
-                jobId=plan.id,
-                candidateCount=plan.imageUris.size.coerceAtLeast(1),
-                onStage={ stage -> repo.updateTaskProgress(task,0,0,stage) }
-            ) else null
-            val inferredMotion=neuralPlan?.positive?.takeIf{it.isNotBlank()}
-                ?:plan.positivePrompt
+            // Persisted user-selected motion is task data, not a methodology
+            // given to an untrained generic chatbot at render time.
+            val inferredMotion=plan.positivePrompt
             val bridge=NeuralVideoBridge(applicationContext)
             require(bridge.available()) {
                 "Install the verified on-device Wan 2.2 TI2V image-to-video model, VAE "+
@@ -98,9 +85,11 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 "No separate video API or manual server is supported."
             }
             val folder=File(applicationContext.filesDir,"video-cache/"+id).also { it.mkdirs() }
-            val timeline=WanNeuralTimeline.plan(plan.imageUris.size,
+            val windowCount=VideoPlanStore.requireDuration(
+                plan.secondsPerSegment,plan.totalSegments)
+            val timeline=WanNeuralTimeline.stream(plan.imageUris.size,
                 plan.secondsPerSegment,plan.totalSegments,plan.seed)
-            repo.updateTaskProgress(task,0,timeline.size,"Preparing video")
+            repo.updateTaskProgress(task,0,windowCount,"Preparing video")
             val segments=mutableListOf<File>()
             val runs=mutableListOf<String>()
             val canvas=NeuralVideoBridge.canvasFor(applicationContext,
@@ -110,17 +99,17 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 val frame=plan.imageUris[segment.sourceIndex]
                 if(isStopped)throw CancellationException()
                 setForeground(ForegroundInfo(7225,
-                    notification("Generating segment "+(index+1)+"/"+timeline.size),
+                    notification("Generating segment "+(index+1)+"/"+windowCount),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC))
                 val file=File(folder,"segment_"+index+".mp4")
                 if(com.asterion.art.video.NeuralMp4Encoder.playable(file)) {
                     segments+=file
                     runs+="recovered"
-                    repo.updateTaskProgress(task,index+1,timeline.size,"Recovered segment")
+                    repo.updateTaskProgress(task,index+1,windowCount,"Recovered segment")
                     continue
                 }
                 repo.updateTaskProgress(task,index,0,
-                    "Rendering neural video segment "+(index+1)+"/"+timeline.size)
+                    "Rendering neural video segment "+(index+1)+"/"+windowCount)
                 val source=if(segment.usePreviousEndFrame) {
                     val preceding=File(folder,"segment_"+(index-1)+".mp4")
                     val anchor=File(folder,"continuation_"+index+".png")
@@ -129,21 +118,20 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                         applicationContext,preceding,anchor)
                 } else Uri.parse(frame)
                 val result=bridge.generate(
-                    source,inferredMotion,
-                    neuralPlan?.negative?.takeIf{it.isNotBlank()}?:plan.negativePrompt,
+                    source,inferredMotion,plan.negativePrompt,
                     segment.seed,segment.expectedSeconds,file,canvas,{isStopped},
                     {done,total->
-                        repo.updateTaskProgress(task,index,timeline.size,
-                            "Wan local diffusion segment "+(index+1)+"/"+timeline.size+
+                        repo.updateTaskProgress(task,index,windowCount,
+                            "Wan local diffusion segment "+(index+1)+"/"+windowCount+
                                 " · step "+done+"/"+total.coerceAtLeast(1))
                     })
                 segments+=result.file
                 runs+=result.runId
-                repo.updateTaskProgress(task,index+1,timeline.size,"Segment " + (index+1) + " complete")
+                repo.updateTaskProgress(task,index+1,windowCount,"Segment " + (index+1) + " complete")
                 setProgress(Data.Builder().putInt("segment",index+1)
-                    .putInt("total",timeline.size).build())
+                    .putInt("total",windowCount).build())
             }
-            require(segments.size==timeline.size)
+            require(segments.size==windowCount)
             val seamMetrics=(1 until segments.size).mapNotNull { index ->
                 runCatching {
                     VideoSeamMetrics.inspect(segments[index-1],
@@ -175,10 +163,11 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 put("segment_fps",WanVideoRules.outputFps(1))
                 put("frames_per_neural_segment",WanVideoRules.frameCount(1))
                 put("native_one_second_continuation",true)
-                put("continuation_mode",if(timeline.any{it.usePreviousEndFrame})
+                put("continuation_mode",if(plan.secondsPerSegment>1 ||
+                    (plan.imageUris.size==1 && plan.totalSegments>1))
                     "previous_clip_end_frame" else "independent_reference_frames")
                 put("motion_continuity_verified",false)
-                put("total_segment_count",timeline.size)
+                put("total_segment_count",windowCount)
                 put("seam_objective_measurement",JSONArray(
                     seamMetrics.map { metric ->
                         JSONObject()
@@ -192,8 +181,9 @@ class VideoGenerationWorker(context: Context,params: WorkerParameters):
                 put("local_neural_segment_ids",JSONArray(runs))
                 put("clip_is_approved",false)
                 put("positive_prompt",inferredMotion)
-                put("reasoning_model",neuralPlan?.modelId ?: "deterministic")
-                put("negative_prompt_guide",neuralPlan?.negative ?: plan.negativePrompt)
+                put("reasoning_model",JSONObject.NULL)
+                put("motion_plan_authority","PERSISTED_USER_SELECTED_MOTION")
+                put("negative_prompt_guide",plan.negativePrompt)
                 put("negative_prompt_transmitted",true)
             }
             com.asterion.art.data.GeneratedImagePublisher.atomicWrite(

@@ -43,7 +43,7 @@ class VideoPlanStore(context: Context) {
         require(images.size in 1..8) { "Choose between one and eight reference images" }
         require(images.distinct().size == images.size)
         require(seconds in 1..5)
-        require(totalSegments in 1..24)
+        require(totalSegments>=1)
         require(images.size==1 || totalSegments==images.size)
         requireDuration(seconds,totalSegments)
         val prompts=compileMotion(preset,direction,ConceptTaxonomy(appContext))
@@ -69,15 +69,17 @@ class VideoPlanStore(context: Context) {
         return plan
     }
     companion object {
-        /** Master contract: final published video duration is 10–30 seconds. */
+        /** No arbitrary product duration ceiling: native jobs stream windows,
+         * and the only static constraint here prevents counter overflow.
+         */
         fun requireDuration(secondsPerAnchor:Int,numberOfAnchors:Int):Int {
-            require(secondsPerAnchor in 1..5 && numberOfAnchors in 1..24)
-            val requested=secondsPerAnchor*numberOfAnchors
-            require(requested in 10..30) {
-                "Asterion Art video must be 10–30 seconds; selected "+
-                    "segment configuration yields "+requested+" seconds."
+            require(secondsPerAnchor in 1..5 && numberOfAnchors>=1)
+            val requested=secondsPerAnchor.toLong()*numberOfAnchors
+            require(requested in 1..Int.MAX_VALUE.toLong()) {
+                "Video timeline exceeds its 32-bit segment counter; "+
+                    "split the job into continued parts."
             }
-            return requested
+            return requested.toInt()
         }
 
         fun compileMotion(preset: MotionPreset, direction: String = "",

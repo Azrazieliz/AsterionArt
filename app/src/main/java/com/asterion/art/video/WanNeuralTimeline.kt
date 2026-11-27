@@ -18,13 +18,22 @@ object WanNeuralTimeline {
         seed:Long):List<WanNeuralSegment> {
         require(sourceImages in 1..8)
         require(secondsPerAnchor in 1..5)
-        require(numberOfAnchors in 1..24)
+        return stream(sourceImages,secondsPerAnchor,numberOfAnchors,seed).toList()
+    }
+
+    /** Streaming plan avoids allocating millions of frame records at once. */
+    fun stream(sourceImages:Int,secondsPerAnchor:Int,numberOfAnchors:Int,
+        seed:Long):Sequence<WanNeuralSegment> {
+        require(sourceImages in 1..8)
+        require(secondsPerAnchor in 1..5)
+        require(numberOfAnchors>=1)
         require(sourceImages==1 || numberOfAnchors==sourceImages)
-        return buildList {
+        VideoPlanStore.requireDuration(secondsPerAnchor,numberOfAnchors)
+        return sequence {
+            var n=0
             repeat(numberOfAnchors){anchor->
                 repeat(secondsPerAnchor){second->
-                    val n=size
-                    add(WanNeuralSegment(
+                    yield(WanNeuralSegment(
                         index=n,
                         sourceIndex=if(sourceImages==1)0 else anchor,
                         usePreviousEndFrame=second>0||
@@ -32,6 +41,7 @@ object WanNeuralTimeline {
                         expectedSeconds=1,
                         seed=seed+n*1009L
                     ))
+                    n++
                 }
             }
         }

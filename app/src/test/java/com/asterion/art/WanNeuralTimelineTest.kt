@@ -20,6 +20,12 @@ class WanNeuralTimelineTest {
         assertEquals(listOf(false,true,false,true,false,true),
             frames.map{it.usePreviousEndFrame})
     }
+    @Test fun longTimelinesStreamWithoutEagerlyAllocatingEveryWindow() {
+        val first=WanNeuralTimeline.stream(1,5,120_000,13L).take(7).toList()
+        assertEquals(7,first.size)
+        assertEquals((0..6).toList(),first.map{it.index})
+        assertTrue(first.drop(1).all{it.usePreviousEndFrame})
+    }
     @Test fun rejectsAmbiguousPartialMultiImageChains() {
         assertTrue(runCatching{WanNeuralTimeline.plan(3,2,2,11)}.isFailure)
         assertTrue(runCatching{WanNeuralTimeline.plan(1,0,2,11)}.isFailure)

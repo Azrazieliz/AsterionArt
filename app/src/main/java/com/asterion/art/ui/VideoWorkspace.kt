@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -88,9 +90,12 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
             .getOrDefault(MotionPreset.CINEMATIC)
     ) }
     var seconds by remember { mutableStateOf(initial.optInt("seconds",5).coerceIn(1,5)) }
-    var repeatSegments by remember {
-        mutableStateOf(initial.optInt("repeat",2).coerceIn(1,8))
+    // Persist partially entered durations without resetting drafts.
+    var repeatInput by remember {
+        mutableStateOf(initial.optString("repeat_input",
+            initial.optInt("repeat",2).toString()))
     }
+    val repeatSegments=repeatInput.toIntOrNull()?:0
     var customMotion by remember { mutableStateOf(initial.optString("motion")) }
     var showPromptReview by remember { mutableStateOf(false) }
     var resultsNonce by remember { mutableStateOf(0) }
@@ -103,6 +108,7 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
             put("preset",preset.name)
             put("seconds",seconds)
             put("repeat",repeatSegments)
+            put("repeat_input",repeatInput)
             put("motion",customMotion)
             put("clips",RequestDraftStore.strings(localClips))
         })
@@ -142,8 +148,11 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
         }
     }
     val results=remember(resultsNonce) { VideoResultStore(context).list() }
-    val requestedDuration=seconds*(if(images.size==1)repeatSegments else images.size)
-    val durationValid=requestedDuration in 10..30
+    val requestedDuration=seconds.toLong()*
+        (if(images.size==1)repeatSegments.toLong() else images.size.toLong())
+    val durationValid=images.isNotEmpty() &&
+        (if(images.size==1)repeatSegments>0 else true) &&
+        requestedDuration in 1..Int.MAX_VALUE.toLong()
     val prompts=VideoPlanStore.compileMotion(preset,customMotion,taxonomy)
     if(showPromptReview) AlertDialog(
         onDismissRequest={showPromptReview=false},
@@ -274,16 +283,25 @@ fun VideoWorkspace(repo: ArtRepository, onQueued: () -> Unit) {
                 OutlinedTextField(value=customMotion,onValueChange={customMotion=it},
                     label={Text("Specific motion direction")},modifier=Modifier.fillMaxWidth(),
                     minLines=2,maxLines=5)
-                Text("Requested final video: $requestedDuration seconds (required 10–30 s)",
+                Text("Requested final video: $requestedDuration seconds · streamed native windows",
                     color=if(durationValid)Gold else Red)
                 Text("Segment duration: $seconds s",color=Gold)
                 Slider(value=seconds.toFloat(),
                     onValueChange={seconds=it.roundToInt()},
                     valueRange=1f..5f,steps=3)
                 if(images.size==1) {
-                    Text("Consecutive segments: "+repeatSegments,color=Gold)
-                    Slider(value=repeatSegments.toFloat(),
-                        onValueChange={repeatSegments=it.roundToInt()},
+                    OutlinedTextField(
+                        value=repeatInput,
+                        onValueChange={value ->
+                            if(value.length<=9 && value.all{it.isDigit()})
+                                repeatInput=value
+                        },
+                        label={Text("Number of consecutive segments")},
+                        keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),
+                        singleLine=true,modifier=Modifier.fillMaxWidth()
+                    )
+                    Slider(value=repeatSegments.coerceIn(1,8).toFloat(),
+                        onValueChange={repeatInput=it.roundToInt().toString()},
                         valueRange=1f..8f,steps=6)
                     Text("After the first clip, each new clip starts from the " +
                         "last decoded frame of the preceding clip. This improves " +

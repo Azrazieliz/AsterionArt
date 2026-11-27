@@ -1,31 +1,25 @@
 package com.asterion.art
 
 import com.asterion.art.video.VideoPlanStore
-import org.junit.Assert.assertEquals
+import org.junit.Assert.*
 import org.junit.Test
 
 class VideoMasterDurationTest {
-    @Test fun acceptsTenTwentyThirtySeconds() {
+    @Test fun noArbitraryTenToThirtySecondProductCeiling() {
+        assertEquals(2,VideoPlanStore.requireDuration(2,1))
         assertEquals(10,VideoPlanStore.requireDuration(5,2))
-        assertEquals(20,VideoPlanStore.requireDuration(5,4))
-        assertEquals(30,VideoPlanStore.requireDuration(5,6))
+        assertEquals(40,VideoPlanStore.requireDuration(5,8))
+        assertEquals(600,VideoPlanStore.requireDuration(5,120))
     }
-
-    @Test fun rejectsPreviouslyPermittedTwoSecondVideo() {
-        try {
-            VideoPlanStore.requireDuration(2,1)
-            throw AssertionError("Short sample was treated as completed video")
-        } catch(expected:IllegalArgumentException) {
-            assert(expected.message.orEmpty().contains("10–30"))
+    @Test fun rejectsOnlyInvalidOrUnrepresentableDurations() {
+        assertThrows(IllegalArgumentException::class.java){
+            VideoPlanStore.requireDuration(0,2)
         }
-    }
-
-    @Test fun rejectsPreviouslyPermittedFortySecondVideo() {
-        try {
-            VideoPlanStore.requireDuration(5,8)
-            throw AssertionError("Excessively long output was permitted")
-        } catch(expected:IllegalArgumentException) {
-            assert(expected.message.orEmpty().contains("40 seconds"))
+        assertThrows(IllegalArgumentException::class.java){
+            VideoPlanStore.requireDuration(2,0)
+        }
+        assertThrows(IllegalArgumentException::class.java){
+            VideoPlanStore.requireDuration(5,Int.MAX_VALUE)
         }
     }
 }
