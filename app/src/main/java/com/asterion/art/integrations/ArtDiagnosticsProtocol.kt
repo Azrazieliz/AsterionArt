@@ -80,17 +80,17 @@ object ArtDiagnosticsProtocol {
     /** Store one metadata-only provider-call record; never store request payloads or prompt text. */
     fun appendBridgeEvent(filesDir: File, serializedEvent: String) = synchronized(bridgeEventLock) {
         require(serializedEvent.isNotBlank() && serializedEvent.length <= 2048 &&
-            serializedEvent.none { it == '\\n' || it == '\\r' }) {
+            serializedEvent.none { it == '\n' || it == '\r' }) {
             "Invalid bridge event record"
         }
         val file = bridgeEventsFile(filesDir)
         file.parentFile?.mkdirs()
-        file.appendText(serializedEvent + "\\n", Charsets.UTF_8)
+        file.appendText(serializedEvent + "\n", Charsets.UTF_8)
         if (file.length() > MAX_BRIDGE_EVENT_BYTES) {
             val recent = file.readLines(Charsets.UTF_8).takeLast(MAX_BRIDGE_EVENT_LINES)
             val temporary = File(file.parentFile, "events.jsonl.tmp")
             temporary.writeText(
-                if (recent.isEmpty()) "" else recent.joinToString("\\n", postfix = "\\n"),
+                if (recent.isEmpty()) "" else recent.joinToString("\n", postfix = "\n"),
                 Charsets.UTF_8
             )
             try {
@@ -118,7 +118,7 @@ object ArtDiagnosticsProtocol {
             require(limit in 1..MAX_BRIDGE_EVENT_LINES) { "Invalid bridge event count" }
             val file = bridgeEventsFile(filesDir)
             if (!file.isFile) return@synchronized ""
-            file.readLines(Charsets.UTF_8).takeLast(limit).joinToString("\\n")
+            file.readLines(Charsets.UTF_8).takeLast(limit).joinToString("\n")
         }
 
     fun page(text: String, offset: Int, limit: Int): ArtDiagnosticPage {
