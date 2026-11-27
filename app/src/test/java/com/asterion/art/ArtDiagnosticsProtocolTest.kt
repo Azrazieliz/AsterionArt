@@ -65,4 +65,35 @@ class ArtDiagnosticsProtocolTest {
             root.deleteRecursively()
         }
     }
+
+    @Test fun bridgeEventJournalRetainsOnlyTheNewestBoundedRecords() {
+        val root = createTempDir(prefix = "asterion-art-bridge-events")
+        try {
+            repeat(140) { sequence ->
+                ArtDiagnosticsProtocol.appendBridgeEvent(
+                    root, """{"sequence":$sequence,"outcome":"completed"}"""
+                )
+            }
+            val records = ArtDiagnosticsProtocol.readBridgeEvents(root).lines()
+            assertEquals(128, records.size)
+            assertTrue(records.first().contains("\"sequence\":12"))
+            assertTrue(records.last().contains("\"sequence\":139"))
+            assertFalse(records.any { it.contains("\"sequence\":0") })
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun bridgeEventJournalRejectsMultilineRecords() {
+        val root = createTempDir(prefix = "asterion-art-bridge-events-invalid")
+        try {
+            val outcome = runCatching {
+                ArtDiagnosticsProtocol.appendBridgeEvent(root, "{\"event\":1}\n{\"event\":2}")
+            }
+            assertTrue(outcome.isFailure)
+            assertEquals("", ArtDiagnosticsProtocol.readBridgeEvents(root))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
 }
