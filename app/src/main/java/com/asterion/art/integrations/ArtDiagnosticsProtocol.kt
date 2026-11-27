@@ -64,6 +64,63 @@ object ArtDiagnosticsProtocol {
         return file
     }
 
+    private const val MAX_BRIDGE_EVENT_LINES = 128
+    private const val MAX_BRIDGE_EVENT_BYTES = 262_144L
+    private val bridgeEventLock = Any()
+
+    private fun bridgeEventsFile(filesDir: File): File {
+        val root = File(filesDir, "asterion-control-bridge").canonicalFile
+        val file = File(root, "events.jsonl").canonicalFile
+        require(file.path.startsWith(root.path + File.separator)) {
+            "Bridge event journal escaped its private directory"
+        }
+        return file
+    }
+
+    /** Store one metadata-only provider-call record; never store request payloads or prompt text. */
+    fun appendBridgeEvent(filesDir: File, serializedEvent: String) = synchronized(bridgeEventLock) {
+        require(serializedEvent.isNotBlank() && serializedEvent.length <= 2048 &&
+            serializedEvent.none { it == '\\n' || it == '\\r' }) {
+            "Invalid bridge event record"
+        }
+        val file = bridgeEventsFile(filesDir)
+        file.parentFile?.mkdirs()
+        file.appendText(serializedEvent + "\\n", Charsets.UTF_8)
+        if (file.length() > MAX_BRIDGE_EVENT_BYTES) {
+            val recent = file.readLines(Charsets.UTF_8).takeLast(MAX_BRIDGE_EVENT_LINES)
+            val temporary = File(file.parentFile, "events.jsonl.tmp")
+            temporary.writeText(
+                if (recent.isEmpty()) "" else recent.joinToString("\\n", postfix = "\\n"),
+                Charsets.UTF_8
+            )
+            try {
+                try {
+                    java.nio.file.Files.move(
+                        temporary.toPath(), file.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                    )
+                } catch (_: Exception) {
+                    java.nio.file.Files.move(
+                        temporary.toPath(), file.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                    )
+                }
+            } finally {
+                temporary.delete()
+            }
+        }
+    }
+
+    /** Return only the newest bounded metadata records for owner-approved diagnostics. */
+    fun readBridgeEvents(filesDir: File, limit: Int = MAX_BRIDGE_EVENT_LINES): String =
+        synchronized(bridgeEventLock) {
+            require(limit in 1..MAX_BRIDGE_EVENT_LINES) { "Invalid bridge event count" }
+            val file = bridgeEventsFile(filesDir)
+            if (!file.isFile) return@synchronized ""
+            file.readLines(Charsets.UTF_8).takeLast(limit).joinToString("\\n")
+        }
+
     fun page(text: String, offset: Int, limit: Int): ArtDiagnosticPage {
         require(offset >= 0 && offset <= text.length) { "Invalid diagnostic offset" }
         require(limit in 1..MAX_PAGE_CHARS) { "Invalid diagnostic page size" }
