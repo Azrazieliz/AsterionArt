@@ -176,8 +176,11 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         }
         val plans = File(app.filesDir, "generation-plans")
         val allPlanFiles = plans.listFiles()?.filter {
-            it.isFile && it.name.endsWith(".json") && !it.name.endsWith("-brain.json") &&
-                !it.name.endsWith("-capsules.json")
+            it.isFile && it.name.endsWith(".json") &&
+                !it.name.endsWith("-brain.json") &&
+                !it.name.endsWith("-capsules.json") &&
+                !it.name.endsWith("-results.json") &&
+                it.name.removeSuffix(".json").matches(Regex("[A-Za-z0-9_-]{8,90}"))
         }.orEmpty()
         val planFiles = allPlanFiles.sortedByDescending { it.lastModified() }.take(12)
         val jobs = JSONArray().apply {
