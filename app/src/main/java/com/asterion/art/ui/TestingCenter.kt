@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.asterion.art.data.ArtRepository
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.nativeengine.NativeModelLibrary
+import com.asterion.art.integrations.AsterionArtDiagnosticsProvider
 import com.asterion.art.testing.RuntimeProbe
 import com.asterion.art.testing.RuntimeProbes
 import com.asterion.art.work.NativeImageSmokeWorker
@@ -41,6 +42,7 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
     var editTesting by remember{mutableStateOf(false)}
     var editOutcome by remember{mutableStateOf<String?>(null)}
     var note by remember{mutableStateOf<String?>(null)}
+    var controlBridgeEnabled by remember { mutableStateOf(AsterionArtDiagnosticsProvider.isEnabled(context)) }
     var suiteRunning by remember{mutableStateOf(false)}
     var suiteReport by remember{mutableStateOf<String?>(null)}
     suspend fun refresh() {
@@ -77,6 +79,31 @@ fun TestingCenter(repo:ArtRepository,openModels:()->Unit,
                     finally{evaluating=false}
                 }
             }){Text(if(evaluating)"Checking…" else "Refresh actual runtime status")}
+        }
+        item {
+            OutlinedCard(colors=CardDefaults.outlinedCardColors(
+                containerColor=Panel)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp),
+                    verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Text("ASTERION CONTROL · DIAGNOSTICS",color=Gold)
+                    Text("Expose read-only generation evidence to the installed Asterion Control app: recent jobs, model identities, the exact prompt sent to the image model, the prompting-model plan, native stage inputs and failure reports. No image bytes, credentials, model files, generation controls or editing actions are exposed.",
+                        color=Mist,style=MaterialTheme.typography.bodySmall)
+                    Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement=Arrangement.SpaceBetween,
+                        modifier=Modifier.fillMaxWidth()) {
+                        Text(if(controlBridgeEnabled) "Diagnostics sharing enabled" else "Diagnostics sharing disabled",
+                            color=if(controlBridgeEnabled) Green else Mist)
+                        Switch(checked=controlBridgeEnabled,onCheckedChange={enabled->
+                            runCatching {
+                                AsterionArtDiagnosticsProvider.setEnabled(context,enabled)
+                                controlBridgeEnabled=enabled
+                            }.onFailure { note=it.message?:it.javaClass.simpleName }
+                        })
+                    }
+                    Text("Control must also approve Asterion Art locally on the phone before it can read this provider. Turning this off immediately blocks partner calls.",
+                        color=Mist,style=MaterialTheme.typography.bodySmall)
+                }
+            }
         }
         item {
             OutlinedCard(colors=CardDefaults.outlinedCardColors(
