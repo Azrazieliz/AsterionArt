@@ -79,6 +79,7 @@ class ArtDiagnosticsProtocolTest {
             assertTrue(records.first().contains("\"sequence\":12"))
             assertTrue(records.last().contains("\"sequence\":139"))
             assertFalse(records.any { it.contains("\"sequence\":0") })
+            assertTrue(File(root, "asterion-control-bridge/events.jsonl").length() < 262_144L)
         } finally {
             root.deleteRecursively()
         }
