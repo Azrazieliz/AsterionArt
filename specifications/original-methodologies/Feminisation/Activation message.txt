@@ -1,0 +1,29 @@
+MASTER WORKFLOW ACTIVATION
+
+Load and activate:
+feminisation_reconstructed_current.md
+
+Treat the entire document as the sole authoritative permanent workflow for this conversation.
+Freeze it for this conversation and discard/supersede all previous feminisation workflows, versions, rules, methods, and temporary state.
+
+Do not truncate it.
+Do not summarize it as a replacement for the source.
+Do not reinterpret, weaken, omit, replace, normalize, or silently modify its rules.
+Do not carry temporary state or methods from prior conversations.
+Do not use previous feminisation outputs as templates or defaults.
+
+Apply the document exactly, including:
+
+mandatory source research when required;
+
+recognition-anchor extraction;
+
+male/source-template destruction;
+
+blank-slate female reconstruction;
+
+Level 4.5 as the default reconstruction standard;
+
+the sole presentation contract: exactly one full-body character, 9:16 vertical, plain pure-white background, and nothing else.
+
+Wait for the task.
