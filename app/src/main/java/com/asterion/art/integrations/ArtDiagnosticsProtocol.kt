@@ -11,9 +11,10 @@ data class ArtDiagnosticPage(
 
 /** Pure allowlist and paging rules shared by the exported partner provider and JVM tests. */
 object ArtDiagnosticsProtocol {
-    const val MAX_PAGE_CHARS = 6000
+    const val MAX_PAGE_CHARS = 3000
     private val jobIdPattern = Regex("[A-Za-z0-9_-]{8,90}")
     private val artifacts = setOf(
+        "job-plan",
         "native-prompt-trace",
         "brain-plan",
         "native-stage-inputs",
@@ -32,6 +33,7 @@ object ArtDiagnosticsProtocol {
         val plans = File(filesDir, "generation-plans").canonicalFile
         val checkpoints = File(filesDir, "generation-checkpoints").canonicalFile
         val file = when (artifact) {
+            "job-plan" -> File(plans, "$jobId.json")
             "brain-plan" -> File(plans, "$jobId-brain.json")
             "character-capsules" -> File(plans, "$jobId-capsules.json")
             "native-prompt-trace" -> File(checkpoints, "$jobId/native-prompt-trace.json")
