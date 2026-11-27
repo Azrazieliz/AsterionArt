@@ -1,34 +1,29 @@
-# Asterion Art — Android image and video generation
+# Asterion Art — clean-slate rebuild
 
-**Architecture authority:** the owner's *Asterion Art Canonical Product Architecture and Tailored-Model Development Specification* (29 October 2026). Historical assistant-written descriptions do not supersede it.
+This branch is the **new source-of-truth implementation branch**, not a working APK. All legacy application/engine/Gradle implementations have intentionally been removed from this branch. This is a genuine rebuild rather than continued patching of the old prompt-centric architecture.
 
-## Intended product
+## Preservation / provenance
 
-- Native Android generation of Anime, Cosplay and Realistic images.
-- **Artwork Creation:** a final illustration from Character, Theme and Art Style sheets, with an optional Element sheet, using the owner's original **five Artwork-only quality phases**.
-- **Sheet Creation:** source-reference-driven in-app construction of the four structured sheet types, usually from one input image.
-- **Originals:** independent owner-specified methodologies (Character Creation, Feminisation, Alternate Universe, Transformation, Mutation, Creature, Outfit, Weapon and Art Style Correction) with distinct output contracts, **not** Artwork five-phase variants.
-- **Video:** 10–30-second single-image or frame-referenced animation with automatically prepared motion instructions.
-- Pre-render interpretation and compilation into a **complete unified image-model prompt**. No token-sliced diffusion repainting, invented large-context claims or hours of compulsory repeated Qwen interpretation.
-- Validated one-tap background execution with optional prompt and parameter adjustment.
-- Automatic Image Toolbox, RealSR and SuperImage enhancements before owner review, then comparative grading and model learning.
-- Model research, adaptation and fusion, including actual trained native-compatible context improvements rather than renamed limits.
-- Strictly owner-directed creative scope; no invented app-level restrictions.
+- Legacy engineering history is preserved without rewriting commits at `archive/asterion-art-legacy-20261127` (legacy head: `4691df4f24a01d0115973f1fbbcf011e1f9621de`).
+- The old `main` and former integration branch were not modified by the cleanup.
+- The full authoritative owner architecture and approved corrections are preserved under `docs/architecture`, `docs/production`, `docs/owner_recovered`.
+- All 14 tracked original methodology/taxonomy source files were moved **byte-for-byte as existing Git blobs** from `app/src/main/assets/methodology` to `specifications/original-methodologies`. These are **development/training specifications, NEVER runtime instructions to a general-purpose chatbot**.
+- Previous technical proposals, defective app code, CI scripts and dead-end experiments remain retrievable from the preserved legacy branch, not from this rebuild.
+- No existing local models, device installations, private source images, signing secrets or other user data were deleted.
 
-## Actual implementation status
+## Binding product definition
 
-**Not certified as functional.** Source components exist for UI, native QNN still inference, local Wan video, sheet creation, Originals, job persistence, grading, enhancement and model import. Their existence and CI compilation do **not** demonstrate successful end-to-end generation. Owner-supplied outputs on 29 October were unusable blurred images. The October 23 approved Artwork five-phase order and source methodology have now been recovered in `docs/owner_recovered/ARTWORK_FIVE_PHASES_20261023.md`, with original method sources restored. Actual rendering fidelity, stage continuity and native execution remain unverified. Automated Image Toolbox + SuperImage integration, validated tailored image encoders, and tested 10–30-second video fidelity are not established.
+Asterion Art is a **genuine Android-local creative image and video application**. Implement full independent Artwork, Sheet, Originals and video workflows. Artwork alone has its owner-defined five phases, with multiple candidates and one continuation at each stage. All Originals use their independent original governing methodologies. The system needs structurally encoded mode-native method execution and trained visual/creative skills—NOT runtime methodology interpretation, generic chatbot prompts or deterministic creative text fallback.
 
-The `research/model-capabilities-no-build-20261027` branch is the existing app snapshot. The `recovery/owner-architecture-compliance-20261029` branch removes specific unauthorized mechanisms **without installing or rebuilding**. Do not claim it is a tested release. Historical code is retained on the pre-October-23 branches.
+- Three genuinely tailored image generators: **Anime, Cosplay, Realistic**, subject to verified phone-native support.
+- Original and reference-aware visual conditioning, genuinely integrated Character/Theme/Art Style/Element sheets, coherent character identities, source and field provenance, selection and controlled edits.
+- Both individual video clips and multi-shot projects, with audio, dialogue, music and lip sync.
+- Native on-device generation once permitted model weights are acquired; automatic quality optimization, enhancement, robust unattended background operation, checkpoints/restart, user grading and validated learning.
+- Reuse existing authenticated Asterion Control bridge, Core and Downloader ecosystem; no mandatory novel third-party server, paid compute or unverified free GPU.
+- Quality accepted on actual original modes and representative image/video outputs—not build success, prompt quality, synthetic previews or sphere tests.
 
-## Important preservation rules
+## State
 
-Do not delete, overwrite or replace local QNN models, user designs, source images, grades, checkpoints, downloaded weights or the existing owner APK signing identity. Model import must remain in-app and owner-controlled. The user's phone is the target runtime; a PC or separately running third-party app is not an implicit requirement.
+**Repository cleaned; implementation not started in this branch.** No production model, signed APK, on-device generation or quality acceptance is claimed. Development should proceed only after consolidating the owner's one-time outstanding decisions, without reasking settled specifications. Re-establish CI on the newly implemented project, test actual native inference, verify original signing identity and conduct on-device quality acceptance.
 
-## Model validation
-
-Fusion experiments under `fusion/` are research code, not verified deployable fused checkpoints. Reasoning-model context and diffusion-image text-encoder context are separate limits. A prompt that exceeds the selected native diffusion encoder must never be split into separate denoising jobs and described as if it received full simultaneous attention.
-
-## Licensing
-
-Preserve applicable Local Dream, Qualcomm, Wan, model-weight and enhancement-runtime licenses and provenance. The presence of a dependency does not establish device compatibility.
+See `docs/rebuild/CLEANUP_RECORD_20261127.md` and `specifications/README.md`.

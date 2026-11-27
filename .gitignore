@@ -1,11 +1,38 @@
-﻿native/llama.cpp/
-brain/.cxx/
-**/.cxx/
-
-# Keep build artifacts and private model weights outside Git.
+# Local Android build material
 .gradle/
+.idea/
+build/
 **/build/
-**/*.gguf
-**/*.gguf.partial
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
 *.apk
 *.aab
+*.apks
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+
+# Local models, checkpoints and datasets; do not casually push sensitive assets
+*.safetensors
+*.gguf
+*.ggml
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.tflite
+checkpoints/
+datasets/private/
+runs/
+outputs/
+.env
+.env.*
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
