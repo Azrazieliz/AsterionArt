@@ -93,6 +93,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         val requestId = (extras?.getString("request_id") ?: arg).orEmpty().take(100)
         var outcome = "failed"
         var errorType: String? = null
+        var responseChars = 0
         try {
             authorize(app)
             val result = when (method) {
@@ -122,6 +123,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
                 else -> throw IllegalArgumentException("Unsupported Asterion partner method")
             }
             val encoded = result.toString()
+            responseChars = encoded.length
             require(encoded.length <= 8192) { "Partner result exceeds the 8 KB protocol limit" }
             outcome = result.optString(
                 "status", if (result.optBoolean("ok")) "completed" else "failed"
@@ -144,6 +146,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
                     .put("caller_package_count", callerPackages.size)
                     .put("outcome", outcome.take(40))
                     .put("elapsed_ms", (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(0L))
+                    .put("response_chars", responseChars)
                     .put("error_type", errorType ?: JSONObject.NULL)
                     .toString())
             }
