@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -33,7 +34,8 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         private val ACTIONS = setOf(
             "diagnostics.snapshot",
             "diagnostics.job",
-            "diagnostics.read"
+            "diagnostics.read",
+            "diagnostics.bridge-events"
         )
 
         fun isEnabled(context: Context): Boolean =
@@ -82,23 +84,70 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
         val app = context?.applicationContext ?: error("Art application context unavailable")
-        authorize(app)
-        val result = when (method) {
-            "asterion.v1.capabilities" -> capabilities()
-            "asterion.v1.invoke" -> invoke(app, extras)
-            "asterion.v1.status" -> {
-                require(REQUEST_ID.matches(arg.orEmpty())) { "Invalid diagnostic request ID" }
-                JSONObject().put("ok", true).put("status", "completed")
-                    .put("request_id", arg).put("read_only", true)
+        val startedAt = SystemClock.elapsedRealtime()
+        val callerUid = Binder.getCallingUid()
+        val callerPackages = runCatching {
+            app.packageManager.getPackagesForUid(callerUid).orEmpty()
+        }.getOrDefault(emptyArray())
+        val requestedAction = extras?.getString("action").orEmpty().take(80)
+        val requestId = (extras?.getString("request_id") ?: arg).orEmpty().take(100)
+        var outcome = "failed"
+        var errorType: String? = null
+        try {
+            authorize(app)
+            val result = when (method) {
+                "asterion.v1.capabilities" -> {
+                    require(extras?.getInt("protocol_version", 0) == PROTOCOL_VERSION) {
+                        "Unsupported Asterion partner protocol version"
+                    }
+                    capabilities()
+                }
+                "asterion.v1.invoke" -> invoke(app, extras)
+                "asterion.v1.status" -> {
+                    require(extras?.getInt("protocol_version", 0) == PROTOCOL_VERSION) {
+                        "Unsupported Asterion partner protocol version"
+                    }
+                    require(REQUEST_ID.matches(requestId)) { "Invalid diagnostic request ID" }
+                    JSONObject().put("ok", true).put("status", "completed")
+                        .put("request_id", requestId).put("read_only", true)
+                }
+                "asterion.v1.cancel" -> {
+                    require(extras?.getInt("protocol_version", 0) == PROTOCOL_VERSION) {
+                        "Unsupported Asterion partner protocol version"
+                    }
+                    require(REQUEST_ID.matches(requestId)) { "Invalid diagnostic request ID" }
+                    JSONObject().put("ok", true).put("status", "not_cancellable")
+                        .put("request_id", requestId).put("read_only", true)
+                }
+                else -> throw IllegalArgumentException("Unsupported Asterion partner method")
             }
-            "asterion.v1.cancel" -> {
-                require(REQUEST_ID.matches(arg.orEmpty())) { "Invalid diagnostic request ID" }
-                JSONObject().put("ok", true).put("status", "not_cancellable")
-                    .put("request_id", arg).put("read_only", true)
+            val encoded = result.toString()
+            require(encoded.length <= 8192) { "Partner result exceeds the 8 KB protocol limit" }
+            outcome = result.optString(
+                "status", if (result.optBoolean("ok")) "completed" else "failed"
+            )
+            return Bundle().apply { putString("result_json", encoded) }
+        } catch (failure: Exception) {
+            outcome = if (failure is SecurityException) "denied" else "failed"
+            errorType = failure.javaClass.simpleName
+            throw failure
+        } finally {
+            // Metadata only: never capture payload_json, prompts, images, credentials or paths.
+            runCatching {
+                ArtDiagnosticsProtocol.appendBridgeEvent(app.filesDir, JSONObject()
+                    .put("at_epoch_ms", System.currentTimeMillis())
+                    .put("method", method.take(64))
+                    .put("action", requestedAction)
+                    .put("request_id", requestId)
+                    .put("caller_uid", callerUid)
+                    .put("caller_package", callerPackages.firstOrNull() ?: JSONObject.NULL)
+                    .put("caller_package_count", callerPackages.size)
+                    .put("outcome", outcome.take(40))
+                    .put("elapsed_ms", (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(0L))
+                    .put("error_type", errorType ?: JSONObject.NULL)
+                    .toString())
             }
-            else -> throw IllegalArgumentException("Unsupported Asterion partner method")
         }
-        return Bundle().apply { putString("result_json", result.toString()) }
     }
 
     private fun authorize(app: Context) {
@@ -130,6 +179,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             put(JSONObject().put("name", "diagnostics.snapshot").put("intent", "inspect"))
             put(JSONObject().put("name", "diagnostics.job").put("intent", "inspect"))
             put(JSONObject().put("name", "diagnostics.read").put("intent", "inspect"))
+            put(JSONObject().put("name", "diagnostics.bridge-events").put("intent", "inspect"))
         })
 
     private fun invoke(app: Context, extras: Bundle?): JSONObject {
@@ -147,6 +197,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             "diagnostics.snapshot" -> snapshot(app)
             "diagnostics.job" -> job(app, payload)
             "diagnostics.read" -> readArtifact(app, payload)
+            "diagnostics.bridge-events" -> bridgeEvents(app, payload)
             else -> error("Unsupported diagnostic action")
         }
         return JSONObject().put("ok", true).put("status", "completed")
@@ -331,6 +382,20 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             .put("compiled_model", trace?.optString("compiled_model") ?: JSONObject.NULL)
             .put("pre_render_elapsed_ms", trace?.optLong("pre_render_elapsed_ms") ?: 0)
             .put("diagnostic_artifacts", artifacts)
+    }
+
+    private fun bridgeEvents(app: Context, payload: JSONObject): JSONObject {
+        val offset = payload.optInt("offset", 0)
+        val limit = payload.optInt("limit", 2500)
+        val source = ArtDiagnosticsProtocol.readBridgeEvents(app.filesDir)
+        val page = ArtDiagnosticsProtocol.page(source, offset, limit)
+        return JSONObject()
+            .put("schema", "asterion.art.bridge-events.v1")
+            .put("offset", page.offset)
+            .put("total_chars", page.totalChars)
+            .put("next_offset", page.nextOffset ?: JSONObject.NULL)
+            .put("text", page.text)
+            .put("payload_content_recorded", false)
     }
 
     private fun sanitizeJobPlan(raw: String): String {
