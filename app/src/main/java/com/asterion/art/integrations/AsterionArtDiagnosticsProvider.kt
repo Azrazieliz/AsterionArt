@@ -160,7 +160,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         val rawTasks = runCatching { JSONArray(prefs.getString("tasks", "[]")) }
             .getOrDefault(JSONArray())
         val tasks = JSONArray()
-        val start = (rawTasks.length() - 12).coerceAtLeast(0)
+        val start = (rawTasks.length() - 8).coerceAtLeast(0)
         for (index in start until rawTasks.length()) {
             val item = rawTasks.optJSONObject(index) ?: continue
             tasks.put(JSONObject()
@@ -169,10 +169,10 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
                 .put("kind", item.optString("kind"))
                 .put("status", item.optString("status"))
                 .put("created_at", item.optLong("createdAt"))
-                .put("stage", item.optString("stage"))
+                .put("stage", item.optString("stage").take(160))
                 .put("progress_current", item.optInt("progressCurrent"))
                 .put("progress_total", item.optInt("progressTotal"))
-                .put("error", item.optString("error").take(1200)))
+                .put("error", item.optString("error").take(320)))
         }
         val plans = File(app.filesDir, "generation-plans")
         val allPlanFiles = plans.listFiles()?.filter {
@@ -220,7 +220,7 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         val plan = JSONObject(planFile.readText())
         val artifacts = JSONArray()
         for (name in listOf(
-            "native-prompt-trace", "brain-plan", "native-stage-inputs",
+            "job-plan", "native-prompt-trace", "brain-plan", "native-stage-inputs",
             "last-failure", "model-load-ms", "character-capsules"
         )) {
             val file = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, name)
@@ -244,13 +244,16 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             .put("mode", plan.optString("mode"))
             .put("creation_mode", plan.optString("creation_mode"))
             .put("created_at", plan.optLong("created"))
-            .put("concepts", plan.optJSONArray("concepts") ?: JSONArray())
+            .put("concepts", JSONArray().apply {
+                val source = plan.optJSONArray("concepts") ?: JSONArray()
+                for (index in 0 until minOf(source.length(), 30)) put(source.opt(index))
+            })
             .put("selected_sheet_count", plan.optJSONArray("sheets")?.length() ?: 0)
             .put("reference_counts_by_role", referenceCounts)
-            .put("user_scene_prompt", plan.optString("user_scene_prompt").take(2400))
-            .put("user_negative_prompt", plan.optString("user_negative_prompt").take(1600))
-            .put("design_prompt", plan.optString("design_prompt").take(2400))
-            .put("design_negative", plan.optString("design_negative").take(1600))
+            .put("user_scene_prompt_chars", plan.optString("user_scene_prompt").length)
+            .put("user_negative_prompt_chars", plan.optString("user_negative_prompt").length)
+            .put("design_prompt_chars", plan.optString("design_prompt").length)
+            .put("design_negative_chars", plan.optString("design_negative").length)
             .put("settings", plan.optJSONObject("settings") ?: JSONObject())
             .put("image_model_id", trace?.optString("model_id") ?: JSONObject.NULL)
             .put("prompt_model_id", brain?.optString("model") ?: JSONObject.NULL)
@@ -272,9 +275,10 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         require(ArtDiagnosticsProtocol.validJobId(id)) { "Invalid generation job ID" }
         require(ArtDiagnosticsProtocol.validArtifact(artifact)) { "Unsupported diagnostic artifact" }
         val offset = payload.optInt("offset", 0)
-        val limit = payload.optInt("limit", 5000)
+        val limit = payload.optInt("limit", 2500)
         val file = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, artifact)
         require(file.isFile) { "Requested diagnostic artifact is not present" }
+        require(file.length() <= 4_000_000L) { "Diagnostic artifact exceeds the safe read limit" }
         val page = ArtDiagnosticsProtocol.page(file.readText(), offset, limit)
         return JSONObject().put("job_id", id).put("artifact", artifact)
             .put("offset", page.offset).put("total_chars", page.totalChars)
