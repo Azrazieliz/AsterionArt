@@ -218,12 +218,36 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             "Saved generation job not found"
         }
         val plan = JSONObject(planFile.readText())
+        val characterPlanId = plan.optString("character_phase1_plan")
+            .takeIf { it.isNotBlank() && it != "null" }
+        val characterPlanFile = characterPlanId?.let {
+            ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, "character-plan", it)
+        }
+        val characterPlan = runCatching {
+            if (characterPlanFile?.isFile == true && characterPlanFile.length() <= 4_000_000L)
+                JSONObject(characterPlanFile.readText()) else null
+        }.getOrNull()
+        val characterTelemetryFile = characterPlanId?.let {
+            ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, "character-telemetry", it)
+        }
+        val characterTelemetry = runCatching {
+            if (characterTelemetryFile?.isFile == true && characterTelemetryFile.length() <= 4_000_000L)
+                JSONObject(characterTelemetryFile.readText()) else null
+        }.getOrNull()
+        val visualAuditFile = ArtDiagnosticsProtocol.artifactFile(
+            app.filesDir, id, "character-visual-audit")
+        val visualAudit = runCatching {
+            if (visualAuditFile.isFile && visualAuditFile.length() <= 4_000_000L)
+                JSONObject(visualAuditFile.readText()) else null
+        }.getOrNull()
         val artifacts = JSONArray()
-        for (name in listOf(
+        val artifactNames = mutableListOf(
             "job-plan", "native-prompt-trace", "brain-plan", "native-stage-inputs",
-            "last-failure", "model-load-ms", "character-capsules"
-        )) {
-            val file = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, name)
+            "last-failure", "model-load-ms", "character-capsules", "character-visual-audit"
+        )
+        if (characterPlanId != null) artifactNames.addAll(listOf("character-plan", "character-telemetry"))
+        for (name in artifactNames) {
+            val file = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, name, characterPlanId)
             if (file.isFile) artifacts.put(JSONObject()
                 .put("name", name).put("bytes", file.length())
                 .put("modified_at", file.lastModified()))
@@ -243,6 +267,21 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             if (traceFile.isFile && traceFile.length() <= 4_000_000L)
                 JSONObject(traceFile.readText()) else null
         }.getOrNull()
+        val visualFindings = visualAudit?.optJSONArray("findings") ?: JSONArray()
+        val visualStatuses = JSONArray()
+        val visualModels = linkedSetOf<String>()
+        for (index in 0 until visualFindings.length()) {
+            val finding = visualFindings.optJSONObject(index) ?: continue
+            visualStatuses.put(finding.optString("status"))
+            finding.optString("model").takeIf { it.isNotBlank() }?.let(visualModels::add)
+        }
+        var characterPromptChars = 0
+        val characterPrompts = characterPlan?.optJSONArray("sheet_prompts") ?: JSONArray()
+        for (index in 0 until characterPrompts.length()) {
+            characterPromptChars += characterPrompts.optString(index).length
+        }
+        val promptModelId = brain?.optString("model")?.takeIf { it.isNotBlank() }
+            ?: characterPlan?.optString("model_id")?.takeIf { it.isNotBlank() && it != "null" }
         return JSONObject()
             .put("job_id", id)
             .put("mode", plan.optString("mode"))
@@ -260,17 +299,64 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
             .put("design_negative_chars", plan.optString("design_negative").length)
             .put("settings", plan.optJSONObject("settings") ?: JSONObject())
             .put("image_model_id", trace?.optString("model_id") ?: JSONObject.NULL)
-            .put("prompt_model_id", brain?.optString("model") ?: JSONObject.NULL)
-            .put("prompt_domain", brain?.optString("domain") ?: JSONObject.NULL)
+             .put("prompt_model_id", promptModelId ?: JSONObject.NULL)
+            .put("prompting_path", if (brain != null) "ASTERION_REASONER"
+                else if (characterPlan != null) "CHARACTER_BRAIN_RESOLVER"
+                else "DETERMINISTIC_OR_NOT_RECORDED")
+            .put("prompt_domain", brain?.optString("domain")
+                ?: if (characterPlan != null) "CHARACTER" else JSONObject.NULL)
             .put("prompt_context_tokens", brain?.optInt("context_tokens") ?: 0)
             .put("prompt_authority_chars", brain?.optInt("authority_chars") ?: 0)
-            .put("prompt_positive_chars", brain?.optString("final_positive")?.length ?: 0)
+             .put("prompt_positive_chars", brain?.optString("final_positive")?.length ?: characterPromptChars)
             .put("prompt_negative_chars", brain?.optString("final_negative")?.length ?: 0)
+            .put("character_plan_id", characterPlanId ?: JSONObject.NULL)
+            .put("character_plan_status", characterPlan?.optString("status") ?: JSONObject.NULL)
+            .put("character_plan_model_id", characterPlan?.optString("model_id") ?: JSONObject.NULL)
+            .put("character_plan_failure", characterPlan?.optString("failure") ?: JSONObject.NULL)
+            .put("character_progress_stage", characterPlan?.optString("progress_stage") ?: JSONObject.NULL)
+            .put("character_frozen_count", characterPlan?.optJSONArray("frozen")?.length() ?: 0)
+            .put("character_sheet_prompt_count", characterPrompts.length())
+            .put("character_telemetry_available", characterTelemetry != null)
+            .put("character_telemetry_outcome", characterTelemetry?.optString("outcome") ?: JSONObject.NULL)
+            .put("character_telemetry_elapsed_ms", characterTelemetry?.optLong("total_elapsed_ms") ?: 0)
+            .put("character_visual_audit_available", visualAudit != null)
+            .put("character_visual_audit_findings", visualFindings.length())
+            .put("character_visual_audit_statuses", visualStatuses)
+            .put("character_visual_audit_models", JSONArray(visualModels))
             .put("visual_semantics_verified", brain?.optBoolean("visual_semantics_verified") ?: false)
             .put("native_stage_count", trace?.optJSONArray("native_stage_prompts")?.length() ?: 0)
             .put("compiled_model", trace?.optString("compiled_model") ?: JSONObject.NULL)
             .put("pre_render_elapsed_ms", trace?.optLong("pre_render_elapsed_ms") ?: 0)
             .put("diagnostic_artifacts", artifacts)
+    }
+
+    private fun sanitizeJobPlan(raw: String): String {
+        val plan = JSONObject(raw)
+        val sourceImage = plan.optString("source_image")
+        val designReferences = plan.optJSONArray("design_reference_images")
+        val directReferences = plan.optJSONObject("direct_reference_images") ?: JSONObject()
+        val counts = JSONObject()
+        directReferences.keys().forEach { role ->
+            counts.put(role, directReferences.optJSONArray(role)?.length() ?: 0)
+        }
+        plan.remove("source_image")
+        plan.remove("design_reference_images")
+        plan.remove("direct_reference_images")
+        plan.put("source_image_present", sourceImage.isNotBlank() && sourceImage != "null")
+        plan.put("design_reference_count", designReferences?.length() ?: 0)
+        plan.put("direct_reference_counts_by_role", counts)
+        plan.put("source_uris_redacted", true)
+        return plan.toString(2)
+    }
+
+    private fun sanitizeVisualAudit(raw: String): String {
+        val report = JSONObject(raw)
+        val findings = report.optJSONArray("findings") ?: JSONArray()
+        for (index in 0 until findings.length()) {
+            findings.optJSONObject(index)?.remove("uri")
+        }
+        report.put("source_uris_redacted", true)
+        return report.toString(2)
     }
 
     private fun readArtifact(app: Context, payload: JSONObject): JSONObject {
@@ -280,10 +366,21 @@ class AsterionArtDiagnosticsProvider : ContentProvider() {
         require(ArtDiagnosticsProtocol.validArtifact(artifact)) { "Unsupported diagnostic artifact" }
         val offset = payload.optInt("offset", 0)
         val limit = payload.optInt("limit", 2500)
-        val file = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, artifact)
+        val jobPlanFile = File(app.filesDir, "generation-plans/$id.json").canonicalFile
+        require(jobPlanFile.isFile) { "Saved generation job not found" }
+        val jobPlan = JSONObject(jobPlanFile.readText())
+        val characterPlanId = jobPlan.optString("character_phase1_plan")
+            .takeIf { it.isNotBlank() && it != "null" }
+        val file = ArtDiagnosticsProtocol.artifactFile(app.filesDir, id, artifact, characterPlanId)
         require(file.isFile) { "Requested diagnostic artifact is not present" }
         require(file.length() <= 4_000_000L) { "Diagnostic artifact exceeds the safe read limit" }
-        val page = ArtDiagnosticsProtocol.page(file.readText(), offset, limit)
+        val raw = file.readText()
+        val text = when (artifact) {
+            "job-plan" -> sanitizeJobPlan(raw)
+            "character-visual-audit" -> sanitizeVisualAudit(raw)
+            else -> raw
+        }
+        val page = ArtDiagnosticsProtocol.page(text, offset, limit)
         return JSONObject().put("job_id", id).put("artifact", artifact)
             .put("offset", page.offset).put("total_chars", page.totalChars)
             .put("next_offset", page.nextOffset ?: JSONObject.NULL)
