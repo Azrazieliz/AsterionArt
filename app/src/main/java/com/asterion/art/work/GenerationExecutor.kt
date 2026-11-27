@@ -42,6 +42,7 @@ import com.asterion.art.brain.AsterionReasoner
 import com.asterion.art.engine.DesignPreviewCrops
 import com.asterion.art.engine.ConceptTaxonomy
 import com.asterion.art.methodology.DetailedMethodologies
+import com.asterion.art.methodology.NativeModeGraph
 import com.asterion.art.engine.GenerationRecipe
 import com.asterion.art.engine.GenerationPass
 import com.asterion.art.engine.SheetTextReader
@@ -163,6 +164,19 @@ internal class GenerationExecutor(
                     }
                     com.asterion.art.engine.ArtworkFivePhaseContract
                         .validate(stages)
+                    GenerationRecipe(job.mode,stages,job.sheetIds,job.settings)
+                }
+                else if(job.creationMode==null &&
+                    !job.designPrompt.isNullOrBlank()) {
+                    // An approved, editable Artwork design is source authority,
+                    // not permission to drop four owner-defined native phases.
+                    // Keep the entire frozen design in every continuation call.
+                    val strengths=listOf(1f,0.48f,0.32f,0.22f,0.13f)
+                    val stages=strengths.mapIndexed { index, strength ->
+                        GenerationPass(index+1,requireNotNull(job.designPrompt),
+                            job.designNegative.orEmpty(),strength)
+                    }
+                    com.asterion.art.engine.ArtworkFivePhaseContract.validate(stages)
                     GenerationRecipe(job.mode,stages,job.sheetIds,job.settings)
                 }
                 else if(!job.designPrompt.isNullOrBlank()) GenerationRecipe(
@@ -502,9 +516,9 @@ internal class GenerationExecutor(
                 .applies(job.settings,model)
             if(turboAuto)repo.updateTaskProgress(taskId,0,0,
                 "Anima Turbo Â· optimized for on-device NPU: 8 steps, CFG 1")
-            val artworkBeam=job.creationMode==null &&
-                (job.designPrompt.isNullOrBlank() ||
-                    job.methodologyTextPlanId!=null)
+            // Artwork always uses its five-stage, N-candidate beam, including
+            // an owner-edited direct design (not only Route B or auto design).
+            val artworkBeam=job.creationMode==null
             val count = if(artworkBeam) 1 else
                 com.asterion.art.engine.OriginalOutputPolicy.imageCount(
                     job.creationMode,!job.designPrompt.isNullOrBlank(),
@@ -512,14 +526,14 @@ internal class GenerationExecutor(
             // v3 Character Creation explicitly prescribes ONE generation call
             // per fully specified analytical sheet; artwork uses five passes.
             val oneShotCharacterSheet =
-                (!job.designPrompt.isNullOrBlank() &&
-                    !(job.methodologyTextPlanId!=null &&
-                        job.creationMode==null)) ||
-                characterPlan!=null
+                job.creationMode!=null &&
+                    (!job.designPrompt.isNullOrBlank() || characterPlan!=null)
             val stageSequence = if (oneShotCharacterSheet)
                 listOf(recipe.passes.first()) else recipe.passes
-            if(job.creationMode==null && !oneShotCharacterSheet)
-                com.asterion.art.engine.ArtworkFivePhaseContract.validate(stageSequence)
+            // This executable graph selects and checks the native mode's
+            // allowed render transitions; no runtime method document is read.
+            val nativeGraph=NativeModeGraph.compile(job.creationMode,job.mode)
+            nativeGraph.requirePasses(stageSequence)
             val passesPerCandidate = stageSequence.size
             repo.updateTaskProgress(taskId,0,(count*passesPerCandidate+2)*100,"Beginning generation")
             for (candidate in 1..count) {
@@ -1057,13 +1071,15 @@ internal class GenerationExecutor(
                 put("schema", "asterion.generation.v1")
                 put("job_id", job.id)
                 put("model_id", model.id)
-                put("five_real_passes",job.creationMode==null &&
-                    !oneShotCharacterSheet && stageSequence.size==5)
+                put("five_real_passes",nativeGraph.isArtwork &&
+                    stageSequence.size==5)
                 put("one_shot_master_sheet_methodology", job.creationMode!=null&&
                     characterPlan==null && stageSequence.size==1)
                 put("character_render_method",if(characterPlan!=null)
                     "five_separate_frozen_identity_triptychs_composited_white_16_9"
                     else JSONObject.NULL)
+                put("native_mode_graph",nativeGraph.id)
+                put("native_mode_stage_count",nativeGraph.imageStages.size)
                 put("owner_artwork_five_phase_definitions_restored",true)
                 put("artwork_phase_order",JSONArray().apply {
                     if(job.creationMode==null && !oneShotCharacterSheet)
