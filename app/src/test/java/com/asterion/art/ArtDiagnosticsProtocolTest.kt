@@ -13,6 +13,7 @@ class ArtDiagnosticsProtocolTest {
     }
 
     @Test fun exposesOnlyNamedDiagnosticArtifacts() {
+        assertTrue(ArtDiagnosticsProtocol.validArtifact("job-plan"))
         assertTrue(ArtDiagnosticsProtocol.validArtifact("native-prompt-trace"))
         assertTrue(ArtDiagnosticsProtocol.validArtifact("brain-plan"))
         assertFalse(ArtDiagnosticsProtocol.validArtifact("../../shared_prefs"))
