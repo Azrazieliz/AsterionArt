@@ -18,6 +18,7 @@ import com.asterion.art.model.SheetRole
 import com.asterion.art.model.TaskKind
 import com.asterion.art.model.TaskStatus
 import com.asterion.art.nativeengine.EmbeddedEngineFactory
+import com.asterion.art.nativeengine.SheetModelSelection
 import com.asterion.art.render.SheetMasterPrompts
 import com.asterion.art.vision.VisionModelStore
 import com.asterion.art.vision.ReferenceVisualInterpreter
@@ -81,33 +82,24 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             val basePositive=SheetMasterPrompts.positive(
                 sheet.role,observations,sheet.originatingOriginal)
             val baseNegative=SheetMasterPrompts.negative(sheet.role)
-            val reasoner=com.asterion.art.brain.AsterionReasoner(app)
-            val neural=if(reasoner.available()){
-                foreground("Interpreting source anatomy and sheet construction")
-                reasoner.compile(
-                    domain=com.asterion.art.engine.UniversalCreativePlanner
-                        .sheetDomain(sheet.role),
-                    canonicalMethod=basePositive,
-                    concepts=emptyList(),basePositive=basePositive,
-                    baseNegative=baseNegative,jobId=sheet.id,
-                    candidateCount=1,
-                    sheetSources=listOf(observations).filter{it.isNotBlank()},
-                    onStage={stage->repo.updateTaskProgress(task,0,0,stage)},
-                    creationMode=sheet.originatingOriginal)
-            }else null
-            val negative=baseNegative+if(neural==null||neural.negative.isBlank())""
-                else ", "+neural.negative
+            // No generic GGUF/chat interpretation of a methodology at
+            // runtime. This sheet path only uses observed source evidence
+            // and the native image encoder. A genuinely trained mode-native
+            // design operator can be integrated behind a verified adapter;
+            // it is never approximated with an untrained generic chatbot.
+            val negative=baseNegative
             engine=EmbeddedEngineFactory.open(app)
             val models=engine.installedModels()
             require(models.isNotEmpty()){"Install a compatible local image-generation model"}
-            val conditioned=models.filter{
-                it.ditKind in setOf("qwen21","klein")
-            }
-            // Honor the user's explicit image-model output assignment, rather
-            // than loading the first imported checkpoint arbitrarily.
-            val tagged=com.asterion.art.nativeengine.ModelOutputRouting(app)
-                .preferred(com.asterion.art.model.RenderMode.ANIME,models)
-            val primary=tagged?:conditioned.firstOrNull()?:models.first()
+            // A named sheet assignment takes precedence, then an installed
+            // native pixel-conditioning model, then a single-image fallback.
+            // More than one source can NEVER be silently reduced to one.
+            val routing=com.asterion.art.nativeengine.ModelOutputRouting(app)
+            val sheetAssignment=routing.forMode("SHEET_"+sheet.role.name,models)
+            val preferred=routing.preferred(
+                com.asterion.art.model.RenderMode.ANIME,models)
+            val primary=SheetModelSelection.select(
+                sheet.role,models,sheetAssignment,preferred,sources.size)
             val resolution=com.asterion.art.nativeengine.NativeResolutionPolicy
                 .choose(primary,"9:16")
             // Anima/SDXL MUST load their fixed 1024-square QNN canvas and
@@ -124,7 +116,7 @@ class SheetMasterGenerationWorker(ctx:Context,params:WorkerParameters):
             // panels or token-sliced denoising passes.
             val oneShot=runCatching {
                 OneShotSheetConditioning.select(
-                    basePositive,neural?.positive,negative,engine::inspectText)
+                    basePositive,null,negative,engine::inspectText)
             }
             if(oneShot.isFailure) {
                 val cause=requireNotNull(oneShot.exceptionOrNull())
