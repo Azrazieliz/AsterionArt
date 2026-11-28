@@ -92,3 +92,23 @@ ARM64 ELF inspection initially found 4 KiB alignment on the native renderer's lo
 Before the Anime-only correction, a network-disabled training process learned two role heads from 132 CC0 works and evaluated 32 held-out and 23 unseen-motif works. Held-out motif retrieval was 5/32 against 1/32 for the constant baseline. Unseen motif retrieval remained 1/23 and cosine declined. Surface held-out retrieval rose from 1/32 to 7/32 and unseen retrieval from 1/23 to 7/23. PyTorch and the independent ONNX evaluator agreed within 0.0000002. This is historical compatibility evidence with no Anime promotion. The active Anime loader verifies grouped Anime samples and rights. Substantial training awaits the requested sample review.
 
 The owner's live Nexus library inventory remains unavailable. The device reported the legacy Core and Rounder apps. The metadata-only index supports a granted Nexus/Core SQLite snapshot. It handles explicit manual ratings of zero separately from unrated images, preserves source hashes and does not open original media. [Anime curriculum](../architecture/ANIME_TRAINING_CURRICULUM_20261128.md)
+
+## Learned design input and training correction
+
+The MiaoMiao v1.6 host case replayed one frozen checkpoint's prepared Outfit conditioning at 128 × 160, seed 1457 and three denoising steps. The 512-position direct replay used an intentionally absent text-encoder path and reproduced the text-path PPM byte for byte. The text path used 48 encoder positions and finished in 13.46 seconds. Direct replay finished in 9.05 seconds on the same host. Separately, the earlier prepared-context change matched the previous graph for a short-input Outfit control.
+
+| CPU replay | Design positions | Independent reference positions | Seconds |
+| --- | ---: | --- | ---: |
+| Direct design | 2,048 | None | 14.19–14.46 |
+| Direct design | 4,096 | None | 20.00–20.09 |
+| Direct design and two regional banks | 4,096 | 257 and 512 | 22.19 |
+
+Every design bank used 1,024 channels. All direct replays used a separate 512-position unconditional bank, zero text positions and 80 image patches. Replacing only the last 512 positions of either long conditioning bank changed the output image. The inputs were controlled fixtures in the frozen checkpoint's actual receiving space. This measures late-position influence, byte parity and concurrent attention routing. The length of a learned shared artist and realization of complex visual obligations remain open. In separate three-step long text stress cases, 2,114 and 4,162 positions reached cross-attention, but the coat-color and composition checks failed. Native Vulkan, Qualcomm and Samsung rendering require separate measurements.
+
+The hybrid graph completed two denoising steps in 11.61 seconds with 18 text positions, a separate 512-position design bank and a 257-position regional bank. The 18-step direct Outfit render at 320 × 416 used 520 spatial patches and took 237.81 seconds. The result rendered the blue coat, ivory pleats and boots as a display. It omitted the requested visible character and fails full-length character framing. The host outputs supply runtime evidence and a concrete quality failure for later supervised correction.
+
+Rounder advertised its metadata route through the authenticated Control connection. The current phone has Rounder and the legacy Art application. Control lists Rounder as an approved partner. Rounder itself denied both scoped inventory probes, and the legacy Art capability probe returned a phone RPC error. There is no live artwork inventory or rating count. The Rounder importer handled 500,000 generated metadata rows in 3.99 seconds and repeated the import in 3.00 seconds without increasing index size. These timings measure the local importer. They use generated catalogue metadata and open no artwork bytes.
+
+Morevna has been excluded from the curriculum and produced no weights. The earlier Cleveland weights are archived and the Android debug screen that staged them was removed. The active Anime fitting tool checks the owner's dataset and competency approval before weight loading. The current source register contains no approved production data sources. [Audit and artifact digests](TRAINING_AUDIT_20261128.md)
+
+The Android debug build and creation test suite passed on the updated source. Dataset tests verified the Nexus snapshot's explicit-zero rating handling and the Rounder importer's completed-generation, rollback and scope behavior. The fitting preflight rejected Morevna, Cleveland, the still-unverified owner collection and an unregistered source using the actual checked-in register.
