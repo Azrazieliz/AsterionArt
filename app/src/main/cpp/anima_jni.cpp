@@ -13,13 +13,19 @@ std::string read_string(JNIEnv* env, jbyteArray value) {
     return result;
 }
 
+std::vector<float> read_floats(JNIEnv* env, jfloatArray row) {
+    if (!row) return {};
+    std::vector<float> result(env->GetArrayLength(row));
+    env->GetFloatArrayRegion(row, 0, result.size(), result.data());
+    if (env->ExceptionCheck()) throw std::runtime_error("Could not read a native Anima tensor");
+    return result;
+}
+
 std::vector<float> read_floats(JNIEnv* env, jobjectArray array, jsize index) {
     auto row = static_cast<jfloatArray>(env->GetObjectArrayElement(array, index));
     if (!row) throw std::invalid_argument("Missing native Anima tensor");
-    std::vector<float> result(env->GetArrayLength(row));
-    env->GetFloatArrayRegion(row, 0, result.size(), result.data());
+    auto result = read_floats(env, row);
     env->DeleteLocalRef(row);
-    if (env->ExceptionCheck()) throw std::runtime_error("Could not read a native Anima tensor");
     return result;
 }
 
@@ -52,11 +58,11 @@ extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_asterion_art_runtime_NativeAnima_execute(
     JNIEnv* env, jobject, jlong handle, jbyteArray diffusion, jbyteArray encoder, jbyteArray vae, jbyteArray direction,
     jbyteArray backend, jint width, jint height, jint steps, jlong seed, jfloat guidance,
-    jobjectArray features, jobjectArray regions, jlongArray usage_values) {
+    jobjectArray features, jobjectArray regions, jfloatArray authored, jfloatArray unconditional, jlongArray usage_values) {
     try {
         if (!features || !regions || !usage_values ||
             env->GetArrayLength(features) != env->GetArrayLength(regions) ||
-            env->GetArrayLength(usage_values) != 6 + env->GetArrayLength(features)) {
+            env->GetArrayLength(usage_values) != 8 + env->GetArrayLength(features)) {
             throw std::invalid_argument("Anima features and regions are unpaired");
         }
         std::vector<asterion::ReferenceAttention> references;
@@ -68,11 +74,13 @@ Java_com_asterion_art_runtime_NativeAnima_execute(
             read_string(env, backend), width, height, steps, seed, guidance,
         };
         asterion::ConditioningUsage usage{};
-        auto result = reinterpret_cast<asterion::AnimaRuntime*>(handle)->render(request, references, usage);
+        asterion::LearnedDesign design{read_floats(env, authored), read_floats(env, unconditional)};
+        auto result = reinterpret_cast<asterion::AnimaRuntime*>(handle)->render(request, references, usage, design);
         if (result.size() > size_t(std::numeric_limits<jsize>::max())) throw std::runtime_error("Anima image exceeds JNI capacity");
         std::vector<jlong> dimensions = {
             usage.text_width, usage.text_positions, usage.adapter_queries,
-            usage.conditioning_width, usage.conditioning_positions, usage.spatial_patches,
+            usage.conditioning_width, usage.conditioning_positions, usage.design_positions,
+            usage.unconditional_positions, usage.spatial_patches,
         };
         dimensions.insert(dimensions.end(), usage.reference_positions.begin(), usage.reference_positions.end());
         env->SetLongArrayRegion(usage_values, 0, dimensions.size(), dimensions.data());

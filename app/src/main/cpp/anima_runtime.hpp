@@ -25,12 +25,19 @@ struct ReferenceAttention {
     std::vector<float> patch_weights;
 };
 
+struct LearnedDesign {
+    std::vector<float> positive;
+    std::vector<float> unconditional;
+};
+
 struct ConditioningUsage {
     int64_t text_width;
     int64_t text_positions;
     int64_t adapter_queries;
     int64_t conditioning_width;
     int64_t conditioning_positions;
+    int64_t design_positions;
+    int64_t unconditional_positions;
     int64_t spatial_patches;
     std::vector<int64_t> reference_positions;
 };
@@ -43,7 +50,7 @@ public:
     AnimaRuntime& operator=(const AnimaRuntime&) = delete;
 
     std::vector<uint8_t> render(const RenderRequest& request, const std::vector<ReferenceAttention>& references,
-                                ConditioningUsage& usage);
+                                ConditioningUsage& usage, const LearnedDesign& design = {});
     void cancel();
 
 private:

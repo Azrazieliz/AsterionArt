@@ -47,6 +47,7 @@ internal data class AnimaStudyKit(
 @Serializable
 private data class AnimaTrainingReceipt(
     val domain: String,
+    @SerialName("source_dataset_ids") val sourceDatasetIds: List<String>,
     @SerialName("vision_family") val visionFamily: String,
     @SerialName("author_sha256") val authorSha256: String,
     @SerialName("diffusion_sha256") val diffusionSha256: String,
@@ -164,8 +165,9 @@ internal class AnimaStudy(context: Context, private val workspace: ArtWorkspace)
 
     private fun verifyTraining(kit: AnimaStudyKit): AnimaTrainingReceipt {
         val receipt = codec.decodeFromString<AnimaTrainingReceipt>(stored.verified(kit.trainingReceipt.artifact).readText())
-        require(receipt.domain == "anime" && receipt.visionFamily in setOf("clip", "dinov2")) {
-            "This study requires an Anime-trained reference author"
+        require(receipt.domain == "anime" && receipt.sourceDatasetIds.isNotEmpty() &&
+            receipt.visionFamily in setOf("clip", "dinov2")) {
+            "This study requires an Anime-trained reference author with recorded sources"
         }
         require(
             receipt.authorSha256 == kit.referenceAuthor.artifact.sha256 &&

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "datasets": {
+    "owner-artworks": {
+      "status": "under_review",
+      "evidence": "TeraBox Art/Artworks via Rounder or Nexus"
+    },
+    "owner-quality-references": {
+      "status": "evaluation_only",
+      "evidence": "Owner-supplied illustrations and original methodology archives"
+    },
+    "morevna-project": {
+      "status": "rejected",
+      "evidence": "Owner correction covering all Art methodologies and animation"
+    },
+    "cleveland-museum-cc0": {
+      "status": "excluded",
+      "evidence": "Archived numerical compatibility experiments"
+    }
+  }
+}

@@ -20,7 +20,7 @@ std::vector<float> read_tensor(const char* path) {
 int main(int argc, char** argv) {
     if (argc < 11 || (argc - 11) % 2 != 0) {
         std::cerr << "anima_case DIFFUSION TEXT_ENCODER VAE DIRECTION WIDTH HEIGHT STEPS SEED THREADS OUT.ppm"
-                  << " [FEATURES.f32 REGION.f32 ...]\n";
+                  << " [--design FEATURES.f32] [--unconditional FEATURES.f32] [FEATURES.f32 REGION.f32 ...]\n";
         return 2;
     }
     try {
@@ -33,18 +33,27 @@ int main(int argc, char** argv) {
         };
         asterion::AnimaRuntime engine(std::stoi(argv[9]));
         std::vector<asterion::ReferenceAttention> references;
+        asterion::LearnedDesign design;
         for (int i = 11; i < argc; i += 2) {
-            references.push_back({read_tensor(argv[i]), read_tensor(argv[i + 1])});
+            const std::string option = argv[i];
+            if (option == "--design" || option == "--unconditional") {
+                auto& features = option == "--design" ? design.positive : design.unconditional;
+                if (!features.empty()) throw std::invalid_argument("Duplicate conditioning bank");
+                features = read_tensor(argv[i + 1]);
+            } else {
+                references.push_back({read_tensor(argv[i]), read_tensor(argv[i + 1])});
+            }
         }
         asterion::ConditioningUsage usage{};
-        auto pixels = engine.render(request, references, usage);
+        auto pixels = engine.render(request, references, usage, design);
         std::ofstream output(argv[10], std::ios::binary);
         output << "P6\n" << request.width << ' ' << request.height << "\n255\n";
         output.write(reinterpret_cast<const char*>(pixels.data()), pixels.size());
         if (!output) throw std::runtime_error("Could not write the completed image");
         std::cout << "{\"text_width\":" << usage.text_width << ",\"text_positions\":" << usage.text_positions
                   << ",\"adapter_queries\":" << usage.adapter_queries << ",\"conditioning_width\":" << usage.conditioning_width
-                  << ",\"conditioning_positions\":" << usage.conditioning_positions << ",\"spatial_patches\":" << usage.spatial_patches
+                  << ",\"conditioning_positions\":" << usage.conditioning_positions << ",\"design_positions\":" << usage.design_positions
+                  << ",\"unconditional_positions\":" << usage.unconditional_positions << ",\"spatial_patches\":" << usage.spatial_patches
                   << ",\"reference_positions\":[";
         for (size_t i = 0; i < usage.reference_positions.size(); ++i) {
             if (i != 0) std::cout << ',';

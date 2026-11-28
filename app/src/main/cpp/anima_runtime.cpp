@@ -37,38 +37,48 @@ std::string quoted(const std::string& value) {
     return escaped.str();
 }
 
-std::string program(const RenderRequest& request, const std::vector<std::string>& bindings) {
+std::string program(const RenderRequest& request, const std::vector<std::string>& inputs,
+                    const std::vector<std::string>& attention, bool learned_only, bool trained_unconditional) {
     std::ostringstream graph;
     graph.imbue(std::locale::classic());
     graph << "fn main(";
-    for (size_t i = 0; i < bindings.size(); ++i) {
+    for (size_t i = 0; i < inputs.size(); ++i) {
         if (i != 0) graph << ", ";
-        graph << bindings[i];
+        graph << inputs[i];
     }
     graph << ") {\n"
           << "    model = load_dit(" << quoted(request.diffusion) << ", family = \"anima\", backend = "
-          << quoted(request.backend) << ", params_backend = \"cpu\")\n"
-          << "    text = load_text_encoder(" << quoted(request.text_encoder) << ", family = \"anima\", backend = \"cpu\")\n"
-          << "    vae = load_vae(" << quoted(request.vae) << ", family = \"anima\", backend = \"cpu\")\n"
-          << "    base = tensor::zeros(latent_shape(vae, width = " << request.width
-          << ", height = " << request.height << "))\n"
-          << "    encoded = encode_prompt(text, " << quoted(request.direction)
-          << ", width = " << request.width << ", height = " << request.height << ", raw = true)\n"
-          << "    empty = encode_prompt(text, \"\", width = " << request.width << ", height = " << request.height
-          << ", raw = true)\n"
-          << "    authored = anima::prepare_context(model, encoded)\n"
-          << "    negative = anima::prepare_context(model, empty)\n";
-    if (bindings.empty()) {
-        graph << "    positive = predictor(model, {crossattn = authored})\n";
-    } else {
-        graph << "    positive = predictor(model, {crossattn = authored, extra_crossattn = [";
-        for (size_t i = 0; i < bindings.size(); ++i) {
-            if (i != 0) graph << ", ";
-            graph << bindings[i];
-        }
-        graph << "]})\n";
+          << quoted(request.backend) << ", params_backend = \"cpu\")\n";
+    if (!learned_only || !trained_unconditional) {
+        graph << "    text = load_text_encoder(" << quoted(request.text_encoder)
+              << ", family = \"anima\", backend = \"cpu\")\n";
     }
-    graph << "    guided = cfg(positive, predictor(model, {crossattn = negative}), scale = "
+    graph << "    vae = load_vae(" << quoted(request.vae) << ", family = \"anima\", backend = \"cpu\")\n"
+          << "    base = tensor::zeros(latent_shape(vae, width = " << request.width
+          << ", height = " << request.height << "))\n";
+    if (!learned_only) {
+        graph << "    encoded = encode_prompt(text, " << quoted(request.direction)
+              << ", width = " << request.width << ", height = " << request.height << ", raw = true)\n"
+              << "    authored = anima::prepare_context(model, encoded)\n";
+    }
+    if (!trained_unconditional) {
+        graph << "    empty = encode_prompt(text, \"\", width = " << request.width << ", height = " << request.height
+              << ", raw = true)\n"
+              << "    negative_context = anima::prepare_context(model, empty)\n";
+    }
+    const char* positive = learned_only ? "design" : "authored";
+    const char* negative = trained_unconditional ? "unconditional" : "negative_context";
+    graph << "    positive = predictor(model, {crossattn = " << positive;
+    if (!attention.empty()) {
+        graph << ", extra_crossattn = [";
+        for (size_t i = 0; i < attention.size(); ++i) {
+            if (i != 0) graph << ", ";
+            graph << attention[i];
+        }
+        graph << "]";
+    }
+    graph << "})\n"
+          << "    guided = cfg(positive, predictor(model, {crossattn = " << negative << "}), scale = "
           << std::setprecision(std::numeric_limits<float>::max_digits10) << request.guidance << ")\n"
           << "    sigmas = make_sigmas(guided, latent = base, steps = " << request.steps
           << ", scheduler = \"beta\")\n"
@@ -76,9 +86,10 @@ std::string program(const RenderRequest& request, const std::vector<std::string>
           << "    noisy = add_noise(guided, base, tensor::randn_like(base, rng = rng), sigma = sigmas[0])\n"
           << "    latent = sample(noisy, sigmas, predict = guided, method = \"euler\", rng = rng)\n"
           << "    image = vae_decode(vae, dit_to_vae_latents(vae, latent))\n"
-          << "    return {image = image, text_shape = tensor::shape(encoded.crossattn),"
-             " t5_shape = tensor::shape(encoded.t5_ids), condition_shape = tensor::shape(authored)}\n"
-          << "}\n";
+          << "    return {image = image, condition_shape = tensor::shape(" << positive
+          << "), unconditional_shape = tensor::shape(" << negative << ")";
+    if (!learned_only) graph << ", text_shape = tensor::shape(encoded.crossattn), t5_shape = tensor::shape(encoded.t5_ids)";
+    graph << "}\n}\n";
     return graph.str();
 }
 
@@ -133,7 +144,7 @@ void AnimaRuntime::cancel() {
 }
 
 std::vector<uint8_t> AnimaRuntime::render(const RenderRequest& request, const std::vector<ReferenceAttention>& references,
-                                         ConditioningUsage& usage) {
+                                         ConditioningUsage& usage, const LearnedDesign& design) {
     if (request.width <= 0 || request.height <= 0 || request.width % patch_pixels != 0 ||
         request.height % patch_pixels != 0 || request.steps <= 0 || !std::isfinite(request.guidance) ||
         (request.backend != "cpu" && request.backend != "vulkan0")) {
@@ -142,21 +153,42 @@ std::vector<uint8_t> AnimaRuntime::render(const RenderRequest& request, const st
     const auto patches = int64_t(request.width / patch_pixels) * (request.height / patch_pixels);
     std::vector<Tensor> tensors;
     std::vector<std::string> names;
+    std::vector<std::string> attention;
     std::vector<sd_dgl_tensor_input_t> bindings;
     std::vector<int64_t> reference_positions;
-    for (size_t i = 0; i < references.size(); ++i) {
-        const auto& attention = references[i];
-        if (attention.features.empty() || attention.features.size() % anima_features != 0 ||
-            attention.patch_weights.size() != size_t(patches)) {
-            throw std::invalid_argument("Anima reference features or regions have the wrong shape");
+    const auto bind_features = [&](const std::string& name, const std::vector<float>& features) {
+        if (features.empty() || features.size() % anima_features != 0) {
+            throw std::invalid_argument("Anima conditioning needs complete 1,024-wide positions");
         }
-        check_finite(attention.features, false);
-        check_finite(attention.patch_weights, true);
-        names.push_back("features_" + std::to_string(i));
-        names.push_back("region_" + std::to_string(i));
-        const auto positions = static_cast<int64_t>(attention.features.size() / anima_features);
-        tensors.push_back(tensor(attention.features, anima_features, positions));
-        tensors.push_back(tensor(attention.patch_weights, 1, patches));
+        check_finite(features, false);
+        names.push_back(name);
+        const auto positions = static_cast<int64_t>(features.size() / anima_features);
+        tensors.push_back(tensor(features, anima_features, positions));
+        return positions;
+    };
+    const bool learned_only = !design.positive.empty() && request.direction.empty();
+    int64_t design_positions = 0;
+    if (!design.positive.empty()) {
+        design_positions = bind_features("design", design.positive);
+        if (!learned_only) {
+            names.push_back("design_region");
+            tensors.push_back(tensor(std::vector<float>(patches, 1.f), 1, patches));
+            attention.insert(attention.end(), {"design", "design_region"});
+        }
+    }
+    if (!design.unconditional.empty()) bind_features("unconditional", design.unconditional);
+    for (size_t i = 0; i < references.size(); ++i) {
+        const auto& reference = references[i];
+        if (reference.patch_weights.size() != size_t(patches)) {
+            throw std::invalid_argument("Anima reference regions have the wrong number of output patches");
+        }
+        check_finite(reference.patch_weights, true);
+        const auto features = "features_" + std::to_string(i);
+        const auto region = "region_" + std::to_string(i);
+        const auto positions = bind_features(features, reference.features);
+        names.push_back(region);
+        attention.insert(attention.end(), {features, region});
+        tensors.push_back(tensor(reference.patch_weights, 1, patches));
         reference_positions.push_back(positions);
     }
     for (size_t i = 0; i < tensors.size(); ++i) {
@@ -164,7 +196,7 @@ std::vector<uint8_t> AnimaRuntime::render(const RenderRequest& request, const st
     }
 
     sd_dgl_result_t* raw = nullptr;
-    const auto source = program(request, names);
+    const auto source = program(request, names, attention, learned_only, !design.unconditional.empty());
     const auto status = sd_dgl_run(context_, source.c_str(), bindings.data(), bindings.size(), &raw);
     const auto result = std::unique_ptr<sd_dgl_result_t, decltype(&sd_dgl_result_free)>(raw, sd_dgl_result_free);
     if (status != SD_STATUS_OK) throw std::runtime_error(sd_get_last_error());
@@ -177,10 +209,11 @@ std::vector<uint8_t> AnimaRuntime::render(const RenderRequest& request, const st
     const auto* bytes = static_cast<const uint8_t*>(sd_tensor_data(image));
     if (!bytes) throw std::runtime_error(sd_get_last_error());
     usage = {
-        axis_length(result.get(), "text_shape", 0), axis_length(result.get(), "text_shape", 1),
-        axis_length(result.get(), "t5_shape", 0),
+        learned_only ? 0 : axis_length(result.get(), "text_shape", 0),
+        learned_only ? 0 : axis_length(result.get(), "text_shape", 1),
+        learned_only ? 0 : axis_length(result.get(), "t5_shape", 0),
         axis_length(result.get(), "condition_shape", 0), axis_length(result.get(), "condition_shape", 1),
-        patches, std::move(reference_positions),
+        design_positions, axis_length(result.get(), "unconditional_shape", 1), patches, std::move(reference_positions),
     };
     return {bytes, bytes + sd_tensor_byte_size(image)};
 }

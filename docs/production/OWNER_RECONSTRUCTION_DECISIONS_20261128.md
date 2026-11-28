@@ -157,3 +157,9 @@ Both the artistic inference/design model and each applicable generation model mu
 - The supplied Art Style Sheet governs artistic execution. Learn different illustration techniques and apply unfamiliar styles through reference conditioning. Hold identity, canonical clothing, geometry and scene authority fixed in style swaps and verify the intended change in finished illustrations.
 - While Nexus is in development, use the existing authorized Asterion Rounder catalogue and Art/Artworks streams for incremental metadata discovery and selective image access. Preserve source originals and eventual Nexus compatibility.
 - The requested corpus mix is **25% SFW, 40% suggestive/ecchi and 35% NSFW**. Record it as an owner preference. Determine each learner's actual sampling from its competence, visual coverage, eligibility and documented permissions. Maintain separate Anime, Cosplay and Realistic evidence according to their intended families.
+
+## Owner correction — artistic evidence and dataset adoption
+
+- Exclude all Morevna Project material from Asterion Art, including animation. Audit completed fits and isolate weights from excluded material. Preserve unaffected source, checkpoints, references and historical evidence.
+- Investigate the owner's existing image database through Rounder and Art/Artworks. Compare publicly published samples of proposed external corpora together and establish artistic relevance before requesting adoption or committing substantial training resources. Dataset adoption requires owner approval and appropriate permissions. Use the supplied references as a quality threshold across different styles.
+- Engineering may advance within the approved methodology, quality, context and reference requirements. Preserve Art Style Sheet authority and the learned, model-native design handoff. Continue independent implementation and verification while access to approved training evidence is pending.

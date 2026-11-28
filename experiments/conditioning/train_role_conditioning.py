@@ -14,6 +14,7 @@ from safetensors.torch import save_file
 import torch
 from transformers import CLIPVisionModelWithProjection, Dinov2Model
 
+from approved_sources import check_training_sources
 from fit_anima_reference_projection import native_context_targets
 from fit_reference_projection import evaluate, pixel_values, sha256
 
@@ -133,6 +134,9 @@ def main():
     parser.add_argument("--threads", type=int, default=3)
     args = parser.parse_args()
     start = time.monotonic()
+    records = json.loads(args.manifest.read_text())
+    dataset_ids = check_training_sources(records, "reference_conditioning")
+    splits = anime_partitions(records)
     checkpoint_digest = sha256(args.checkpoint)
     if args.detached_adapter_sha256:
         if checkpoint_digest != args.detached_adapter_sha256:
@@ -151,8 +155,6 @@ def main():
     torch.manual_seed(1457)
     torch.set_num_threads(args.threads)
     torch.set_num_interop_threads(1)
-    records = json.loads(args.manifest.read_text())
-    splits = anime_partitions(records)
     rows = splits[0] + splits[1] + splits[2]
     vision = VisionReadout(args.vision_model, args.vision_family).eval()
     features = source_features(rows, args.manifest, vision)
@@ -213,6 +215,7 @@ def main():
             }
     receipt = {
         "domain": "anime",
+        "source_dataset_ids": dataset_ids,
         "vision_family": args.vision_family,
         "author_sha256": sha256(model),
         "diffusion_sha256": args.expected_checkpoint_sha256,

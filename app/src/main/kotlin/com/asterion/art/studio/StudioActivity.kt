@@ -42,7 +42,6 @@ import com.asterion.art.runtime.AnimaStudy
 import com.asterion.art.runtime.CreationService
 import com.asterion.art.runtime.NEXUS_DOCUMENTS
 import com.asterion.art.runtime.NativeAnima
-import com.asterion.art.runtime.ProjectionProbe
 import com.asterion.art.runtime.ROUNDER_DOCUMENTS
 import com.asterion.art.runtime.familyName
 import java.io.File
@@ -936,7 +935,6 @@ private fun Models(workspace: ArtWorkspace) {
                 }
             }
         }
-        if (BuildConfig.DEBUG) item { ProjectionCheck(workspace) }
         if (BuildConfig.DEBUG && NativeAnima.available) item { AnimaOutfitStudy(workspace) }
     }
 }
@@ -1021,50 +1019,6 @@ private fun AnimaOutfitStudy(workspace: ArtWorkspace) {
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (status.isNotBlank()) Text(status)
             image?.let { AsyncImage(it, "Rendered Outfit study", Modifier.fillMaxWidth().heightIn(max = 420.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun ProjectionCheck(workspace: ArtWorkspace) {
-    val context = LocalContext.current
-    val probe = remember(workspace) { ProjectionProbe(context, workspace) }
-    val scope = rememberCoroutineScope()
-    var staged by remember { mutableStateOf(probe.stagedParts()) }
-    var target by rememberSaveable { mutableStateOf<ProjectionProbe.Part?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("") }
-    val pick = rememberLauncherForActivityResult(OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            busy = true
-            val part = target
-            status = runCatching {
-                withContext(Dispatchers.IO) {
-                    if (part == null) probe.check(uri) else {
-                        probe.stage(part, uri)
-                        "${part.label} verified"
-                    }
-                }
-            }.getOrElse { it.message ?: "The projection check could not complete" }
-            staged = probe.stagedParts()
-            busy = false
-        }
-    }
-    Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Reference projection check", style = MaterialTheme.typography.titleMedium)
-            ProjectionProbe.Part.entries.forEach { part ->
-                OutlinedButton(enabled = !busy, onClick = {
-                    target = part
-                    pick.launch(arrayOf("application/octet-stream", "application/x-onnx"))
-                }) { Text(if (part in staged) "${part.label} · staged" else "Select ${part.label.lowercase()}") }
-            }
-            Button(enabled = !busy && probe.canCheck(staged), onClick = {
-                target = null
-                pick.launch(arrayOf("image/*"))
-            }) { Text("Check a reference") }
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (status.isNotBlank()) Text(status)
         }
     }
 }
