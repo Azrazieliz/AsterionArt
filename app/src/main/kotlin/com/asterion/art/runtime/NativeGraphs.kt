@@ -30,6 +30,7 @@ internal class NativeGraph(
     cpuThreads: Int,
 ) : AutoCloseable {
     private val environment = OrtEnvironment.getEnvironment()
+    private val options: OrtSession.SessionOptions
     private val session: OrtSession
 
     init {
@@ -38,7 +39,8 @@ internal class NativeGraph(
         if (backend != ComputeBackend.CPU && OrtProvider.QNN !in providers) {
             throw RuntimeUnavailable("This Android runtime has no Qualcomm QNN provider")
         }
-        session = OrtSession.SessionOptions().use { options ->
+        options = OrtSession.SessionOptions()
+        try {
             options.setIntraOpNumThreads(cpuThreads)
             options.setInterOpNumThreads(1)
             if (backend != ComputeBackend.CPU) {
@@ -46,7 +48,10 @@ internal class NativeGraph(
                 val library = if (backend == ComputeBackend.QNN_HTP) "libQnnHtp.so" else "libQnnGpu.so"
                 options.addQnn(mapOf("backend_path" to library))
             }
-            environment.createSession(model.absolutePath, options)
+            session = environment.createSession(model.absolutePath, options)
+        } catch (failure: Throwable) {
+            options.close()
+            throw failure
         }
     }
 
@@ -88,7 +93,13 @@ internal class NativeGraph(
         }
     }
 
-    override fun close() = session.close()
+    override fun close() {
+        try {
+            session.close()
+        } finally {
+            options.close()
+        }
+    }
 }
 
 internal class ReferenceProjection(

@@ -29,6 +29,10 @@ target_link_libraries(asterion_anima_runtime PUBLIC stable-diffusion)
 if(ANDROID)
     add_library(asterion_anima SHARED anima_jni.cpp)
     target_link_libraries(asterion_anima PRIVATE asterion_anima_runtime)
+    target_link_options(asterion_anima PRIVATE
+        "-Wl,-z,max-page-size=16384"
+        "-Wl,-z,common-page-size=16384"
+    )
 else()
     add_executable(asterion_anima_case anima_case.cpp)
     target_link_libraries(asterion_anima_case PRIVATE asterion_anima_runtime)

@@ -77,6 +77,10 @@ The pinned stable-diffusion.cpp bridge rendered and decoded a 24-step MiaoMiao v
 
 The native patch keeps one separate cross-attention bank and spatial weights per reference and removes the adapted-context slice at 512. In the Anima route, Qwen3-0.6B-Base is the checkpoint's frozen text encoder. No shared artist was selected. The Android ARM64 renderer was cross-compiled. The diagnostic Outfit study stages model files through the Nexus document provider and verifies their checksums and Anime training receipt. The production creation-session path, GPU/NPU and live Samsung rendering remain open. [Technical specification](../architecture/ART_TRAINING_AND_INFERENCE_20261128.md)
 
+An independent native smoke check decoded an actual image after two Q8 denoising steps with two synthetic `[4,1024]` banks and separate spatial masks at 128 × 160. The run took 13.87 seconds. This checks execution of the new graph. Learned reference fidelity, regional isolation and artistic quality need actual Anime training pairs and evaluation.
+
+ARM64 ELF inspection initially found 4 KiB alignment on the native renderer's load segments. The relinked renderer now has 16 KiB alignment on all of them. The Kotlin graph runner keeps its ONNX session options alive for the duration of the associated native session.
+
 ### Shared artist comparisons on CPU
 
 | Candidate | Actual input and timing with three CPU threads | Observation |
