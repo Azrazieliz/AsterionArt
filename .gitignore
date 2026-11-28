@@ -1,4 +1,6 @@
 .gradle/
+.kotlin/
+__pycache__/
 **/build/
 .idea/
 *.iml

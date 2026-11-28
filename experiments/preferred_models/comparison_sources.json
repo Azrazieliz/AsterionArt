@@ -1,0 +1,48 @@
+{
+  "sources": [
+    {
+      "label": "Rin Flanime Anima v1.4",
+      "project": "https://civitai.com/models/2713283?modelVersionId=3159184",
+      "historical_pin": "rin",
+      "family": "Anima",
+      "tensor_count": 685,
+      "precision": ["F16"]
+    },
+    {
+      "label": "MiaoMiao Harem Anima v1.6",
+      "project": "https://civitai.com/models/934764?modelVersionId=3248362",
+      "historical_pin": "miaomiao",
+      "family": "Anima",
+      "tensor_count": 685,
+      "precision": ["BF16"]
+    },
+    {
+      "label": "Hassaku XL Illustrious v3.4",
+      "historical_pin": "hassaku",
+      "family": "Illustrious SDXL",
+      "tensor_count": 2526,
+      "precision": ["BF16", "F16"]
+    },
+    {
+      "label": "Rin Flanime v1 Turbo",
+      "archived_package": "rin_flanime_v1_turbo_qnn228_8gen3",
+      "original_variant_page": "https://civitai.com/models/2713283?modelVersionId=3048292",
+      "family": "Anima QNN",
+      "status": "Installed variant recorded in v0.2.3 device audit. Package digest unverified."
+    },
+    {
+      "label": "MiaoMiao v14 Turbo",
+      "status": "Owner identified the variant. Exact compiled package, source version and digest under verification."
+    },
+    {
+      "label": "noob-ai-xl v11 QNN",
+      "family": "SDXL QNN",
+      "status": "Owner reported prior installation. Exact compiled variants and digests under verification."
+    }
+  ],
+  "verified_header_comparison": {
+    "rin_and_miaomiao_have_identical_keys_and_shapes": true,
+    "rin_and_miaomiao_have_identical_storage_dtype": false,
+    "rin_and_hassaku_have_identical_keys_and_shapes": false
+  }
+}

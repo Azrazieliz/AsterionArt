@@ -1,6 +1,6 @@
-# Asterion Art — clean development baseline
+# Asterion Art — clean reconstruction
 
-**Status: clean architectural reset, not a working Android application.** Production code from previous experiments has intentionally been removed from the active `main` tree. It was never validated as a complete usable generator. Do not equate any previous APK or CI green build with a working product.
+The reconstruction branch contains the Android studio, recursive Character selector, persisted creation queue and workflow executor. It also contains the reference-projection experiment and the preferred-model comparison tools. Production creation requires a trained artistic author, renderer and evaluation bundle compatible with each workflow.
 
 ## What is retained
 
@@ -28,4 +28,8 @@ These branches retain the old Android project, native libraries and historical t
 
 ## Build status
 
-The active branch is intentionally specification-only while owner inputs are consolidated; **there is no runnable app yet**. The latest owner response is recorded; open methodology details and delegated technical decisions must be reconciled without delaying independent implementation.
+```sh
+./gradlew :creation:test :app:assembleDebug
+```
+
+The debug build uses `com.asterion.art.reconstruction`. The release configuration retains the existing package and owner signing input names. See [reconstruction evidence](docs/production/CLEAN_RECONSTRUCTION_EVIDENCE_20261128.md) for the tested scope and model results.
