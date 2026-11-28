@@ -1,4 +1,12 @@
 {
+  "owner_preference_order_recovered": [
+    "Rin Flanime",
+    "MiaoMiao",
+    "Hassaku XL Illustrious",
+    "NoobAI XL v11"
+  ],
+  "preference_source": "ASTERION_ART_COMPLETE_CONTINUATION_2026-10-26.zip / ASTERION_ART_CONTINUATION/05_FUSION_AND_MODEL_SOURCES.md",
+  "previously_disliked": ["Animayume"],
   "sources": [
     {
       "label": "Rin Flanime Anima v1.4",
@@ -26,17 +34,25 @@
     {
       "label": "Rin Flanime v1 Turbo",
       "archived_package": "rin_flanime_v1_turbo_qnn228_8gen3",
+      "archive": "rin_flanime_v1_turbo_qnn2.28_8gen3.zip",
+      "archive_source": "https://huggingface.co/xororz/anima-qnn/blob/69016e97f681a6de9aa34e55222c2ba697b7ec8e/rin_flanime_v1_turbo_qnn2.28_8gen3.zip",
+      "archive_sha256": "e99dc63e7f2d6c125a44dbf0a347c011395fc60adc9a796cc5d02f1ee9e75b8c",
       "original_variant_page": "https://civitai.com/models/2713283?modelVersionId=3048292",
       "family": "Anima QNN",
-      "status": "Installed variant recorded in v0.2.3 device audit. Package digest unverified."
+      "status": "Installed variant recorded in v0.2.3 device audit. Archive repository digest matches a second mirror. Installed bytes unverified."
     },
     {
       "label": "MiaoMiao v14 Turbo",
-      "status": "Owner identified the variant. Exact compiled package, source version and digest under verification."
+      "archive": "miaomiao_v1.4_turbo_qnn2.28_8gen3.zip",
+      "archive_source": "https://huggingface.co/xororz/anima-qnn/blob/69016e97f681a6de9aa34e55222c2ba697b7ec8e/miaomiao_v1.4_turbo_qnn2.28_8gen3.zip",
+      "archive_sha256": "2e8f5b8f26f03486a3eba8d7b1e81b73975525a7113166cee484db8fe2d251f1",
+      "family": "Anima QNN",
+      "status": "Archive repository digest matches a second mirror. Installed bytes unverified."
     },
     {
       "label": "noob-ai-xl v11 QNN",
       "family": "SDXL QNN",
+      "related_archive": "https://huggingface.co/xororz/sdxl-qnn/blob/ead90f4635e21e7412b8200a5efd220b0193beeb/noobai_vpred_qnn2.28_8gen3.zip",
       "status": "Owner reported prior installation. Exact compiled variants and digests under verification."
     }
   ],

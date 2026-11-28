@@ -30,5 +30,10 @@
             android:name=".runtime.CreationService"
             android:exported="false"
             android:foregroundServiceType="mediaProcessing" />
+        <provider
+            android:name="com.asterion.bridge.AsterionControlBridgeProvider"
+            android:authorities="${applicationId}.asterion.bridge"
+            android:exported="true"
+            android:grantUriPermissions="false" />
     </application>
 </manifest>

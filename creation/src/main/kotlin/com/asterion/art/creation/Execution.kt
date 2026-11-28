@@ -40,7 +40,18 @@ data class QualityAssessment(
 }
 
 @Serializable
-data class EvaluatedImage(val artifact: ContentArtifact, val assessment: QualityAssessment) {
+data class ImageDimensions(val width: Int, val height: Int) {
+    init {
+        require(width > 0 && height > 0)
+    }
+}
+
+@Serializable
+data class EvaluatedImage(
+    val artifact: ContentArtifact,
+    val assessment: QualityAssessment,
+    val dimensions: ImageDimensions? = null,
+) {
     init {
         require(artifact.mediaType.startsWith("image/"))
     }
@@ -263,6 +274,12 @@ class CreationExecutor(private val journal: RunJournal, private val taxonomy: Ch
             val raw = session.render(command, signal)
             val accepted = repairIfNeeded(command, raw, session, signal)
             require(accepted.assessment.valid) { "Design ${index + 1} has unresolved visual defects" }
+            if (request.mode == Mode.CHARACTER_SHEET) {
+                val canvas = checkNotNull(accepted.dimensions) { "The V5 sheet needs verified image dimensions" }
+                require(canvas.width.toLong() * 16 == canvas.height.toLong() * 9) {
+                    "The V5 Character Sheet must be an integrated 9:16 image"
+                }
+            }
             current = checkpoint(run.id) { it.copy(independentImages = it.independentImages + accepted) }
             if (raw.artifact != accepted.artifact) session.removeUnretained(raw.artifact)
         }

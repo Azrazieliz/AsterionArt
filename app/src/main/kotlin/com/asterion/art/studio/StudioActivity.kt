@@ -217,7 +217,7 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, handled: () -> Unit)
                     )
                 }
                 Destination.PROJECTS -> Projects(
-                    runs, openProject, workspace,
+                    runs, openProject, workspace, drafts.revisions(),
                     onOpen = { openProject = it },
                     onResume = { run ->
                         scope.launch {
@@ -242,16 +242,29 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, handled: () -> Unit)
                     },
                     onTheme = { theme ->
                         select(Mode.THEME_SHEET)
-                        update(checkNotNull(draft).copy(theme = theme))
+                        update(StudioDraft(Mode.THEME_SHEET, theme = theme))
                     },
-                    onDesignSheet = { run, artifact ->
-                        select(Mode.CHARACTER_SHEET)
+                    onUseImage = { run, artifact, mode ->
+                        select(mode)
                         val asset = AssetRef(
                             artifact.sha256, AssetSource.ART_OUTPUT, "${run.id}/${artifact.sha256}",
                             "Selected ${run.request.mode.title} design", artifact.sha256,
                         )
                         val selected = checkNotNull(draft)
-                        update(selected.copy(references = listOf(Reference(RefRole.SOURCE, asset))))
+                        if (mode == Mode.ARTWORK) {
+                            val theme = (run.request.input as? SheetInput)?.theme?.cast
+                            val references = selected.references.filter { it.role != RefRole.THEME } + Reference(RefRole.THEME, asset)
+                            update(selected.copy(references = references, cast = theme?.copy(authority = asset.id)))
+                        } else {
+                            val baseIdentity = if (mode == Mode.CHARACTER_SHEET && run.request.mode == Mode.TRANSFORMATION) {
+                                run.request.references.firstOrNull { it.role in setOf(RefRole.CHARACTER, RefRole.SOURCE) }?.asset?.id
+                            } else null
+                            update(StudioDraft(mode, references = listOf(Reference(RefRole.SOURCE, asset)), baseIdentityId = baseIdentity))
+                        }
+                    },
+                    openDraft = { saved ->
+                        select(saved.mode)
+                        update(saved)
                     },
                     onEdit = { run, index, state ->
                         scope.launch {
@@ -275,7 +288,14 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, handled: () -> Unit)
             onApply = { replacement ->
                 val currentRefs = current.references.toMutableList()
                 if (replacement == null) currentRefs.removeAt(referenceIndex) else currentRefs[referenceIndex] = replacement
-                update(current.copy(references = currentRefs))
+                val remaining = currentRefs.map { it.asset.id }.toSet()
+                val timeline = current.shots.map {
+                    it.copy(
+                        openingFrameId = it.openingFrameId?.takeIf(remaining::contains),
+                        endingFrameId = it.endingFrameId?.takeIf(remaining::contains),
+                    )
+                }
+                update(current.copy(references = currentRefs, shots = timeline, audio = current.audio.filter { it.assetId in remaining }))
                 editingReference = null
             },
         )
@@ -507,6 +527,8 @@ private fun Options(draft: StudioDraft, change: (StudioDraft) -> Unit) {
 @Composable
 private fun Timeline(draft: StudioDraft, change: (StudioDraft) -> Unit) {
     fun edit(index: Int, shot: ShotDraft) = change(draft.copy(shots = draft.shots.toMutableList().apply { set(index, shot) }))
+    val frames = draft.references.filter { it.role == RefRole.KEYFRAME }.map { it.asset }.distinctBy { it.id }
+    val audioFiles = draft.references.filter { it.role == RefRole.AUDIO }.map { it.asset }.distinctBy { it.id }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         draft.shots.forEachIndexed { index, shot ->
             Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
@@ -516,6 +538,15 @@ private fun Timeline(draft: StudioDraft, change: (StudioDraft) -> Unit) {
                     Field("Seconds", shot.seconds, { edit(index, shot.copy(seconds = it)) }, keyboard = KeyboardType.Decimal)
                     Field("Camera", shot.camera, { edit(index, shot.copy(camera = it)) })
                     Field("Motion", shot.motion, { edit(index, shot.copy(motion = it)) })
+                    if (frames.isNotEmpty()) {
+                        val choices = listOf<AssetRef?>(null) + frames
+                        Choice("Opening frame", choices, frames.firstOrNull { it.id == shot.openingFrameId }, { it?.name ?: "Automatic" }) {
+                            edit(index, shot.copy(openingFrameId = it?.id))
+                        }
+                        Choice("Ending frame", choices, frames.firstOrNull { it.id == shot.endingFrameId }, { it?.name ?: "Automatic" }) {
+                            edit(index, shot.copy(endingFrameId = it?.id))
+                        }
+                    }
                     Row {
                         TextButton({ change(draft.copy(shots = draft.shots.filterNot { it.id == shot.id })) }) { Text("Remove") }
                         if (index > 0) TextButton({
@@ -532,6 +563,22 @@ private fun Timeline(draft: StudioDraft, change: (StudioDraft) -> Unit) {
                 change(draft.copy(shots = draft.shots + ShotDraft(UUID.randomUUID().toString())))
             }) { Text("Add shot") }
         }
+        if (audioFiles.isNotEmpty()) {
+            Section("Audio cues")
+            draft.audio.forEachIndexed { index, cue ->
+                val asset = audioFiles.firstOrNull { it.id == cue.assetId } ?: return@forEachIndexed
+                fun editCue(next: AudioDraft) = change(draft.copy(audio = draft.audio.toMutableList().apply { set(index, next) }))
+                Choice("Audio source", audioFiles, asset, { it.name }) { editCue(cue.copy(assetId = it.id)) }
+                Field("Start time in seconds", cue.seconds, { editCue(cue.copy(seconds = it)) }, keyboard = KeyboardType.Decimal)
+                Toggle("Dialogue", cue.dialogue) { editCue(cue.copy(dialogue = it)) }
+                TextButton(onClick = {
+                    change(draft.copy(audio = draft.audio.toMutableList().apply { removeAt(index) }))
+                }) { Text("Remove cue") }
+            }
+            OutlinedButton(onClick = {
+                change(draft.copy(audio = draft.audio + AudioDraft(audioFiles.first().id)))
+            }) { Text("Add audio cue") }
+        }
     }
 }
 
@@ -545,9 +592,9 @@ private fun CastEditor(draft: StudioDraft, change: (StudioDraft) -> Unit) {
         Section("Theme cast")
         cast.subjects.forEachIndexed { index, subject ->
             val source = characters.firstOrNull { it.id == subject.characterAuthority }
-            if (source != null) {
-                Choice("Character Sheet", characters, source, { it.name }) {
-                    val subjects = cast.subjects.toMutableList().apply { set(index, subject.copy(characterAuthority = it.id)) }
+            if (characters.isNotEmpty()) {
+                Choice("Character Sheet", listOf<AssetRef?>(null) + characters, source, { it?.name ?: "Unassigned" }) {
+                    val subjects = cast.subjects.toMutableList().apply { set(index, subject.copy(characterAuthority = it?.id)) }
                     change(draft.copy(cast = cast.copy(subjects = subjects)))
                 }
             }
@@ -621,25 +668,37 @@ private fun Projects(
     runs: List<CreationRun>,
     selected: String?,
     workspace: ArtWorkspace,
+    drafts: List<StudioDraft>,
     onOpen: (String?) -> Unit,
     onResume: (CreationRun) -> Unit,
     onCancel: (String) -> Unit,
     onSaveCandidate: (String, String) -> Unit,
     onTheme: (ThemeDesign) -> Unit,
-    onDesignSheet: (CreationRun, ContentArtifact) -> Unit,
+    onUseImage: (CreationRun, ContentArtifact, Mode) -> Unit,
+    openDraft: (StudioDraft) -> Unit,
     onEdit: (String, Int, DesignState) -> Unit,
 ) {
     val run = runs.firstOrNull { it.id == selected }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (run == null) {
             item { Wordmark("Projects") }
-            if (runs.isEmpty()) item { Text("Your creations will appear here.") }
+            if (runs.isEmpty() && drafts.isEmpty()) item { Text("Your creations will appear here.") }
             items(runs, key = { it.id }) { item ->
                 Surface(onClick = { onOpen(item.id) }, shape = RoundedCornerShape(18.dp), color = Panel) {
                     Column(Modifier.fillMaxWidth().padding(15.dp)) {
                         Text(item.request.mode.title, style = MaterialTheme.typography.titleMedium)
                         Text(item.status.label(), color = Lilac, style = MaterialTheme.typography.bodySmall)
                         item.reason?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
+                }
+            }
+            if (drafts.isNotEmpty()) item { Section("Drafts") }
+            items(drafts, key = { "draft-${it.id}" }) { saved ->
+                Surface(onClick = { openDraft(saved) }, shape = RoundedCornerShape(18.dp), color = Panel) {
+                    Column(Modifier.fillMaxWidth().padding(15.dp)) {
+                        Text(saved.mode.title, style = MaterialTheme.typography.titleMedium)
+                        val summary = saved.theme?.title ?: saved.slots.ifBlank { saved.direction }
+                        if (summary.isNotBlank()) Text(summary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -663,9 +722,25 @@ private fun Projects(
             .distinctBy { it.artifact.sha256 }
         items(finished.withIndex().toList(), key = { "${it.index}-${it.value.artifact.sha256}" }) { image ->
             OutputCard(run, image.value.artifact, workspace) {
-                if (run.request.mode == Mode.CHARACTER) {
-                    TextButton(onClick = { onDesignSheet(run, image.value.artifact) }) { Text("Create Character Sheet") }
+                when (run.request.mode) {
+                    Mode.CHARACTER, Mode.ARTWORK, in OriginalInput.ORIGINALS -> {
+                        SheetMenu { onUseImage(run, image.value.artifact, it) }
+                    }
+                    Mode.THEME_SHEET -> {
+                        TextButton(onClick = { onUseImage(run, image.value.artifact, Mode.ARTWORK) }) { Text("Use Theme Sheet in Artwork") }
+                    }
+                    else -> Unit
                 }
+            }
+        }
+        val displayed = finished.map { it.artifact.sha256 }.toSet()
+        val retainedWinners = run.phases
+            .filter { it.winner.artifact.sha256 !in displayed }
+            .distinctBy { it.winner.artifact.sha256 }
+        if (retainedWinners.isNotEmpty()) item { Section("Phase winners") }
+        items(retainedWinners, key = { "winner-${it.phase}" }) { phase ->
+            OutputCard(run, phase.winner.artifact, workspace) {
+                Text(phase.phase.label(), modifier = Modifier.padding(8.dp))
             }
         }
         items(run.pendingPhase.distinctBy { it.artifact.sha256 }, key = { it.artifact.sha256 }) { pending ->
@@ -683,6 +758,22 @@ private fun Projects(
                 if (run.status !in setOf(RunStatus.COMPLETE, RunStatus.CANCELLED)) {
                     OutlinedButton(onClick = { onCancel(run.id) }) { Text("Cancel") }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetMenu(create: (Mode) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { open = true }) { Text("Create reference sheet") }
+        DropdownMenu(open, onDismissRequest = { open = false }) {
+            listOf(Mode.CHARACTER_SHEET, Mode.THEME_SHEET, Mode.STYLE_SHEET).forEach { mode ->
+                DropdownMenuItem(text = { Text(mode.title) }, onClick = {
+                    open = false
+                    create(mode)
+                })
             }
         }
     }

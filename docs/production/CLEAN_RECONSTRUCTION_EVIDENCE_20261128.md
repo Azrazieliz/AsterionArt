@@ -17,9 +17,13 @@ The existing Control worker reached SM-S948B running Android 17. It reported app
 
 The current Nexus source declares `com.asterion.nexus.library` and the TeraBox documents provider `com.asterion.nexus.terabox.documents`. Art's import accepts the granted content URI and checks the immutable original's hash when the URI contains it. The phone app inventory showed Core and Rounder. Nexus rating and remote asset exchange require live provider verification. Sound synthesis, Writer canon exchange, Foundry geometry handoffs and NoWorld import authority remain independent provider integration work.
 
+The Android debug package builds under the separate ID `com.asterion.art.reconstruction`. The JVM suite tests the selector, cast authority, selection of fifteen Artwork candidates over five phases, recovery, and the Character design-first bridge. The signed-caller Control diagnostics provider was brought across from the separate, independently build-checked provider branch. Live invocation of that provider in the new APK remains untested.
+
 ## CPU reference-conditioning experiment
 
 The experiment learned a mapping from a compact 512-wide visual encoder into the 1,024-wide input of a pretrained SD 1.5 IP-Adapter. It used 48 Cleveland Museum of Art CC0 works for fitting, 32 distinct held-out works, and 9 examples from excluded motifs. The fitted ONNX graph matched the NumPy projection with maximum absolute error below `1e-6`. The teacher model and the encoder revisions are pinned in the experiment receipt.
+
+The reconstructed Java CPU graph runner executed both ONNX graphs with the exact benchmark reference on Linux and reproduced the `[1, 1024]` tensor from Python with zero observed difference. The debug Android app exposes the same graph runner for a staged reference-projection check.
 
 | Evaluation split | Learned projection top-1 retrieval | Constant teacher-mean baseline |
 | --- | ---: | ---: |
@@ -41,4 +45,8 @@ Global conditioning carried the source's botanical surroundings into the backgro
 
 `experiments/preferred_models/` retains the historical pins and documents confirmed source versions. Bounded header reads found 685 identical tensor keys and shapes for Rin Flanime v1.4 and MiaoMiao Anima v1.6. The first source uses FP16 and the second BF16. The experimental blender decodes both formats, performs FP32 accumulation, requires an explicit weight, and preserves existing destination files. Hassaku XL Illustrious v3.4 had a different tensor graph and remains a separate visual candidate.
 
-Rin Flanime v1 Turbo is recorded under `rin_flanime_v1_turbo_qnn228_8gen3` in the archived Samsung audit. The exact MiaoMiao v14 Turbo and noob-ai-xl v11 QNN variants, and any additional favorites, require identity and provenance evidence before a matched comparison.
+The owner continuation archive gives the preference order Rin Flanime, MiaoMiao, Illustrious Hassaku XL, then NoobAI XL v11. It records Animayume as a disliked automatic choice. This preference evidence concerns ranking for automatic selection.
+
+Rin Flanime v1 Turbo is recorded under `rin_flanime_v1_turbo_qnn228_8gen3` in the archived Samsung audit. The corresponding Rin and MiaoMiao v1.4 Turbo QNN 2.28 packages were found by archive name and matching file digest on two mirrors. Their archive digests and the separate unverified NoobAI v-pred candidate are recorded in the comparison inventory. The exact previously installed NoobAI XL v11 QNN files remain unresolved.
+
+The authenticated Windows worker verified the full Hassaku v3.4 file on D: against its original SHA-256 pin. The full Rin v1.4 file was verified against its pin in the CPU benchmark environment.
