@@ -44,6 +44,7 @@ internal data class StudioDraft(
     val constructionViews: Boolean = false,
     val progression: Boolean = false,
     val profile: String = "",
+    val presentation: OriginalPresentation? = null,
     val retention: Map<VisualAttribute, Float> = emptyMap(),
     val shots: List<ShotDraft> = emptyList(),
     val audio: List<AudioDraft> = emptyList(),
@@ -60,7 +61,11 @@ internal data class StudioDraft(
             )
             Mode.THEME -> {
                 val axes = if (listOf(beauty, eroticism, tension).any(String::isNotBlank)) {
-                    ThemeAxes(beauty.ifBlank { "0" }.toFloat(), eroticism.ifBlank { "0" }.toFloat(), tension.ifBlank { "0" }.toFloat())
+                    ThemeAxes(
+                        ThemeIntensity(beauty.ifBlank { "0" }),
+                        ThemeIntensity(eroticism.ifBlank { "0" }),
+                        ThemeIntensity(tension.ifBlank { "0" }),
+                    )
                 } else null
                 ThemeInput(direction, axes, keywords.split('\n').map(String::trim).filter(String::isNotEmpty))
             }
@@ -88,7 +93,7 @@ internal data class StudioDraft(
             else -> OriginalInput(
                 mode, direction, count(if (mode == Mode.OUTFIT || mode == Mode.EQUIPMENT) 10 else 1),
                 constructionViews = constructionViews, progression = progression,
-                retention = retention, reconstructionProfile = profile.ifBlank { null },
+                retention = retention, reconstructionProfile = profile.ifBlank { null }, presentation = presentation,
             )
         }
         return CreationRequest(

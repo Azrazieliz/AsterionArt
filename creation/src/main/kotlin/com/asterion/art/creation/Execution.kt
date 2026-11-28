@@ -276,11 +276,10 @@ class CreationExecutor(private val journal: RunJournal, private val taxonomy: Ch
             val raw = session.render(command, signal)
             val accepted = repairIfNeeded(command, raw, session, signal)
             require(accepted.assessment.valid) { "Design ${index + 1} has unresolved visual defects" }
-            if (request.mode == Mode.CHARACTER_SHEET) {
-                val canvas = checkNotNull(accepted.dimensions) { "The V5 sheet needs verified image dimensions" }
-                require(canvas.width.toLong() * 16 == canvas.height.toLong() * 9) {
-                    "The V5 Character Sheet must be an integrated 9:16 image"
-                }
+            when {
+                request.mode == Mode.CHARACTER_SHEET -> verifyRatio(accepted, 9, 16, "V5 Character Sheet")
+                design.state.originalPresentation == OriginalPresentation.CATALOGUE ->
+                    verifyRatio(accepted, 16, 9, "Original catalogue")
             }
             current = checkpoint(run.id) { it.copy(independentImages = it.independentImages + accepted) }
             if (raw.artifact != accepted.artifact) session.removeUnretained(raw.artifact)
@@ -411,6 +410,22 @@ class CreationExecutor(private val journal: RunJournal, private val taxonomy: Ch
         design.state.checkReferences(request.references)
         design.packet.verify(model, request.references)
         if (request.mode == Mode.CHARACTER) design.state.checkCharacterBoard()
+        val input = request.input as? OriginalInput ?: return
+        val size = input.defaultCatalogueSize ?: return
+        val presentation = checkNotNull(design.state.originalPresentation) {
+            "The prepared design needs its original presentation"
+        }
+        require(input.presentation == null || input.presentation == presentation)
+        if (presentation == OriginalPresentation.CATALOGUE) require(design.state.subjects.size == size) {
+            "The catalogue requires $size independently prepared designs"
+        }
+    }
+
+    private fun verifyRatio(image: EvaluatedImage, width: Int, height: Int, subject: String) {
+        val canvas = checkNotNull(image.dimensions) { "$subject needs verified image dimensions" }
+        require(canvas.width.toLong() * height == canvas.height.toLong() * width) {
+            "$subject requires an integrated $width:$height image"
+        }
     }
 
     private fun complete(id: String): CreationRun = checkpoint(id) { it.copy(status = RunStatus.COMPLETE) }

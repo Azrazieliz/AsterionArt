@@ -19,7 +19,7 @@ The current Nexus source declares `com.asterion.nexus.library` and the TeraBox d
 
 Writer's existing Android text and Markdown sharing can enter Art as a retained animation-scene draft. Art outputs use a scoped read-only Android share grant after byte verification. The project timeline stores source frames, audio timings and dialogue marks. Execution persists a learned shot plan and gives each subsequent shot the prior shot's actual ending frame. Device-level media handoff and temporal quality remain to be measured.
 
-The Android debug package builds under the separate ID `com.asterion.art.reconstruction`. The JVM suite tests the selector, cast authority, selection of fifteen Artwork candidates over five phases, recovery, and the Character design-first bridge. The signed-caller Control diagnostics provider was brought across from the separate, independently build-checked provider branch. Live invocation of that provider in the new APK remains untested.
+The Android debug package builds under the separate ID `com.asterion.art.reconstruction`. The JVM suite tests the selector, cast authority, selection of fifteen Artwork candidates over five phases, recovery, and the Character design-first bridge. Animation persists a shot plan and hands the actual preceding frame to the next shot in the workflow test. The original broad Transformation, Mutation, Creature and AU catalogues retain five planned designs and integrated 16:9 geometry. The signed-caller Control diagnostics provider was brought across from the separate, independently build-checked provider branch. Live invocation of that provider in the new APK remains untested.
 
 ## CPU reference-conditioning experiment
 
@@ -53,10 +53,16 @@ Rin Flanime v1 Turbo is recorded under `rin_flanime_v1_turbo_qnn228_8gen3` in th
 
 The authenticated Windows worker verified the full Hassaku v3.4 file on D: against its original SHA-256 pin. The full Rin v1.4 file was verified against its pin in the CPU benchmark environment.
 
-Rin v1.4 was also verified on D:. MiaoMiao v1.6 was verified in the CPU benchmark environment.
+The authenticated Windows worker likewise verified Rin v1.4 and MiaoMiao v1.6 on D:. Both were independently checksum-verified in the CPU benchmark environment.
 
 ## Anima-native projection experiment
 
 The Rin-specific projection was fitted against the exact checkpoint's 118 learned text-adapter tensors. Its target space is the adapted cross-attention sequence. It transfers an additional image-reference token without shortening the existing design context. The experiment binds the source checkpoint, text encoder, compact vision encoder and projection by SHA-256.
 
 Both checkpoint-specific fits improved held-out retrieval from 1/32 to 9/32. Unseen-motif retrieval rose from 1/9 to 2/9 for each. Unseen-motif cosine moved from 0.725 to 0.674 for Rin and from 0.724 to 0.673 for MiaoMiao. The measured tradeoff keeps the projections experimental. Further visual validation and region-specific preservation remain necessary before any production change.
+
+The real MiaoMiao denoiser consumed a `[1, 513, 1024]` conditioning tensor and returned a finite latent in the one-step reference probe. The renderer received its complete adapted text context plus the checkpoint-specific learned visual token. The Java CPU graph check separately reproduced the Anima `[1, 1, 1024]` projected token with zero observed difference from Python.
+
+The unchanged Rin checkpoint rendered the Orchid × Moth Outfit case at 384 × 512, seed 1457 and 30 steps. The ivory garment, violet orchid motifs and translucent sleeves were visible. The image cropped the head and legs, so it fails the requested full-length presentation. CPU denoising and decoding took about 768 seconds after a sequential model-residency change. An earlier concurrent-load attempt exited with code 137 before an image was produced.
+
+MiaoMiao v1.6 rendered the same case, seed, resolution, scheduler and step count. Its baseline preserved the full silhouette, the complete draped garment and the plain studio backdrop. Orchid detailing was clear, while the moth influence was mostly limited to the sleeve silhouette. Denoising and decoding took about 572 seconds. The Rin and MiaoMiao timing runs used five and eight CPU threads respectively. The matched visual result is one Outfit case. A production selection requires a broader set of real creations.

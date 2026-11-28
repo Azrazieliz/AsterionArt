@@ -20,7 +20,8 @@ val compileCharacterTaxonomy by tasks.registering(Exec::class) {
     inputs.files(taxonomySource, taxonomyCompiler)
     outputs.file(generatedResources.map { it.file("character-taxonomy.json") })
     commandLine(
-        providers.environmentVariable("ART_PYTHON").orElse("python3").get(),
+        providers.environmentVariable("ART_PYTHON")
+            .orElse(if (System.getProperty("os.name").startsWith("Windows")) "python" else "python3").get(),
         taxonomyCompiler.asFile,
         taxonomySource.asFile,
         generatedResources.get().file("character-taxonomy.json").asFile,

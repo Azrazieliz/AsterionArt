@@ -52,6 +52,8 @@
     {
       "label": "noob-ai-xl v11 QNN",
       "family": "SDXL QNN",
+      "original_v11_source": "https://huggingface.co/Laxhar/noobai-XL-1.1/blob/814a274af2b8097c0828819d561ec74c7d0c6cea/NoobAI-XL-v1.1.safetensors",
+      "original_v11_sha256": "6681e8e4b134c81f16533acedb0d406d7e5e366e1624b4105178c64d00b05d51",
       "related_archive": "https://huggingface.co/xororz/sdxl-qnn/blob/ead90f4635e21e7412b8200a5efd220b0193beeb/noobai_vpred_qnn2.28_8gen3.zip",
       "status": "Owner reported prior installation. Exact compiled variants and digests under verification."
     }

@@ -10,7 +10,7 @@
         <package android:name="com.asterion.control" />
     </queries>
     <application
-        android:allowBackup="false"
+        android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.AsterionArt"

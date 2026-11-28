@@ -86,12 +86,15 @@ def main():
     parser.add_argument("--reference-projection", type=Path)
     parser.add_argument("--projection-receipt", type=Path)
     parser.add_argument("--reference-strength", type=float, default=1.0)
+    parser.add_argument("--probe-reference", action="store_true", help="Check one conditioned denoising step before the ordinary render.")
     args = parser.parse_args()
     if digest(args.checkpoint) != args.expected_checkpoint_sha256:
         parser.error("Checkpoint digest did not match the comparison pin")
     if args.width <= 0 or args.height <= 0 or args.width % 16 or args.height % 16:
         parser.error("The Anima test render needs positive multiples of 16")
     reference_files = (args.reference, args.compact_encoder, args.reference_projection)
+    if args.probe_reference and not args.reference:
+        parser.error("The reference probe needs an actual visual reference")
     if any((*reference_files, args.projection_receipt)):
         if not all((*reference_files, args.projection_receipt)):
             parser.error("Provide the reference, encoder, trained projection and its receipt together")
@@ -143,12 +146,31 @@ def main():
         raise RuntimeError("Checkpoint did not load as an Anima diffusion model")
     print("Denoising", flush=True)
     before_render = time.monotonic()
+    probe = None
     with torch.inference_mode():
-        if reference is not None:
-            positive = append_conditioning(model.model, positive, reference, args.reference_strength)
-            negative = append_conditioning(model.model, negative, reference, 0)
-            print("Conditioned Anima tensor", list(positive[0][0].shape), flush=True)
         latent = {"samples": torch.zeros((1, 16, 1, args.height // 8, args.width // 8))}
+        if reference is not None:
+            reference_positive = append_conditioning(model.model, positive, reference, args.reference_strength)
+            reference_negative = append_conditioning(model.model, negative, reference, 0)
+            shape = list(reference_positive[0][0].shape)
+            print("Conditioned Anima tensor", shape, flush=True)
+            if args.probe_reference:
+                measured = time.monotonic()
+                try:
+                    sampled, = nodes.KSampler().sample(
+                        model, args.seed, 1, 4.0, "euler", "beta",
+                        reference_positive, reference_negative, latent,
+                    )
+                    if not torch.isfinite(sampled["samples"]).all():
+                        raise RuntimeError("Conditioned inference produced non-finite values")
+                    probe = {"context_shape": shape, "finite_latent": True}
+                except Exception as problem:
+                    probe = {"context_shape": shape, "error": str(problem)}
+                probe["seconds"] = round(time.monotonic() - measured, 3)
+                print("Reference probe", json.dumps(probe), flush=True)
+                before_render = time.monotonic()
+            else:
+                positive, negative = reference_positive, reference_negative
         image_latent, = nodes.KSampler().sample(
             model, args.seed, args.steps, 4.0, "euler", "beta", positive, negative, latent,
         )
@@ -173,6 +195,7 @@ def main():
         "renderer_context_shape": list(positive[0][0].shape) if args.reference else None,
         "visual_reference_sha256": digest(args.reference) if args.reference else None,
         "reference_projection_sha256": digest(args.reference_projection) if args.reference_projection else None,
+        "reference_probe": probe,
         "seed": args.seed,
         "steps": args.steps,
         "resolution": [args.width, args.height],

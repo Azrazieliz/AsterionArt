@@ -114,7 +114,7 @@ class CreationService : Service() {
     private fun openSession(run: CreationRun, signal: ExecutionSignal): Nothing {
         signal.check()
         val family = familyName(run.request.family)
-        throw RuntimeUnavailable("$family has no validated local artist and renderer bundle for ${run.request.mode.title}.")
+        throw RuntimeUnavailable("The production $family runtime for ${run.request.mode.title} is pending.")
     }
 
     private fun notification(title: String): Notification {

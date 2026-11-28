@@ -2,6 +2,13 @@ package com.asterion.art.creation
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.random.Random
 
 @Serializable
@@ -172,6 +179,9 @@ enum class VisualAttribute { FACE, HAIR, PROPORTIONS, SILHOUETTE, PALETTE, MATER
 enum class OriginalOperation { CREATE, ALTER, REFINE, FUSE, IMPROVE, DEVELOP, FINALISE }
 
 @Serializable
+enum class OriginalPresentation { CATALOGUE, SINGLE_DESIGN }
+
+@Serializable
 @SerialName("original")
 data class OriginalInput(
     override val mode: Mode,
@@ -183,6 +193,7 @@ data class OriginalInput(
     val retention: Map<VisualAttribute, Float> = emptyMap(),
     val linkedProject: String? = null,
     val reconstructionProfile: String? = null,
+    val presentation: OriginalPresentation? = null,
 ) : DesignInput {
     init {
         require(mode in ORIGINALS)
@@ -192,22 +203,42 @@ data class OriginalInput(
         require(retention.isEmpty() || mode == Mode.MUTATION)
         require(retention.values.all { it in 0f..1f })
         require(reconstructionProfile == null || mode == Mode.FEMINISATION && reconstructionProfile.isNotBlank())
+        require(presentation == null || mode in FIVE_DESIGN_CATALOGUES)
     }
+
+    val defaultCatalogueSize: Int? get() = if (mode in FIVE_DESIGN_CATALOGUES) 5 else null
+    val feminisationProfile: String? get() = if (mode == Mode.FEMINISATION) reconstructionProfile ?: "Level 4.5" else null
 
     companion object {
         val ORIGINALS = setOf(
             Mode.OUTFIT, Mode.EQUIPMENT, Mode.TRANSFORMATION, Mode.MUTATION, Mode.CREATURE,
             Mode.ALTERNATE_UNIVERSE, Mode.FEMINISATION, Mode.STYLE_CORRECTION,
         )
+        val FIVE_DESIGN_CATALOGUES = setOf(Mode.TRANSFORMATION, Mode.MUTATION, Mode.CREATURE, Mode.ALTERNATE_UNIVERSE)
     }
 }
 
-@Serializable
-data class ThemeAxes(val beauty: Float, val eroticism: Float, val tension: Float) {
+@Serializable(with = ThemeIntensitySerializer::class)
+data class ThemeIntensity(val exact: String) {
     init {
-        require(listOf(beauty, eroticism, tension).all { it.isFinite() && it >= 0f })
+        require(exact.toBigDecimalOrNull()?.signum()?.let { it >= 0 } == true) {
+            "Enter a nonnegative decimal intensity"
+        }
     }
 }
+
+object ThemeIntensitySerializer : KSerializer<ThemeIntensity> {
+    override val descriptor = PrimitiveSerialDescriptor("ThemeIntensity", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: ThemeIntensity) = encoder.encodeString(value.exact)
+
+    override fun deserialize(decoder: Decoder): ThemeIntensity = ThemeIntensity(
+        if (decoder is JsonDecoder) decoder.decodeJsonElement().jsonPrimitive.content else decoder.decodeString(),
+    )
+}
+
+@Serializable
+data class ThemeAxes(val beauty: ThemeIntensity, val eroticism: ThemeIntensity, val tension: ThemeIntensity)
 
 @Serializable
 @SerialName("theme")
@@ -308,8 +339,14 @@ data class CreationRequest(
                 }.map { it.asset }
                 design.themeCast.freeze(references, pool, Random(seed))
             }
-            is CharacterInput -> require(design.operation == CharacterOperation.CREATE || source()) {
-                "Choose the exact character design this operation starts from"
+            is CharacterInput -> {
+                require(design.operation == CharacterOperation.CREATE || source()) {
+                    "Choose the exact character design this operation starts from"
+                }
+                if (design.operation == CharacterOperation.FUSE) {
+                    require(references.filter { it.role in setOf(RefRole.CHARACTER, RefRole.SOURCE) }
+                        .map { it.asset.id }.distinct().size >= 2) { "Select the designs to fuse" }
+                }
             }
             is OriginalInput -> when (mode) {
                 Mode.OUTFIT, Mode.EQUIPMENT, Mode.TRANSFORMATION, Mode.MUTATION,

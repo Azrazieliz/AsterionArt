@@ -546,7 +546,10 @@ private fun Options(draft: StudioDraft, change: (StudioDraft) -> Unit) {
             }
             Mode.OUTFIT -> Toggle("Construction views", draft.constructionViews) { change(draft.copy(constructionViews = it)) }
             Mode.TRANSFORMATION -> Toggle("Progression stages", draft.progression) { change(draft.copy(progression = it)) }
-            Mode.FEMINISATION -> Field("Reconstruction profile", draft.profile, { change(draft.copy(profile = it)) })
+            Mode.FEMINISATION -> Field(
+                "Reconstruction profile", draft.profile, { change(draft.copy(profile = it)) },
+                placeholder = "Level 4.5",
+            )
             Mode.MUTATION -> VisualAttribute.entries.forEach { attribute ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(attribute.label(), Modifier.weight(1f))
@@ -561,6 +564,12 @@ private fun Options(draft: StudioDraft, change: (StudioDraft) -> Unit) {
                 }
             }
             else -> Unit
+        }
+        if (draft.mode in OriginalInput.FIVE_DESIGN_CATALOGUES) {
+            Choice(
+                "Presentation", listOf<OriginalPresentation?>(null) + OriginalPresentation.entries,
+                draft.presentation, { it?.label() ?: "Automatic" },
+            ) { change(draft.copy(presentation = it)) }
         }
     }
 }
@@ -898,7 +907,7 @@ private fun Models(workspace: ArtWorkspace) {
             Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(familyName(family), style = MaterialTheme.typography.titleMedium)
-                    Text("No validated creation bundle installed", style = MaterialTheme.typography.bodySmall)
+                    Text("Production runtime pending", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

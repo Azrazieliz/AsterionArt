@@ -44,6 +44,7 @@ data class DesignState(
     val subjects: List<DesignSubject>,
     val scene: Map<DesignField, VisualFact>,
     val characterViews: List<CharacterView> = emptyList(),
+    val originalPresentation: OriginalPresentation? = null,
 ) {
     init {
         require(subjects.map { it.id }.distinct().size == subjects.size)

@@ -1,6 +1,7 @@
 package com.asterion.art.creation
 
 import java.nio.file.Files
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -119,6 +120,33 @@ class CreationExecutorTest {
         assertEquals("video/mp4", completed.video?.mediaType)
     }
 
+    @Test
+    fun creatureCatalogueKeepsFiveDesignsInOneIntegratedAsset() {
+        val workspace = DurableWorkspace(folder.newFolder())
+        val creation = CreationRequest(
+            OriginalInput(Mode.CREATURE, "Alicorn concepts", presentation = OriginalPresentation.CATALOGUE),
+            seed = 301,
+        )
+        val session = RecordingSession(originalPresentation = OriginalPresentation.CATALOGUE)
+        val queued = workspace.create(creation)
+        val completed = CreationExecutor(workspace, taxonomy).execute(queued.id, ExecutionSignal {}) { _, _ -> session }
+        assertEquals(RunStatus.COMPLETE, completed.status)
+        assertEquals(5, completed.designs.single().state.subjects.size)
+        assertEquals(1, completed.independentImages.size)
+        assertEquals(1, session.rendered.size)
+        assertTrue(completed.phases.isEmpty())
+    }
+
+    @Test
+    fun themeIntensityRetainsLegacyNumbersAndPreciseOpenEndedValues() {
+        val axes = Json.decodeFromString<ThemeAxes>(
+            """{"beauty":180.1234567890123456789,"eroticism":0,"tension":"420.25"}""",
+        )
+        assertEquals("180.1234567890123456789", axes.beauty.exact)
+        assertEquals("420.25", axes.tension.exact)
+        assertEquals(axes, Json.decodeFromString<ThemeAxes>(Json.encodeToString(ThemeAxes.serializer(), axes)))
+    }
+
     private fun reference(role: RefRole, id: String = role.name) =
         Reference(role, AssetRef(id, AssetSource.DOCUMENT, "content://references/$id", "$id.png"))
 }
@@ -126,6 +154,7 @@ class CreationExecutorTest {
 private class RecordingSession(
     private var interruptAfter: Int? = null,
     private val animationPlan: List<Shot>? = null,
+    private val originalPresentation: OriginalPresentation? = null,
 ) : CreationSession {
     override val model = ModelIdentity("1".repeat(64), "2".repeat(64), "3".repeat(64))
     var prepared = 0
@@ -142,7 +171,10 @@ private class RecordingSession(
         return List(request.designCount) { index ->
             val fields = DesignField.entries.take(8).associateWith { VisualFact("Prepared feature ${it.name} $index") }
             val views = if (request.creation.mode == Mode.CHARACTER) CharacterView.entries else emptyList()
-            PreparedDesign(DesignState(listOf(DesignSubject("design-$index", fields)), emptyMap(), views), packet)
+            val subjects = List(if (originalPresentation == OriginalPresentation.CATALOGUE) 5 else 1) {
+                DesignSubject("design-$index-$it", fields)
+            }
+            PreparedDesign(DesignState(subjects, emptyMap(), views, originalPresentation), packet)
         }
     }
 
@@ -156,7 +188,8 @@ private class RecordingSession(
         }
         rendered += request
         val artifact = ContentArtifact(rendered.size.toString(16).padStart(64, '0'), "image/png", 100)
-        return EvaluatedImage(artifact, QualityAssessment(rendered.size / 100f, true, true))
+        val dimensions = if (originalPresentation == OriginalPresentation.CATALOGUE) ImageDimensions(1920, 1080) else null
+        return EvaluatedImage(artifact, QualityAssessment(rendered.size / 100f, true, true), dimensions)
     }
 
     override fun removeUnretained(artifact: ContentArtifact) { removed += artifact }
