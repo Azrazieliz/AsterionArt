@@ -66,6 +66,7 @@ internal class NativeGraph(
         val native = LinkedHashMap<String, OnnxTensor>()
         try {
             for ((name, tensor) in inputs) {
+                signal.check()
                 val signature = required.getValue(name).info as? TensorInfo
                     ?: throw RuntimeUnavailable("The model input $name is not a tensor")
                 require(signature.type == OnnxJavaType.FLOAT)
@@ -77,17 +78,20 @@ internal class NativeGraph(
                     environment, FloatBuffer.wrap(tensor.values), tensor.dimensions.map(Int::toLong).toLongArray(),
                 )
             }
-            val data = session.run(native, outputs).use { result ->
-                outputs.associateWith { name ->
-                    val value = result.get(name).orElseThrow() as OnnxTensor
-                    val buffer = checkNotNull(value.floatBuffer)
-                    val floats = FloatArray(buffer.remaining()).also(buffer::get)
-                    check(floats.all(Float::isFinite)) { "The graph returned non-finite $name values" }
-                    FloatTensor(value.info.shape.map(Math::toIntExact), floats)
+            return OrtSession.RunOptions().use { options ->
+                duringNativeExecution(signal, stop = { options.setTerminate(true) }) {
+                    session.run(native, outputs, options).use { result ->
+                        outputs.associateWith { name ->
+                            signal.check()
+                            val value = result.get(name).orElseThrow() as OnnxTensor
+                            val buffer = checkNotNull(value.floatBuffer)
+                            val floats = FloatArray(buffer.remaining()).also(buffer::get)
+                            check(floats.all(Float::isFinite)) { "The graph returned non-finite $name values" }
+                            FloatTensor(value.info.shape.map(Math::toIntExact), floats)
+                        }
+                    }
                 }
             }
-            signal.check()
-            return data
         } finally {
             native.values.reversed().forEach(OnnxTensor::close)
         }

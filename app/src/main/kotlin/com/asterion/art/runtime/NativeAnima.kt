@@ -5,8 +5,6 @@ import com.asterion.art.creation.ExecutionSignal
 import com.asterion.art.creation.Region
 import com.asterion.art.creation.RuntimeUnavailable
 import java.io.File
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 internal enum class AnimaBackend(val key: String) { CPU("cpu"), VULKAN("vulkan0") }
 
@@ -84,23 +82,8 @@ internal class NativeAnima(threads: Int) : AutoCloseable {
         }
         val regions = references.map { reference -> patchWeights(request.width, request.height, reference) }
         val session = handle
-        val guard = Any()
-        var finished = false
-        var cancelled: Exception? = null
-        val watch = watchdog.scheduleWithFixedDelay({
-            synchronized(guard) {
-                if (!finished && cancelled == null) {
-                    try {
-                        signal.check()
-                    } catch (stop: Exception) {
-                        cancelled = stop
-                        cancelRun(session)
-                    }
-                }
-            }
-        }, 500, 500, TimeUnit.MILLISECONDS)
         val dimensions = LongArray(8 + references.size)
-        val output = try {
+        val output = duringNativeExecution(signal, stop = { cancelRun(session) }) {
             execute(
                 session, models.diffusion.absolutePath.encodeToByteArray(), models.encoder?.absolutePath.orEmpty().encodeToByteArray(),
                 models.vae.absolutePath.encodeToByteArray(), request.direction.encodeToByteArray(),
@@ -108,14 +91,7 @@ internal class NativeAnima(threads: Int) : AutoCloseable {
                 request.guidance, references.map { it.features.values }.toTypedArray(), regions.toTypedArray(),
                 design?.positive?.values, design?.unconditional?.values, dimensions,
             )
-        } catch (error: IllegalStateException) {
-            throw synchronized(guard) { cancelled } ?: error
-        } finally {
-            synchronized(guard) { finished = true }
-            watch.cancel(false)
         }
-        synchronized(guard) { cancelled }?.let { throw it }
-        signal.check()
         val pixels = IntArray(Math.multiplyExact(request.width, request.height))
         require(output.size == Math.multiplyExact(pixels.size, 3))
         for (index in pixels.indices) {
@@ -156,10 +132,6 @@ internal class NativeAnima(threads: Int) : AutoCloseable {
                 false
             }
         }
-        private val watchdog = Executors.newSingleThreadScheduledExecutor { task ->
-            Thread(task, "Art denoising cancellation").apply { isDaemon = true }
-        }
-
         internal fun patchWeights(width: Int, height: Int, reference: AnimaReference): FloatArray {
             val columns = width / 16
             val rows = height / 16

@@ -95,12 +95,16 @@ class CreationService : Service() {
         }
         if (!started) {
             started = true
-            worker.execute(::drain)
+            schedule(startId)
         }
         return START_STICKY
     }
 
-    private fun drain() {
+    private fun schedule(startId: Int) {
+        worker.execute { drain(startId) }
+    }
+
+    private fun drain(startId: Int) {
         try {
             workspace.journal.recoverInterrupted()
             val executor = CreationExecutor(workspace.journal, workspace.taxonomy)
@@ -118,12 +122,11 @@ class CreationService : Service() {
             }
         } finally {
             mainExecutor.execute {
-                started = false
-                if (!finished && workspace.journal.next() != null) {
-                    started = true
-                    worker.execute(::drain)
+                if (!finished && latestStartId != startId) {
+                    schedule(latestStartId)
                 } else {
-                    stopSelfResult(latestStartId)
+                    started = false
+                    stopSelfResult(startId)
                 }
             }
         }

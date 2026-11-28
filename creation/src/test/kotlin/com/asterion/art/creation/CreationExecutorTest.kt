@@ -52,6 +52,55 @@ class CreationExecutorTest {
     }
 
     @Test
+    fun artworkResumesEnhancementComparisonAndPreservesAnEarlierPhaseWinner() {
+        val directory = folder.newFolder()
+        val workspace = DurableWorkspace(directory)
+        val theme = reference(RefRole.THEME)
+        val style = reference(RefRole.ART_STYLE)
+        val job = workspace.create(CreationRequest(
+            ArtworkInput(themeCast = ThemeCast(theme.asset.id, 0, emptyList())),
+            listOf(theme, style), seed = 83,
+        ))
+        val renderer = RecordingSession()
+        val tried = mutableListOf<String>()
+        val detail = ContentArtifact("a".repeat(64), "image/png", 100)
+        var failOnFinalChain = true
+        val session = object : CreationSession by renderer {
+            override fun enhancementChains(creation: CreationRequest) = listOf("detail", "variant", "finish")
+            override fun enhance(
+                creation: CreationRequest, source: EvaluatedImage, chain: String, signal: ExecutionSignal,
+            ): EvaluatedImage {
+                tried += chain
+                val firstWinner = workspace.read(job.id).phases.first().winner.artifact
+                return when (chain) {
+                    "detail" -> EvaluatedImage(detail, QualityAssessment(.88f, true, true))
+                    "variant" -> EvaluatedImage(firstWinner, QualityAssessment(.32f, true, true))
+                    else -> {
+                        if (failOnFinalChain) throw ExecutionPaused("Thermal pause")
+                        EvaluatedImage(source.artifact, QualityAssessment(.80f, true, true))
+                    }
+                }
+            }
+        }
+
+        val paused = CreationExecutor(workspace, taxonomy).execute(job.id, ExecutionSignal {}) { _, _ -> session }
+        assertEquals(RunStatus.PAUSED, paused.status)
+        assertEquals(setOf("detail", "variant"), paused.comparedEnhancements)
+        assertEquals(detail, paused.bestEnhancement?.artifact)
+        assertFalse(paused.phases.first().winner.artifact in renderer.removed)
+
+        failOnFinalChain = false
+        val reopened = DurableWorkspace(directory)
+        reopened.resume(job.id)
+        val completed = CreationExecutor(reopened, taxonomy).execute(job.id, ExecutionSignal {}) { _, _ -> session }
+        assertEquals(RunStatus.COMPLETE, completed.status)
+        assertEquals(detail, completed.finalImage?.artifact)
+        assertEquals(listOf("detail", "variant", "finish", "finish"), tried)
+        assertEquals(15, renderer.rendered.size)
+        assertTrue(completed.phases.none { it.winner.artifact in renderer.removed })
+    }
+
+    @Test
     fun characterPreparationFreezesFiveIndependentInputsBeforeRendering() {
         val workspace = DurableWorkspace(folder.newFolder())
         val request = CreationRequest(CharacterInput(listOf("Moth", "Orchid")), route = Route.DESIGN_FIRST, seed = 92)
@@ -84,6 +133,17 @@ class CreationExecutorTest {
         assertEquals(RunStatus.BLOCKED, result.status)
         assertEquals(request, result.request)
         assertTrue(result.themes.isEmpty())
+    }
+
+    @Test
+    fun cancellingAnAlreadySelectedQueueItemSkipsItWithoutOpeningAModel() {
+        val workspace = DurableWorkspace(folder.newFolder())
+        val queued = workspace.create(CreationRequest(ThemeInput(), seed = 1))
+        workspace.cancel(queued.id)
+        val result = CreationExecutor(workspace, taxonomy).execute(queued.id, ExecutionSignal {}) { _, _ ->
+            error("A cancelled job must never open its model")
+        }
+        assertEquals(RunStatus.CANCELLED, result.status)
     }
 
     @Test

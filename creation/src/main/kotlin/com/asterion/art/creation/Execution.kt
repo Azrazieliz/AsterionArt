@@ -99,6 +99,8 @@ data class CreationRun(
     val plannedShots: List<Shot> = emptyList(),
     val segments: List<VideoSegment> = emptyList(),
     val video: ContentArtifact? = null,
+    val comparedEnhancements: Set<String> = emptySet(),
+    val bestEnhancement: EvaluatedImage? = null,
 ) {
     val totalRenders: Int get() = phases.sumOf { it.generated } + pendingPhase.size + independentImages.size
 }
@@ -171,10 +173,14 @@ class CreationExecutor(private val journal: RunJournal, private val taxonomy: Ch
         batteryAndThermals: ExecutionSignal,
         openSession: (CreationRun, ExecutionSignal) -> CreationSession,
     ): CreationRun {
-        val started = journal.update(id) {
-            require(it.status == RunStatus.QUEUED) { "Only an explicitly queued creation can run" }
-            it.copy(status = RunStatus.RUNNING, reason = null)
+        var claimed = false
+        val started = journal.update(id) { run ->
+            if (run.status != RunStatus.QUEUED) run else {
+                claimed = true
+                run.copy(status = RunStatus.RUNNING, reason = null)
+            }
         }
+        if (!claimed) return started
         val signal = ExecutionSignal {
             if (journal.read(id).status != RunStatus.RUNNING) throw InterruptedException("Creation stopped")
             batteryAndThermals.check()
@@ -322,18 +328,28 @@ class CreationExecutor(private val journal: RunJournal, private val taxonomy: Ch
             current = clearDiscarded(current, session)
         }
         val raw = current.phases.last().winner
-        var best = raw
         for (chain in session.enhancementChains(request).distinct()) {
+            if (chain in current.comparedEnhancements) continue
             signal.check()
             val enhanced = session.enhance(request, raw, chain, signal)
-            if (enhanced.assessment.valid && enhanced.assessment.aesthetics > best.assessment.aesthetics) {
-                if (best.artifact != raw.artifact) session.removeUnretained(best.artifact)
-                best = enhanced
-            } else if (enhanced.artifact != best.artifact && enhanced.artifact != raw.artifact) {
-                session.removeUnretained(enhanced.artifact)
+            current = checkpoint(run.id) { latest ->
+                val previous = latest.bestEnhancement ?: raw
+                val selected = if (enhanced.assessment.valid && enhanced.assessment.aesthetics > previous.assessment.aesthetics) {
+                    enhanced
+                } else previous
+                val retained = latest.phases.map { it.winner.artifact.sha256 }.toSet() +
+                    latest.preservedCandidates + latest.savedImages.map { it.artifact.sha256 } + selected.artifact.sha256
+                val discarded = listOf(previous.artifact, enhanced.artifact).distinctBy { it.sha256 }
+                    .filter { it.sha256 !in retained }
+                latest.copy(
+                    comparedEnhancements = latest.comparedEnhancements + chain,
+                    bestEnhancement = selected.takeIf { it != raw },
+                    pendingRemoval = latest.pendingRemoval + discarded,
+                )
             }
+            current = clearDiscarded(current, session)
         }
-        return checkpoint(run.id) { it.copy(status = RunStatus.COMPLETE, finalImage = best) }
+        return checkpoint(run.id) { it.copy(status = RunStatus.COMPLETE, finalImage = it.bestEnhancement ?: raw) }
     }
 
     private fun repairIfNeeded(

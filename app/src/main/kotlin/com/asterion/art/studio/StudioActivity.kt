@@ -1218,7 +1218,8 @@ private fun runStatus(run: CreationRun): String {
     return when {
         run.request.mode == Mode.ARTWORK && run.phases.size < ArtworkPhase.entries.size ->
             "Phase ${run.phases.size + 1} of ${ArtworkPhase.entries.size} · ${run.totalRenders} candidates generated"
-        run.request.mode == Mode.ARTWORK -> "Comparing enhancements"
+        run.request.mode == Mode.ARTWORK -> if (run.comparedEnhancements.isEmpty()) "Comparing enhancements"
+            else "Comparing enhancements · ${run.comparedEnhancements.size} compared"
         run.plannedShots.isNotEmpty() -> "${run.segments.size} of ${run.plannedShots.size} shots rendered"
         run.independentImages.isNotEmpty() -> "${run.independentImages.size} designs saved"
         else -> "Running"
