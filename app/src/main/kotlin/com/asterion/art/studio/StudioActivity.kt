@@ -6,11 +6,13 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree
+import androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.asterion.art.BuildConfig
 import com.asterion.art.creation.*
@@ -46,9 +49,9 @@ import com.asterion.art.runtime.ROUNDER_DOCUMENTS
 import com.asterion.art.runtime.familyName
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,14 +67,21 @@ private val Palette = darkColorScheme(
     onSurface = Color(0xFFF4EDF8), onSurfaceVariant = Color(0xFFC5B9CB), outlineVariant = Outline,
 )
 
+private data class SharedMedia(val uri: Uri, val audio: Boolean)
+
 class StudioActivity : ComponentActivity() {
-    private var incoming by mutableStateOf<Uri?>(null)
+    private var incoming by mutableStateOf<SharedMedia?>(null)
     private var incomingScene by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        receive(intent)
+        if (savedInstanceState == null) receive(intent) else {
+            incomingScene = savedInstanceState.getString("incomingScene")
+            savedInstanceState.getString("incomingUri")?.let {
+                incoming = SharedMedia(Uri.parse(it), savedInstanceState.getBoolean("incomingAudio"))
+            }
+        }
         setContent {
             MaterialTheme(colorScheme = Palette) {
                 Studio(ArtWorkspace.get(this), incoming, incomingScene) {
@@ -87,18 +97,34 @@ class StudioActivity : ComponentActivity() {
         receive(intent)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("incomingScene", incomingScene)
+        incoming?.let {
+            outState.putString("incomingUri", it.uri.toString())
+            outState.putBoolean("incomingAudio", it.audio)
+        }
+    }
+
     private fun receive(intent: Intent) {
         if (intent.action != Intent.ACTION_SEND) return
-        if (intent.type == "text/plain" || intent.type == "text/markdown") {
+        val type = intent.type ?: return
+        if (type == "text/plain" || type == "text/markdown") {
+            incoming = null
             incomingScene = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf(String::isNotBlank)
             return
         }
-        incoming = if (Build.VERSION.SDK_INT >= 33) {
+        if (!type.startsWith("image/") && !type.startsWith("audio/")) return
+        val stream: Uri? = if (Build.VERSION.SDK_INT >= 33) {
             intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
         } else {
             @Suppress("DEPRECATION")
             intent.getParcelableExtra(Intent.EXTRA_STREAM)
         }
+        val uri = stream ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+        if (uri?.scheme != "content") return
+        incomingScene = null
+        incoming = SharedMedia(uri, type.startsWith("audio/"))
     }
 }
 
@@ -107,10 +133,10 @@ private enum class Destination(val label: String) { CREATE("Create"), PROJECTS("
 private val Mode.isVideo get() = this == Mode.CLIP || this == Mode.ANIMATION
 private val Mode.canReview get() = !isVideo && this != Mode.THEME
 
-private data class ArtworkSelection(val mode: Mode, val role: RefRole)
+private data class ReferenceSelection(val draftId: String, val role: RefRole)
 
 @Composable
-private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: String?, handled: () -> Unit) {
+private fun Studio(workspace: ArtWorkspace, incoming: SharedMedia?, incomingScene: String?, handled: () -> Unit) {
     val context = LocalContext.current
     val drafts = remember { Drafts(context) }
     val scope = rememberCoroutineScope()
@@ -118,12 +144,17 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
     var destination by rememberSaveable { mutableStateOf(Destination.CREATE) }
     var activeMode by rememberSaveable { mutableStateOf<Mode?>(null) }
     var openProject by rememberSaveable { mutableStateOf<String?>(null) }
-    var draft by remember(activeMode) { mutableStateOf(activeMode?.let(drafts::load)) }
-    var selectedRole by remember { mutableStateOf(RefRole.SOURCE) }
-    var runs by remember { mutableStateOf(emptyList<CreationRun>()) }
+    var draft by remember { mutableStateOf(activeMode?.let(drafts::load)) }
+    val runs by workspace.runs.collectAsStateWithLifecycle(initialValue = emptyList())
     var editingReference by remember { mutableStateOf<Int?>(null) }
-    var pendingUri by remember { mutableStateOf<Uri?>(null) }
-    var artworkSelection by remember { mutableStateOf<ArtworkSelection?>(null) }
+    var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingAudio by rememberSaveable { mutableStateOf(false) }
+    var documentDraftId by rememberSaveable { mutableStateOf<String?>(null) }
+    var documentRole by rememberSaveable { mutableStateOf<RefRole?>(null) }
+    var attachment by remember { mutableStateOf<ReferenceSelection?>(null) }
+    var artworkSelection by remember { mutableStateOf<ReferenceSelection?>(null) }
+    val importing = remember { mutableStateMapOf<String, Int>() }
+    var submitting by remember { mutableStateOf(false) }
     val artworkProvider = remember {
         setOf(ROUNDER_DOCUMENTS, NEXUS_DOCUMENTS).any { context.packageManager.resolveContentProvider(it, 0) != null }
     }
@@ -133,47 +164,110 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
         draft = next
     }
 
-    fun select(mode: Mode) {
+    fun openEditor(next: StudioDraft, persist: Boolean = true) {
         destination = Destination.CREATE
-        activeMode = mode
-        draft = drafts.load(mode)
-        selectedRole = roles(mode).first()
+        activeMode = next.mode
+        editingReference = null
+        if (persist) update(next) else draft = next
     }
 
-    fun importReference(uri: Uri, mode: Mode, role: RefRole) = scope.launch {
-        val imported = runCatching { withContext(Dispatchers.IO) { workspace.references.import(uri) } }
-        imported.fold(
-            onSuccess = { asset ->
-                val target = if (draft?.mode == mode) checkNotNull(draft) else drafts.load(mode)
-                val next = target.copy(references = target.references + Reference(role, asset))
-                if (draft?.mode == mode) update(next) else drafts.write(next)
-            },
-            onFailure = { messages.showSnackbar(it.message ?: "The reference could not be opened") },
-        )
+    fun select(mode: Mode) = openEditor(drafts.load(mode), persist = false)
+
+    fun closeEditor() {
+        activeMode = null
+        editingReference = null
+        draft = null
     }
 
-    val pickDocument = rememberLauncherForActivityResult(OpenDocument()) { uri ->
-        val mode = activeMode
-        if (uri != null && mode != null) importReference(uri, mode, selectedRole)
+    fun updateTarget(target: ReferenceSelection, change: (StudioDraft) -> StudioDraft) {
+        val current = draft?.takeIf { it.id == target.draftId }
+        val previous = current ?: drafts.read(target.draftId) ?: return
+        val next = change(previous)
+        if (current != null) update(next) else drafts.write(next, activate = false)
+    }
+
+    fun importReferences(uris: List<Uri>, target: ReferenceSelection) {
+        if (uris.isEmpty()) return
+        scope.launch {
+            importing[target.draftId] = (importing[target.draftId] ?: 0) + 1
+            val failures = mutableListOf<String>()
+            try {
+                for (uri in uris) {
+                    try {
+                        val asset = withContext(Dispatchers.IO) {
+                            val operation = currentCoroutineContext()
+                            workspace.references.import(uri, ExecutionSignal { operation.ensureActive() }, target.role)
+                        }
+                        updateTarget(target) { it.attach(Reference(target.role, asset)) }
+                        if (pendingUri == uri.toString()) pendingUri = null
+                    } catch (stop: CancellationException) {
+                        throw stop
+                    } catch (failure: Exception) {
+                        failures += failure.message ?: "The reference could not be opened"
+                    }
+                }
+            } finally {
+                val remaining = checkNotNull(importing[target.draftId]) - 1
+                if (remaining == 0) importing.remove(target.draftId) else importing[target.draftId] = remaining
+            }
+            if (failures.isNotEmpty()) {
+                messages.showSnackbar(if (failures.size == 1) failures.first() else "${failures.size} references could not be attached")
+            }
+        }
+    }
+
+    fun documentsReturned(uris: List<Uri>) {
+        val id = documentDraftId
+        val role = documentRole
+        documentDraftId = null
+        documentRole = null
+        if (id != null && role != null) importReferences(uris, ReferenceSelection(id, role))
+    }
+
+    val pickDocument = rememberLauncherForActivityResult(OpenDocument()) { documentsReturned(listOfNotNull(it)) }
+    val pickDocuments = rememberLauncherForActivityResult(OpenMultipleDocuments(), ::documentsReturned)
+
+    fun browseFiles(target: ReferenceSelection) {
+        val mimeTypes = when (target.role) {
+            RefRole.AUDIO -> arrayOf("audio/*")
+            RefRole.GEOMETRY -> arrayOf("model/gltf-binary", "application/octet-stream", "application/zip")
+            else -> arrayOf("image/*")
+        }
+        documentDraftId = target.draftId
+        documentRole = target.role
+        attachment = null
+        if (target.role == RefRole.THEME) pickDocument.launch(mimeTypes) else pickDocuments.launch(mimeTypes)
+    }
+
+    BackHandler(
+        enabled = attachment == null && artworkSelection == null && editingReference == null &&
+            (destination != Destination.CREATE || draft != null),
+    ) {
+        when {
+            destination == Destination.PROJECTS && openProject != null -> openProject = null
+            destination != Destination.CREATE -> destination = Destination.CREATE
+            else -> closeEditor()
+        }
     }
     LaunchedEffect(incoming) {
         if (incoming != null) {
-            pendingUri = incoming
+            pendingUri = incoming.uri.toString()
+            pendingAudio = incoming.audio
+            if (incoming.audio) {
+                val timeline = draft?.takeIf { it.mode.isVideo } ?: drafts.load(Mode.ANIMATION)
+                openEditor(timeline)
+                importReferences(listOf(incoming.uri), ReferenceSelection(timeline.id, RefRole.AUDIO))
+            } else {
+                if (draft == null) select(Mode.CHARACTER_SHEET)
+                destination = Destination.CREATE
+            }
             handled()
-            if (activeMode == null) select(Mode.CHARACTER_SHEET)
         }
     }
     LaunchedEffect(incomingScene) {
         if (incomingScene != null) {
-            select(Mode.ANIMATION)
-            update(StudioDraft(Mode.ANIMATION, direction = incomingScene))
+            openEditor(StudioDraft(Mode.ANIMATION, direction = incomingScene))
             handled()
-        }
-    }
-    LaunchedEffect(workspace) {
-        while (true) {
-            runs = withContext(Dispatchers.IO) { workspace.journal.list() }
-            delay(if (runs.any { it.status == RunStatus.RUNNING }) 500 else 1400)
         }
     }
 
@@ -186,7 +280,7 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
                     NavigationBarItem(
                         selected = destination == item,
                         onClick = {
-                            if (item == Destination.CREATE && destination == item) activeMode = null
+                            if (item == Destination.CREATE && destination == item) closeEditor()
                             if (item == Destination.PROJECTS && destination == item) openProject = null
                             destination = item
                         },
@@ -211,41 +305,41 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
                 Destination.CREATE -> {
                     val current = draft
                     if (current == null) ModeLibrary(::select)
-                    else CreationEditor(
-                        current, workspace.taxonomy, workspace, ::update,
-                        onBack = { activeMode = null },
-                        onChoose = { role ->
-                            selectedRole = role
-                            val shared = pendingUri
-                            if (shared != null) {
-                                pendingUri = null
-                                importReference(shared, current.mode, role)
-                            } else {
-                                pickDocument.launch(if (role == RefRole.AUDIO) arrayOf("audio/*") else arrayOf("image/*"))
-                            }
-                        },
-                        onChooseArtwork = if (artworkProvider) {
-                            { role -> artworkSelection = ArtworkSelection(current.mode, role) }
-                        } else null,
-                        onEditReference = { editingReference = it },
-                        onStart = {
-                            scope.launch {
-                                runCatching {
-                                    val request = current.request()
-                                    withContext(Dispatchers.IO) { workspace.journal.create(request) }
-                                }.onSuccess { run ->
-                                    runs = listOf(run) + runs
-                                    openProject = run.id
-                                    destination = Destination.PROJECTS
-                                    runCatching { CreationService.wake(context) }.onFailure {
-                                        messages.showSnackbar("Saved to the queue. Open Projects to resume.")
+                    else key(current.id) {
+                        CreationEditor(
+                            current, workspace.taxonomy, workspace, ::update,
+                            onBack = ::closeEditor,
+                            onChoose = { role ->
+                                drafts.write(current)
+                                attachment = ReferenceSelection(current.id, role)
+                            },
+                            onEditReference = { editingReference = it },
+                            importing = current.id in importing,
+                            submitting = submitting,
+                            onStart = {
+                                if (!submitting && current.id !in importing) scope.launch {
+                                    submitting = true
+                                    try {
+                                        val request = current.request()
+                                        val run = withContext(Dispatchers.IO) { workspace.journal.create(request) }
+                                        if (draft?.id == current.id && destination == Destination.CREATE) {
+                                            openProject = run.id
+                                            destination = Destination.PROJECTS
+                                        }
+                                        runCatching { CreationService.wake(context) }.onFailure {
+                                            messages.showSnackbar("Saved to the queue. Open Projects to resume.")
+                                        }
+                                    } catch (stop: CancellationException) {
+                                        throw stop
+                                    } catch (failure: Exception) {
+                                        messages.showSnackbar(failure.message ?: "Check the creation inputs")
+                                    } finally {
+                                        submitting = false
                                     }
-                                }.onFailure {
-                                    messages.showSnackbar(it.message ?: "Check the creation inputs")
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 }
                 Destination.PROJECTS -> Projects(
                     runs, openProject, workspace, drafts.revisions(),
@@ -290,32 +384,19 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
                                 .onFailure { messages.showSnackbar("This candidate has already been cleared") }
                         }
                     },
-                    onTheme = { theme ->
-                        select(Mode.THEME_SHEET)
-                        update(StudioDraft(Mode.THEME_SHEET, theme = theme))
-                    },
+                    onTheme = { theme -> openEditor(StudioDraft(Mode.THEME_SHEET, theme = theme)) },
                     onUseImage = { run, artifact, mode ->
-                        select(mode)
-                        val asset = AssetRef(
-                            artifact.sha256, AssetSource.ART_OUTPUT, "${run.id}/${artifact.sha256}",
-                            "Selected ${run.request.mode.title} design", artifact.sha256,
-                        )
-                        val selected = checkNotNull(draft)
+                        val asset = outputReference(run, artifact)
                         if (mode == Mode.ARTWORK) {
-                            val theme = (run.request.input as? SheetInput)?.theme?.cast
-                            val references = selected.references.filter { it.role != RefRole.THEME } + Reference(RefRole.THEME, asset)
-                            update(selected.copy(references = references, cast = theme?.copy(authority = asset.id)))
+                            openEditor(drafts.load(mode).attachThemeSheet(asset, run.request.input as? SheetInput, run.request.references))
                         } else {
                             val baseIdentity = if (mode == Mode.CHARACTER_SHEET && run.request.mode == Mode.TRANSFORMATION) {
                                 run.request.references.firstOrNull { it.role in setOf(RefRole.CHARACTER, RefRole.SOURCE) }?.asset?.id
                             } else null
-                            update(StudioDraft(mode, references = listOf(Reference(RefRole.SOURCE, asset)), baseIdentityId = baseIdentity))
+                            openEditor(StudioDraft(mode, references = listOf(Reference(RefRole.SOURCE, asset)), baseIdentityId = baseIdentity))
                         }
                     },
-                    openDraft = { saved ->
-                        select(saved.mode)
-                        update(saved)
-                    },
+                    openDraft = { saved -> openEditor(saved) },
                     onEdit = { run, index, state ->
                         scope.launch {
                             runCatching { withContext(Dispatchers.IO) { workspace.journal.editDesign(run, index, state) } }
@@ -329,10 +410,33 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
     }
 
     val current = draft
+    attachment?.let { target ->
+        val imageRole = target.role !in setOf(RefRole.AUDIO, RefRole.GEOMETRY)
+        val shared = pendingUri?.takeIf { if (pendingAudio) target.role == RefRole.AUDIO else imageRole }
+        AttachReferences(
+            target.role, runs, workspace,
+            onDismiss = { attachment = null },
+            onFiles = { browseFiles(target) },
+            onLibrary = if (imageRole && artworkProvider) {
+                { attachment = null; artworkSelection = target }
+            } else null,
+            onShared = shared?.let { uri ->
+                { attachment = null; importReferences(listOf(Uri.parse(uri)), target) }
+            },
+            onProject = { run, output ->
+                val asset = outputReference(run, output)
+                updateTarget(target) {
+                    if (target.role == RefRole.THEME) it.attachThemeSheet(asset, run.request.input as? SheetInput, run.request.references)
+                    else it.attach(Reference(target.role, asset))
+                }
+                attachment = null
+            },
+        )
+    }
     artworkSelection?.let { selection ->
-        ArtworkPicker(onDismiss = { artworkSelection = null }, onSelect = { uri ->
+        ArtworkPicker(onDismiss = { artworkSelection = null; attachment = selection }, onSelect = { uri ->
             artworkSelection = null
-            importReference(uri, selection.mode, selection.role)
+            importReferences(listOf(uri), selection)
         })
     }
     val referenceIndex = editingReference
@@ -342,16 +446,7 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
             reference,
             onDismiss = { editingReference = null },
             onApply = { replacement ->
-                val currentRefs = current.references.toMutableList()
-                if (replacement == null) currentRefs.removeAt(referenceIndex) else currentRefs[referenceIndex] = replacement
-                val remaining = currentRefs.map { it.asset.id }.toSet()
-                val timeline = current.shots.map {
-                    it.copy(
-                        openingFrameId = it.openingFrameId?.takeIf(remaining::contains),
-                        endingFrameId = it.endingFrameId?.takeIf(remaining::contains),
-                    )
-                }
-                update(current.copy(references = currentRefs, shots = timeline, audio = current.audio.filter { it.assetId in remaining }))
+                update(current.changeReference(referenceIndex, replacement))
                 editingReference = null
             },
         )
@@ -417,87 +512,102 @@ private fun CreationEditor(
     change: (StudioDraft) -> Unit,
     onBack: () -> Unit,
     onChoose: (RefRole) -> Unit,
-    onChooseArtwork: ((RefRole) -> Unit)?,
     onEditReference: (Int) -> Unit,
+    importing: Boolean,
+    submitting: Boolean,
     onStart: () -> Unit,
 ) {
-    var details by rememberSaveable(draft.mode) { mutableStateOf(false) }
-    var role by remember(draft.mode) { mutableStateOf(roles(draft.mode).first()) }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item {
-            TextButton(onBack, contentPadding = PaddingValues(0.dp)) { Text("‹  Create") }
-            Wordmark(draft.mode.title)
-        }
-        if (draft.mode == Mode.CHARACTER) {
-            item { ConceptSelector(taxonomy, draft, change) }
-        }
-        if (draft.mode == Mode.THEME) {
+    var details by rememberSaveable { mutableStateOf(false) }
+    var role by rememberSaveable { mutableStateOf(roles(draft.mode).first()) }
+    Column(Modifier.fillMaxSize().imePadding()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
             item {
-                Field("Keywords", draft.keywords, { change(draft.copy(keywords = it)) }, false)
-                draft.theme?.let { Text(it.title) }
+                TextButton(onBack, contentPadding = PaddingValues(0.dp)) { Text("‹  Create") }
+                Wordmark(draft.mode.title)
             }
-        }
-        if (draft.mode.isVideo) item {
-            if (draft.mode == Mode.ANIMATION) {
-                Field("Scene specification", draft.direction, { change(draft.copy(direction = it)) }, false)
+            if (draft.mode == Mode.CHARACTER) {
+                item { ConceptSelector(taxonomy, draft, change) }
             }
-            Timeline(draft, change)
-        }
-        else item {
-            Field(
-                if (draft.mode == Mode.THEME) "Visual direction" else "Direction",
-                draft.direction, { change(draft.copy(direction = it)) }, false,
-            )
-        }
-        if (draft.mode in setOf(Mode.ARTWORK, Mode.CHARACTER, Mode.OUTFIT, Mode.EQUIPMENT)) {
-            item {
-                val placeholder = when (draft.mode) {
-                    Mode.ARTWORK -> "3"
-                    Mode.CHARACTER -> if (draft.characterOperation == CharacterOperation.CREATE) "5" else "1"
-                    else -> "10"
+            if (draft.mode == Mode.THEME) {
+                item {
+                    Field("Keywords", draft.keywords, { change(draft.copy(keywords = it)) }, false)
+                    draft.theme?.let { Text(it.title) }
                 }
+            }
+            if (draft.mode.isVideo) item {
+                if (draft.mode == Mode.ANIMATION) {
+                    Field("Scene specification", draft.direction, { change(draft.copy(direction = it)) }, false)
+                }
+                Timeline(draft, change)
+            }
+            else item {
                 Field(
-                    if (draft.mode == Mode.ARTWORK) "Candidates per phase" else "Design count",
-                    draft.count, { change(draft.copy(count = it)) },
-                    keyboard = KeyboardType.Number, placeholder = placeholder,
+                    if (draft.mode == Mode.THEME) "Visual direction" else "Direction",
+                    draft.direction, { change(draft.copy(direction = it)) }, false,
                 )
             }
-        }
-        item {
-            Section("References")
-            Choice("Reference role", roles(draft.mode), role, ::roleLabel) { role = it }
-            OutlinedButton(onClick = { onChoose(role) }) { Text("Add reference") }
-            if (onChooseArtwork != null && role != RefRole.AUDIO && role != RefRole.GEOMETRY) {
-                TextButton(onClick = { onChooseArtwork(role) }) { Text("Browse artwork library") }
-            }
-        }
-        items(draft.references.withIndex().toList(), key = { "${it.index}-${it.value.asset.id}" }) { indexed ->
-            val reference = indexed.value
-            Surface(onClick = { onEditReference(indexed.index) }, color = Panel, shape = RoundedCornerShape(16.dp)) {
-                Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    val file = remember(reference) { runCatching { workspace.references.path(reference.asset) }.getOrNull() }
-                    AsyncImage(file, null, Modifier.size(50.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
-                    Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                        Text(reference.asset.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(roleLabel(reference.role), style = MaterialTheme.typography.bodySmall)
+            if (draft.mode in setOf(Mode.ARTWORK, Mode.CHARACTER, Mode.OUTFIT, Mode.EQUIPMENT)) {
+                item {
+                    val placeholder = when (draft.mode) {
+                        Mode.ARTWORK -> "3"
+                        Mode.CHARACTER -> if (draft.characterOperation == CharacterOperation.CREATE) "5" else "1"
+                        else -> "10"
                     }
-                    Text("Edit", color = Lilac)
+                    Field(
+                        if (draft.mode == Mode.ARTWORK) "Candidates per phase" else "Design count",
+                        draft.count, { change(draft.copy(count = it)) },
+                        keyboard = KeyboardType.Number, placeholder = placeholder,
+                    )
                 }
             }
+            item {
+                Section("References")
+                Choice("Reference role", roles(draft.mode), role, ::roleLabel) { role = it }
+                OutlinedButton(onClick = { onChoose(role) }) { Text("Add reference") }
+            }
+            items(draft.references.withIndex().toList(), key = { "${it.index}-${it.value.asset.id}" }) { indexed ->
+                val reference = indexed.value
+                Surface(onClick = { onEditReference(indexed.index) }, color = Panel, shape = RoundedCornerShape(16.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val file = remember(reference) { runCatching { workspace.references.path(reference.asset) }.getOrNull() }
+                        if (reference.role !in setOf(RefRole.AUDIO, RefRole.GEOMETRY)) {
+                            AsyncImage(file, null, Modifier.size(50.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                        }
+                        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                            Text(reference.asset.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val authority = listOfNotNull(
+                                roleLabel(reference.role), reference.subject, "Region".takeIf { reference.region != null },
+                            ).joinToString(" · ")
+                            Text(authority, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("Edit", color = Lilac)
+                    }
+                }
+            }
+            if (draft.mode == Mode.ARTWORK) item { CastEditor(draft, change) }
+            if (draft.mode == Mode.THEME_SHEET && draft.theme != null) item { Text(checkNotNull(draft.theme).title) }
+            item {
+                OutlinedButton(onClick = { details = !details }) { Text(if (details) "Hide options" else "Options") }
+                if (details) Options(draft, change)
+            }
         }
-        if (draft.mode == Mode.ARTWORK) item { CastEditor(draft, change) }
-        if (draft.mode == Mode.THEME_SHEET && draft.theme != null) item { Text(checkNotNull(draft.theme).title) }
-        item {
-            OutlinedButton(onClick = { details = !details }) { Text(if (details) "Hide options" else "Options") }
-            if (details) Options(draft, change)
-        }
-        item {
-            Button(onStart, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)) {
-                Text(if (draft.route == Route.DESIGN_FIRST) "Prepare design" else "Start creation")
+        Surface(shadowElevation = 3.dp) {
+            Button(
+                onClick = onStart, enabled = !importing && !submitting,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp).heightIn(min = 52.dp),
+            ) {
+                Text(
+                    when {
+                        importing -> "Attaching references…"
+                        submitting -> "Saving to Projects…"
+                        draft.route == Route.DESIGN_FIRST -> "Prepare design"
+                        else -> "Start creation"
+                    },
+                )
             }
         }
     }
@@ -756,13 +866,17 @@ private fun Projects(
     val run = runs.firstOrNull { it.id == selected }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (run == null) {
+            if (selected != null && runs.isEmpty()) {
+                item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                return@LazyColumn
+            }
             item { Wordmark("Projects") }
             if (runs.isEmpty() && drafts.isEmpty()) item { Text("Your creations will appear here.") }
             items(runs, key = { it.id }) { item ->
                 Surface(onClick = { onOpen(item.id) }, shape = RoundedCornerShape(18.dp), color = Panel) {
                     Column(Modifier.fillMaxWidth().padding(15.dp)) {
                         Text(item.request.mode.title, style = MaterialTheme.typography.titleMedium)
-                        Text(item.status.label(), color = Lilac, style = MaterialTheme.typography.bodySmall)
+                        Text(runStatus(item), color = Lilac, style = MaterialTheme.typography.bodySmall)
                         item.reason?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
@@ -782,7 +896,7 @@ private fun Projects(
         item {
             TextButton(onClick = { onOpen(null) }) { Text("‹  Projects") }
             Wordmark(run.request.mode.title)
-            Text(run.status.label(), color = Lilac)
+            Text(runStatus(run), color = Lilac)
             run.reason?.let { Text(it) }
             if (run.status == RunStatus.RUNNING) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 10.dp))
         }
@@ -1077,22 +1191,36 @@ private fun Toggle(label: String, checked: Boolean, set: (Boolean) -> Unit) {
     }
 }
 
-private fun roleLabel(role: RefRole) = when (role) {
+internal fun roleLabel(role: RefRole) = when (role) {
     RefRole.CHARACTER -> "Character Sheet"
     RefRole.THEME -> "Theme Sheet"
     RefRole.ART_STYLE -> "Art Style Sheet"
     RefRole.ELEMENT -> "Legacy Element Sheet"
     RefRole.SOURCE -> "Source image"
+    RefRole.KEYFRAME -> "Keyframe"
+    RefRole.GEOMETRY -> "3D geometry"
     else -> role.label()
 }
 
 private fun roles(mode: Mode): List<RefRole> = when (mode) {
     Mode.ARTWORK -> listOf(RefRole.CHARACTER, RefRole.THEME, RefRole.ART_STYLE, RefRole.ELEMENT, RefRole.POSE)
     Mode.THEME -> listOf(RefRole.SOURCE, RefRole.POSE, RefRole.ELEMENT)
-    Mode.CLIP, Mode.ANIMATION -> listOf(RefRole.KEYFRAME, RefRole.CHARACTER, RefRole.ART_STYLE, RefRole.AUDIO)
+    Mode.CLIP, Mode.ANIMATION -> listOf(RefRole.KEYFRAME, RefRole.CHARACTER, RefRole.ART_STYLE, RefRole.AUDIO, RefRole.GEOMETRY)
     Mode.STYLE_CORRECTION -> listOf(RefRole.SOURCE, RefRole.ART_STYLE)
-    Mode.EQUIPMENT -> listOf(RefRole.CHARACTER, RefRole.OUTFIT, RefRole.SOURCE)
+    Mode.EQUIPMENT -> listOf(RefRole.CHARACTER, RefRole.OUTFIT, RefRole.SOURCE, RefRole.GEOMETRY)
     else -> listOf(RefRole.SOURCE, RefRole.CHARACTER, RefRole.POSE, RefRole.ART_STYLE)
 }
 
 private fun Enum<*>.label() = name.lowercase().replace('_', ' ').replaceFirstChar(Char::titlecase)
+
+private fun runStatus(run: CreationRun): String {
+    if (run.status != RunStatus.RUNNING) return run.status.label()
+    return when {
+        run.request.mode == Mode.ARTWORK && run.phases.size < ArtworkPhase.entries.size ->
+            "Phase ${run.phases.size + 1} of ${ArtworkPhase.entries.size} · ${run.totalRenders} candidates generated"
+        run.request.mode == Mode.ARTWORK -> "Comparing enhancements"
+        run.plannedShots.isNotEmpty() -> "${run.segments.size} of ${run.plannedShots.size} shots rendered"
+        run.independentImages.isNotEmpty() -> "${run.independentImages.size} designs saved"
+        else -> "Running"
+    }
+}

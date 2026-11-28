@@ -19,4 +19,4 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - name: Build isolated reconstruction APK and verify workflow invariants
-        run: bash ./gradlew :creation:test :app:assembleDebug
+        run: bash ./gradlew :creation:test :app:testDebugUnitTest :app:assembleDebug

@@ -51,6 +51,65 @@ internal data class StudioDraft(
     val characterOperation: CharacterOperation = CharacterOperation.CREATE,
     val id: String = UUID.randomUUID().toString(),
 ) {
+    fun attach(reference: Reference, sheetCast: ThemeCast? = null): StudioDraft {
+        require(sheetCast == null || reference.role == RefRole.THEME)
+        if (mode == Mode.ARTWORK && reference.role == RefRole.THEME) {
+            val existing = references.firstOrNull { it.role == RefRole.THEME && it.asset.sameContent(reference.asset) }
+            val selected = existing ?: reference
+            val keptCast = cast?.takeIf { it.authority == selected.asset.id }
+            return copy(
+                references = references.filterNot { it.role == RefRole.THEME } + selected,
+                cast = keptCast ?: sheetCast?.copy(authority = selected.asset.id),
+            )
+        }
+        val duplicate = references.any {
+            it.role == reference.role && it.subject == reference.subject && it.region == reference.region &&
+                it.priority == reference.priority && it.asset.sameContent(reference.asset)
+        }
+        if (duplicate) return this
+        val cues = if (mode in setOf(Mode.CLIP, Mode.ANIMATION) && reference.role == RefRole.AUDIO) {
+            audio + AudioDraft(reference.asset.id)
+        } else audio
+        return copy(references = references + reference, audio = cues)
+    }
+
+    fun changeReference(index: Int, replacement: Reference?): StudioDraft {
+        val updated = references.toMutableList().apply {
+            if (replacement == null) removeAt(index) else set(index, replacement)
+        }
+        val frames = updated.filter { it.role == RefRole.KEYFRAME }.map { it.asset.id }.toSet()
+        val sounds = updated.filter { it.role == RefRole.AUDIO }.map { it.asset.id }.toSet()
+        val characters = updated.filter { it.role == RefRole.CHARACTER }.map { it.asset.id }.toSet()
+        val removedCharacter = references[index].takeIf { it.role == RefRole.CHARACTER && it.asset.id !in characters }?.asset?.id
+        val updatedCast = cast?.takeIf { authority ->
+            updated.any { it.role == RefRole.THEME && it.asset.id == authority.authority }
+        }?.let { authority ->
+            authority.copy(subjects = authority.subjects.map { subject ->
+                if (removedCharacter == subject.characterAuthority) subject.copy(characterAuthority = null) else subject
+            })
+        }
+        return copy(
+            references = updated,
+            shots = shots.map {
+                it.copy(
+                    openingFrameId = it.openingFrameId?.takeIf(frames::contains),
+                    endingFrameId = it.endingFrameId?.takeIf(frames::contains),
+                )
+            },
+            audio = audio.filter { it.assetId in sounds },
+            cast = updatedCast,
+            malePool = malePool.filter(characters::contains),
+        )
+    }
+
+    fun attachThemeSheet(asset: AssetRef, source: SheetInput?, sourceReferences: List<Reference>): StudioDraft {
+        val next = attach(Reference(RefRole.THEME, asset), source?.theme?.cast)
+        val required = next.cast?.subjects?.mapNotNull { it.characterAuthority }.orEmpty().toSet()
+        val known = next.references.filter { it.role == RefRole.CHARACTER }.map { it.asset.id }.toSet()
+        val linked = sourceReferences.filter { it.role == RefRole.CHARACTER && it.asset.id in required && it.asset.id !in known }
+        return next.copy(references = next.references + linked)
+    }
+
     fun request(): CreationRequest {
         fun count(default: Int) = count.ifBlank { default.toString() }.toInt()
         val input: DesignInput = when (mode) {
@@ -103,6 +162,8 @@ internal data class StudioDraft(
     }
 }
 
+private fun AssetRef.sameContent(other: AssetRef) = id == other.id || sha256 != null && sha256 == other.sha256
+
 internal class Drafts(context: Context) {
     private val settings = context.getSharedPreferences("art_authoring_v1", Context.MODE_PRIVATE)
     private val codec = Json { encodeDefaults = true }
@@ -113,14 +174,16 @@ internal class Drafts(context: Context) {
         return encoded?.let(codec::decodeFromString) ?: StudioDraft(mode)
     }
 
+    fun read(id: String): StudioDraft? = settings.getString("draft.$id", null)?.let(codec::decodeFromString)
+
     fun revisions(): List<StudioDraft> = settings.all.entries.mapNotNull { (key, value) ->
         if (key.startsWith("draft.") && value is String) codec.decodeFromString<StudioDraft>(value) else null
     }.sortedBy { it.mode.title }
 
-    fun write(draft: StudioDraft) {
+    fun write(draft: StudioDraft, activate: Boolean = true) {
         settings.edit()
             .putString("draft.${draft.id}", codec.encodeToString(draft))
-            .putString("active.${draft.mode.name}", draft.id)
+            .apply { if (activate) putString("active.${draft.mode.name}", draft.id) }
             .apply()
     }
 }

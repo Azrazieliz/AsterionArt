@@ -7,6 +7,7 @@ import com.asterion.art.creation.AssetRef
 import com.asterion.art.creation.AssetSource
 import com.asterion.art.creation.ContentArtifact
 import com.asterion.art.creation.ExecutionSignal
+import com.asterion.art.creation.RefRole
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -28,6 +29,7 @@ internal class AssetFiles(private val directory: File) {
         mediaType: String,
         expectedSha256: String? = null,
         signal: ExecutionSignal = ExecutionSignal {},
+        expectedSize: Long? = null,
     ): ContentArtifact {
         val temporary = Files.createTempFile(directory.toPath(), ".", ".incoming")
         try {
@@ -47,6 +49,7 @@ internal class AssetFiles(private val directory: File) {
             }
             val actual = digest.digest().joinToString("") { "%02x".format(it) }
             require(expectedSha256 == null || expectedSha256 == actual) { "The selected asset changed in transit" }
+            require(expectedSize == null || expectedSize == bytes) { "The selected asset has an invalid container length" }
             val receipt = ContentArtifact(actual, mediaType, bytes)
             Files.move(temporary, file(actual).toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
             return receipt
@@ -65,10 +68,11 @@ internal class AssetFiles(private val directory: File) {
     }
 }
 
-private fun File.sha256(): String = inputStream().use { input ->
+internal fun File.sha256(signal: ExecutionSignal = ExecutionSignal {}): String = inputStream().use { input ->
     val digest = MessageDigest.getInstance("SHA-256")
     val buffer = ByteArray(1024 * 1024)
     while (true) {
+        signal.check()
         val count = input.read(buffer)
         if (count < 0) break
         digest.update(buffer, 0, count)
@@ -79,10 +83,15 @@ private fun File.sha256(): String = inputStream().use { input ->
 internal class ReferenceFiles(private val context: Context, private val directory: File) {
     val staged = AssetFiles(File(directory, "references"))
 
-    fun import(uri: Uri): AssetRef {
+    fun import(uri: Uri, signal: ExecutionSignal = ExecutionSignal {}, role: RefRole? = null): AssetRef {
         require(uri.scheme == "content")
+        signal.check()
         val resolver = context.contentResolver
         val type = resolver.getType(uri) ?: "application/octet-stream"
+        require(role == null || role == RefRole.GEOMETRY || type == "application/octet-stream" ||
+            type.startsWith(if (role == RefRole.AUDIO) "audio/" else "image/")) {
+            if (role == RefRole.AUDIO) "Choose an audio file for the timeline" else "Choose an image for this reference"
+        }
         val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "Reference"
         val isNexus = uri.authority in setOf(NEXUS_LIBRARY, NEXUS_DOCUMENTS)
@@ -90,8 +99,10 @@ internal class ReferenceFiles(private val context: Context, private val director
             uri.authority == NEXUS_LIBRARY && uri.pathSegments.firstOrNull() == "original" &&
                 it.matches(Regex("[a-f0-9]{64}"))
         }
-        val asset = checkNotNull(resolver.openInputStream(uri)) { "The selected reference is unavailable" }
-            .use { staged.put(it, type, declaredHash) }
+        val asset = checkNotNull(resolver.openInputStream(uri)) { "The selected reference is unavailable" }.use { input ->
+            if (role == RefRole.GEOMETRY) stageGeometry(input, context.cacheDir, staged, declaredHash, signal)
+            else staged.put(input, type, declaredHash, signal)
+        }
         return AssetRef(
             id = declaredHash ?: UUID.randomUUID().toString(),
             source = if (isNexus) AssetSource.NEXUS else AssetSource.DOCUMENT,

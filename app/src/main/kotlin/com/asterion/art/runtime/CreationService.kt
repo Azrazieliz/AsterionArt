@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.FileObserver
 import android.os.IBinder
 import com.asterion.art.R
 import com.asterion.art.creation.CharacterTaxonomy
@@ -22,6 +23,12 @@ import com.asterion.art.studio.StudioActivity
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 
 internal class ArtWorkspace(context: Context) {
     private val application = context.applicationContext
@@ -29,6 +36,17 @@ internal class ArtWorkspace(context: Context) {
     val journal = DurableWorkspace(directory)
     val references = ReferenceFiles(application, directory)
     val taxonomy by lazy(CharacterTaxonomy::load)
+    val runs = callbackFlow {
+        val events = FileObserver.CREATE or FileObserver.MOVED_TO or FileObserver.DELETE
+        val observer = object : FileObserver(File(directory, "runs"), events) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path?.endsWith(".json") == true) trySend(Unit)
+            }
+        }
+        observer.startWatching()
+        trySend(Unit)
+        awaitClose { observer.stopWatching() }
+    }.conflate().map { journal.list() }.flowOn(Dispatchers.IO)
 
     fun outputFiles(runId: String): AssetFiles {
         require(UUID.fromString(runId).toString() == runId)
