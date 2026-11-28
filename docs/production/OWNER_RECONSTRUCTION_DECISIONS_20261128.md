@@ -98,3 +98,14 @@ Additional owner correction: application is predominantly Anime and mostly autom
 - CHAR-06 resolved: retain the existing recursive concept selection mechanism, exact concept and branch selection, constrained roulette, and search as a navigation convenience. Preserve canonical IDs, paths, alias/view semantics and selectable-leaf rules.
 - The owner intends to expand the existing Character Creation taxonomy drastically and develop similarly rigorous dedicated taxonomies for relevant other Originals. This supersedes any assumption that the current taxonomy is the final intended scope; it does not authorize inventing or populating new entries, selecting which other Originals need taxonomies, or applying one universal taxonomy to all methods.
 - Preserve the original Concepts.md as baseline. Future extensions must follow its admission gates, stable IDs, hierarchy, leaf obligations, and distinction between selectable concepts and non-selectable mechanisms, adapted to each relevant methodology. Specific extensions, classification purposes, entries and cross-links remain open for owner review. No Art Style taxonomy is inferred from this clarification; existing Art Style Sheets remain authoritative.
+
+## Final owner reconstruction decisions — binding
+
+| ID | Owner selection |
+|---|---|
+| ELEMENT | Integrate reusable elements into Themes; preserve existing Element Sheets as compatible references. No new standalone Element Sheet creation studio is required by default; do not delete legacy assets. |
+| CHARACTER | One independent integrated character board per design, retaining required consistent views; separate V5 sheet afterward. Default five candidates, adjustable population; no shared multi-character raster as source authority. |
+| OUTFIT | Ten independent outfit illustrations by default, with optional construction views and catalogue browsing. Preserve exact selected design as a distinct asset; no alternate-outfit Character Sheet. |
+| TAXONOMY | Assess each Original independently and develop only taxonomies that provide substantial benefits. Drastic extension of existing Character taxonomy and Theme taxonomy proposal remain in scope. No automatic approval of all proposed taxonomies or their entries. |
+
+These selections resolve the presentation and Element Sheet scope decisions from the remaining-definitions record. They do not authorize altering unrelated methodology clauses, inventing final assembly, or fabricating model/training validation. Proceed with clear engineering work independently. Existing CHAR-08 unanswered and exact historical Theme revision/entry admission remain open where consequential.
