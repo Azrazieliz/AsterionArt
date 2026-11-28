@@ -6,6 +6,7 @@ plugins {
 }
 
 val buildAnima = providers.gradleProperty("asterionNativeAnima").map(String::toBoolean).orElse(false)
+val studioEmulator = providers.gradleProperty("asterionStudioEmulator").map(String::toBoolean).orElse(false)
 
 android {
     namespace = "com.asterion.art"
@@ -17,7 +18,7 @@ android {
         targetSdk = 36
         versionCode = 13
         versionName = "0.3.0-dev"
-        ndk { abiFilters += "arm64-v8a" }
+        ndk { abiFilters += if (studioEmulator.get() && !buildAnima.get()) "x86_64" else "arm64-v8a" }
         if (buildAnima.get()) {
             externalNativeBuild.cmake {
                 arguments += "-DANDROID_STL=c++_shared"
