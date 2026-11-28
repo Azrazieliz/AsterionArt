@@ -37,6 +37,18 @@ internal data class AnimaReference(
     }
 }
 
+internal data class AnimaConditioningUsage(
+    val textWidth: Long,
+    val textPositions: Long,
+    val adapterQueries: Long,
+    val conditioningWidth: Long,
+    val conditioningPositions: Long,
+    val spatialPatches: Long,
+    val referencePositions: List<Long>,
+)
+
+internal data class AnimaImage(val bitmap: Bitmap, val conditioning: AnimaConditioningUsage)
+
 internal class NativeAnima(threads: Int) : AutoCloseable {
     private var handle: Long
 
@@ -52,7 +64,7 @@ internal class NativeAnima(threads: Int) : AutoCloseable {
         request: AnimaImageRequest,
         references: List<AnimaReference>,
         signal: ExecutionSignal,
-    ): Bitmap {
+    ): AnimaImage {
         check(handle != 0L)
         signal.check()
         require(request.width > 0 && request.height > 0 && request.width % 16 == 0 && request.height % 16 == 0)
@@ -73,12 +85,13 @@ internal class NativeAnima(threads: Int) : AutoCloseable {
                 }
             }
         }, 500, 500, TimeUnit.MILLISECONDS)
+        val dimensions = LongArray(6 + references.size)
         val output = try {
             execute(
                 session, models.diffusion.absolutePath.encodeToByteArray(), models.encoder.absolutePath.encodeToByteArray(),
                 models.vae.absolutePath.encodeToByteArray(), request.direction.encodeToByteArray(),
                 request.backend.key.encodeToByteArray(), request.width, request.height, request.steps, request.seed,
-                request.guidance, references.map { it.features.values }.toTypedArray(), regions.toTypedArray(),
+                request.guidance, references.map { it.features.values }.toTypedArray(), regions.toTypedArray(), dimensions,
             )
         } catch (error: IllegalStateException) {
             throw synchronized(guard) { cancelled } ?: error
@@ -96,7 +109,10 @@ internal class NativeAnima(threads: Int) : AutoCloseable {
             val green = (output[offset + 1].toInt() and 255) shl 8
             pixels[index] = 0xff000000.toInt() or red or green or (output[offset + 2].toInt() and 255)
         }
-        return Bitmap.createBitmap(pixels, request.width, request.height, Bitmap.Config.ARGB_8888)
+        val conditioning = AnimaConditioningUsage(
+            dimensions[0], dimensions[1], dimensions[2], dimensions[3], dimensions[4], dimensions[5], dimensions.drop(6),
+        )
+        return AnimaImage(Bitmap.createBitmap(pixels, request.width, request.height, Bitmap.Config.ARGB_8888), conditioning)
     }
 
     @Synchronized
@@ -111,7 +127,7 @@ internal class NativeAnima(threads: Int) : AutoCloseable {
     private external fun execute(
         handle: Long, diffusion: ByteArray, encoder: ByteArray, vae: ByteArray, direction: ByteArray,
         backend: ByteArray, width: Int, height: Int, steps: Int, seed: Long, guidance: Float,
-        features: Array<FloatArray>, regions: Array<FloatArray>,
+        features: Array<FloatArray>, regions: Array<FloatArray>, usage: LongArray,
     ): ByteArray
 
     companion object {

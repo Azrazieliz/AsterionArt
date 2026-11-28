@@ -43,6 +43,7 @@ import com.asterion.art.runtime.CreationService
 import com.asterion.art.runtime.NEXUS_DOCUMENTS
 import com.asterion.art.runtime.NativeAnima
 import com.asterion.art.runtime.ProjectionProbe
+import com.asterion.art.runtime.ROUNDER_DOCUMENTS
 import com.asterion.art.runtime.familyName
 import java.io.File
 import java.util.UUID
@@ -107,6 +108,8 @@ private enum class Destination(val label: String) { CREATE("Create"), PROJECTS("
 private val Mode.isVideo get() = this == Mode.CLIP || this == Mode.ANIMATION
 private val Mode.canReview get() = !isVideo && this != Mode.THEME
 
+private data class ArtworkSelection(val mode: Mode, val role: RefRole)
+
 @Composable
 private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: String?, handled: () -> Unit) {
     val context = LocalContext.current
@@ -121,6 +124,10 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
     var runs by remember { mutableStateOf(emptyList<CreationRun>()) }
     var editingReference by remember { mutableStateOf<Int?>(null) }
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
+    var artworkSelection by remember { mutableStateOf<ArtworkSelection?>(null) }
+    val artworkProvider = remember {
+        setOf(ROUNDER_DOCUMENTS, NEXUS_DOCUMENTS).any { context.packageManager.resolveContentProvider(it, 0) != null }
+    }
 
     fun update(next: StudioDraft) {
         drafts.write(next)
@@ -218,6 +225,9 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
                                 pickDocument.launch(if (role == RefRole.AUDIO) arrayOf("audio/*") else arrayOf("image/*"))
                             }
                         },
+                        onChooseArtwork = if (artworkProvider) {
+                            { role -> artworkSelection = ArtworkSelection(current.mode, role) }
+                        } else null,
                         onEditReference = { editingReference = it },
                         onStart = {
                             scope.launch {
@@ -320,6 +330,12 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: Strin
     }
 
     val current = draft
+    artworkSelection?.let { selection ->
+        ArtworkPicker(onDismiss = { artworkSelection = null }, onSelect = { uri ->
+            artworkSelection = null
+            importReference(uri, selection.mode, selection.role)
+        })
+    }
     val referenceIndex = editingReference
     val reference = current?.references?.getOrNull(referenceIndex ?: -1)
     if (reference != null && referenceIndex != null) {
@@ -402,6 +418,7 @@ private fun CreationEditor(
     change: (StudioDraft) -> Unit,
     onBack: () -> Unit,
     onChoose: (RefRole) -> Unit,
+    onChooseArtwork: ((RefRole) -> Unit)?,
     onEditReference: (Int) -> Unit,
     onStart: () -> Unit,
 ) {
@@ -455,6 +472,9 @@ private fun CreationEditor(
             Section("References")
             Choice("Reference role", roles(draft.mode), role, ::roleLabel) { role = it }
             OutlinedButton(onClick = { onChoose(role) }) { Text("Add reference") }
+            if (onChooseArtwork != null && role != RefRole.AUDIO && role != RefRole.GEOMETRY) {
+                TextButton(onClick = { onChooseArtwork(role) }) { Text("Browse artwork library") }
+            }
         }
         items(draft.references.withIndex().toList(), key = { "${it.index}-${it.value.asset.id}" }) { indexed ->
             val reference = indexed.value
@@ -988,7 +1008,11 @@ private fun AnimaOutfitStudy(workspace: ArtWorkspace) {
                             study.render(direction, references, ExecutionSignal { operation.ensureActive() })
                         }
                     }.fold(
-                        onSuccess = { result -> image = result; status = "Outfit study saved" },
+                        onSuccess = { result ->
+                            image = result.image
+                            val usage = result.conditioning
+                            status = "${usage.textPositions} text positions, ${usage.conditioningPositions} renderer positions"
+                        },
                         onFailure = { status = it.message ?: "Outfit study failed" },
                     )
                     busy = false

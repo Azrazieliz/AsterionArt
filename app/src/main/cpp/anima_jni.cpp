@@ -52,9 +52,11 @@ extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_asterion_art_runtime_NativeAnima_execute(
     JNIEnv* env, jobject, jlong handle, jbyteArray diffusion, jbyteArray encoder, jbyteArray vae, jbyteArray direction,
     jbyteArray backend, jint width, jint height, jint steps, jlong seed, jfloat guidance,
-    jobjectArray features, jobjectArray regions) {
+    jobjectArray features, jobjectArray regions, jlongArray usage_values) {
     try {
-        if (!features || !regions || env->GetArrayLength(features) != env->GetArrayLength(regions)) {
+        if (!features || !regions || !usage_values ||
+            env->GetArrayLength(features) != env->GetArrayLength(regions) ||
+            env->GetArrayLength(usage_values) != 6 + env->GetArrayLength(features)) {
             throw std::invalid_argument("Anima features and regions are unpaired");
         }
         std::vector<asterion::ReferenceAttention> references;
@@ -65,8 +67,16 @@ Java_com_asterion_art_runtime_NativeAnima_execute(
             read_string(env, diffusion), read_string(env, encoder), read_string(env, vae), read_string(env, direction),
             read_string(env, backend), width, height, steps, seed, guidance,
         };
-        auto result = reinterpret_cast<asterion::AnimaRuntime*>(handle)->render(request, references);
+        asterion::ConditioningUsage usage{};
+        auto result = reinterpret_cast<asterion::AnimaRuntime*>(handle)->render(request, references, usage);
         if (result.size() > size_t(std::numeric_limits<jsize>::max())) throw std::runtime_error("Anima image exceeds JNI capacity");
+        std::vector<jlong> dimensions = {
+            usage.text_width, usage.text_positions, usage.adapter_queries,
+            usage.conditioning_width, usage.conditioning_positions, usage.spatial_patches,
+        };
+        dimensions.insert(dimensions.end(), usage.reference_positions.begin(), usage.reference_positions.end());
+        env->SetLongArrayRegion(usage_values, 0, dimensions.size(), dimensions.data());
+        if (env->ExceptionCheck()) return nullptr;
         auto pixels = env->NewByteArray(result.size());
         if (pixels) env->SetByteArrayRegion(pixels, 0, result.size(), reinterpret_cast<const jbyte*>(result.data()));
         return pixels;

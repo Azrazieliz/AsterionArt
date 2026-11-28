@@ -36,11 +36,21 @@ int main(int argc, char** argv) {
         for (int i = 11; i < argc; i += 2) {
             references.push_back({read_tensor(argv[i]), read_tensor(argv[i + 1])});
         }
-        auto pixels = engine.render(request, references);
+        asterion::ConditioningUsage usage{};
+        auto pixels = engine.render(request, references, usage);
         std::ofstream output(argv[10], std::ios::binary);
         output << "P6\n" << request.width << ' ' << request.height << "\n255\n";
         output.write(reinterpret_cast<const char*>(pixels.data()), pixels.size());
         if (!output) throw std::runtime_error("Could not write the completed image");
+        std::cout << "{\"text_width\":" << usage.text_width << ",\"text_positions\":" << usage.text_positions
+                  << ",\"adapter_queries\":" << usage.adapter_queries << ",\"conditioning_width\":" << usage.conditioning_width
+                  << ",\"conditioning_positions\":" << usage.conditioning_positions << ",\"spatial_patches\":" << usage.spatial_patches
+                  << ",\"reference_positions\":[";
+        for (size_t i = 0; i < usage.reference_positions.size(); ++i) {
+            if (i != 0) std::cout << ',';
+            std::cout << usage.reference_positions[i];
+        }
+        std::cout << "]}\n";
     } catch (const std::exception& failure) {
         std::cerr << failure.what() << '\n';
         return 1;

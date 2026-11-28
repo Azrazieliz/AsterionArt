@@ -6,6 +6,7 @@
     <queries>
         <provider android:authorities="com.asterion.nexus.library" />
         <provider android:authorities="com.asterion.nexus.terabox.documents" />
+        <provider android:authorities="com.openlocal.office.terabox.documents" />
         <provider android:authorities="com.ailm.android.asterionart.sheets" />
         <package android:name="com.asterion.control" />
     </queries>

@@ -56,6 +56,8 @@ private data class AnimaTrainingReceipt(
 
 private const val KIT_FILE = "anima-study.json"
 
+internal data class AnimaStudyResult(val image: File, val conditioning: AnimaConditioningUsage)
+
 internal class AnimaStudy(context: Context, private val workspace: ArtWorkspace) {
     private val resolver = context.contentResolver
     private val directory = File(workspace.directory, "anima-study")
@@ -110,7 +112,7 @@ internal class AnimaStudy(context: Context, private val workspace: ArtWorkspace)
         }
     }
 
-    fun render(direction: String, references: List<Reference>, signal: ExecutionSignal): File {
+    fun render(direction: String, references: List<Reference>, signal: ExecutionSignal): AnimaStudyResult {
         if (!isStaged()) throw RuntimeUnavailable("Stage the Anima study kit first")
         val kit = codec.decodeFromString<AnimaStudyKit>(active.readText())
         val training = verifyTraining(kit)
@@ -147,14 +149,16 @@ internal class AnimaStudy(context: Context, private val workspace: ArtWorkspace)
             val runFiles = workspace.outputFiles(UUID.randomUUID().toString())
             val temporary = Files.createTempFile(directory.toPath(), ".render", ".png")
             try {
-                temporary.toFile().outputStream().use { stream -> check(output.compress(Bitmap.CompressFormat.PNG, 100, stream)) }
+                temporary.toFile().outputStream().use { stream ->
+                    check(output.bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
+                }
                 val artifact = temporary.toFile().inputStream().use { runFiles.put(it, "image/png", signal = checkedSignal) }
-                return runFiles.verified(artifact)
+                return AnimaStudyResult(runFiles.verified(artifact), output.conditioning)
             } finally {
                 Files.deleteIfExists(temporary)
             }
         } finally {
-            output.recycle()
+            output.bitmap.recycle()
         }
     }
 
