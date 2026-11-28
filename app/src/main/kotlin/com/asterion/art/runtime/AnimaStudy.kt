@@ -45,9 +45,20 @@ internal data class AnimaStudyKit(
 }
 
 @Serializable
+private data class AnimaSourceCorpus(
+    val images: Int,
+    @SerialName("image_set_sha256") val imageSetSha256: String,
+) {
+    init {
+        require(images > 0 && imageSetSha256.matches(Regex("[a-f0-9]{64}")))
+    }
+}
+
+@Serializable
 private data class AnimaTrainingReceipt(
     val domain: String,
     @SerialName("source_dataset_ids") val sourceDatasetIds: List<String>,
+    @SerialName("source_corpora") val sourceCorpora: Map<String, AnimaSourceCorpus>,
     @SerialName("vision_family") val visionFamily: String,
     @SerialName("author_sha256") val authorSha256: String,
     @SerialName("diffusion_sha256") val diffusionSha256: String,
@@ -92,8 +103,9 @@ internal class AnimaStudy(context: Context, private val workspace: ArtWorkspace)
         val bytes = open(KIT_FILE).use { it.readNBytes(65537) }
         require(bytes.size < 65537) { "The model manifest is invalid" }
         val kit = codec.decodeFromString<AnimaStudyKit>(bytes.decodeToString())
-        for ((name, artifact) in kit.all) {
+        fun cache(entry: AnimaStudyAsset) {
             signal.check()
+            val (name, artifact) = entry
             val cached = stored.file(artifact.sha256)
             if (!cached.isFile || cached.length() != artifact.size) {
                 open(name).use { input ->
@@ -103,7 +115,9 @@ internal class AnimaStudy(context: Context, private val workspace: ArtWorkspace)
                 stored.verified(artifact)
             }
         }
+        cache(kit.trainingReceipt)
         verifyTraining(kit)
+        kit.all.filterNot { it == kit.trainingReceipt }.forEach(::cache)
         val staged = Files.createTempFile(directory.toPath(), ".kit", ".incoming")
         try {
             staged.toFile().writeBytes(bytes)
@@ -165,9 +179,14 @@ internal class AnimaStudy(context: Context, private val workspace: ArtWorkspace)
 
     private fun verifyTraining(kit: AnimaStudyKit): AnimaTrainingReceipt {
         val receipt = codec.decodeFromString<AnimaTrainingReceipt>(stored.verified(kit.trainingReceipt.artifact).readText())
-        require(receipt.domain == "anime" && receipt.sourceDatasetIds.isNotEmpty() &&
-            receipt.visionFamily in setOf("clip", "dinov2")) {
-            "This study requires an Anime-trained reference author with recorded sources"
+        require(
+            receipt.domain == "anime" && receipt.sourceDatasetIds.isNotEmpty() &&
+                receipt.sourceDatasetIds.size == receipt.sourceCorpora.size &&
+                receipt.sourceDatasetIds.toSet() == receipt.sourceCorpora.keys &&
+                receipt.sourceCorpora.keys.none(String::isBlank) &&
+                receipt.visionFamily in setOf("clip", "dinov2"),
+        ) {
+            "This study requires an Anime-trained reference author with matching corpus fingerprints"
         }
         require(
             receipt.authorSha256 == kit.referenceAuthor.artifact.sha256 &&

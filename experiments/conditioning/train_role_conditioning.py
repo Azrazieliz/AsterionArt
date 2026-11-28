@@ -127,6 +127,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for key in ("manifest", "vision-model", "comfy-source", "text-encoder", "checkpoint", "out"):
         parser.add_argument(f"--{key}", required=True, type=Path)
+    parser.add_argument("--approved-population", type=Path, help="confirmed corpus when fitting a subset")
     parser.add_argument("--expected-checkpoint-sha256", required=True)
     parser.add_argument("--detached-adapter-sha256")
     parser.add_argument("--expected-vision-sha256", required=True)
@@ -135,7 +136,8 @@ def main():
     args = parser.parse_args()
     start = time.monotonic()
     records = json.loads(args.manifest.read_text())
-    dataset_ids = check_training_sources(records, "reference_conditioning")
+    approved = json.loads(args.approved_population.read_text()) if args.approved_population else None
+    source_corpora = check_training_sources(records, "reference_conditioning", approved_population=approved)
     splits = anime_partitions(records)
     checkpoint_digest = sha256(args.checkpoint)
     if args.detached_adapter_sha256:
@@ -215,7 +217,8 @@ def main():
             }
     receipt = {
         "domain": "anime",
-        "source_dataset_ids": dataset_ids,
+        "source_dataset_ids": list(source_corpora),
+        "source_corpora": source_corpora,
         "vision_family": args.vision_family,
         "author_sha256": sha256(model),
         "diffusion_sha256": args.expected_checkpoint_sha256,

@@ -33,6 +33,8 @@ class RounderIndexTest(unittest.TestCase):
             first = source(1, [image, other], 2)
             result = refresh(first, index)
             self.assertEqual(result["images"], 1)
+            self.assertEqual(result["authorized_root"], root)
+            self.assertRegex(result["snapshot_sha256"], "^[0-9a-f]{64}$")
             self.assertEqual(result["images_with_reported_md5"], 1)
             self.assertFalse(result["appreciation_available"])
             self.assertEqual(refresh(first, index), result)
@@ -45,7 +47,13 @@ class RounderIndexTest(unittest.TestCase):
             with sqlite3.connect(index) as db:
                 self.assertEqual(db.execute("SELECT size_bytes FROM rounder_artwork").fetchone(), (23801,))
                 self.assertEqual(db.execute("SELECT generation FROM rounder_snapshot").fetchone(), (1,))
-            self.assertEqual(refresh(source(2, [other], 1), index)["images"], 0)
+            nested = dict(image, path=root + "/scenes/night/a.webp", parent=root + "/scenes/night")
+            repeat = dict(nested, path=root + "/scenes/night/copy.webp", name="copy.webp")
+            updated = refresh(source(2, [image, nested, repeat], 3), index, include_folders=True)
+            self.assertEqual(updated["images_by_top_level_folder"], {"": 1, "scenes": 2})
+            self.assertEqual(updated["additional_paths_with_repeated_reported_md5"], 2)
+            self.assertNotEqual(updated["snapshot_sha256"], result["snapshot_sha256"])
+            self.assertEqual(refresh(source(3, [other], 1), index)["images"], 0)
             with self.assertRaisesRegex(ValueError, "predates"):
                 refresh(first, index)
 

@@ -46,7 +46,7 @@ def export_identity(checkpoint):
     return checkpoint.with_name(f"{stem}.jsonl.part"), scope, generation, root, count
 
 
-def refresh(checkpoint, index):
+def refresh(checkpoint, index, include_folders=False):
     entries, scope, generation, root, expected = export_identity(checkpoint)
     if any(index.samefile(source) if index.exists() else index.resolve() == source.resolve() for source in (entries, checkpoint)):
         raise ValueError("Write the index to a separate file")
@@ -98,10 +98,21 @@ def refresh(checkpoint, index):
             "SELECT count(*), count(DISTINCT parent), count(CASE WHEN size_bytes > 0 THEN 1 END), "
             "count(reported_md5), count(DISTINCT reported_md5) FROM rounder_artwork WHERE scope=?", (scope,)
         ).fetchone()
+        by_folder = {}
+        if include_folders:
+            for folder, count in db.execute(
+                "SELECT parent, count(*) FROM rounder_artwork WHERE scope=? GROUP BY parent ORDER BY parent", (scope,)
+            ):
+                relative = folder[len(prefix):] if folder != root else ""
+                top = relative.partition("/")[0]
+                by_folder[top] = by_folder.get(top, 0) + count
     return {
-        "generation": generation, "entries": total, "images": images, "folders_with_images": folders,
+        "authorized_root": root, "snapshot_sha256": source_digest, "generation": generation,
+        "entries": total, "images": images, "folders_with_images": folders,
         "images_with_size": sizes, "images_with_reported_md5": md5s, "distinct_reported_md5": distinct,
+        "additional_paths_with_repeated_reported_md5": md5s - distinct,
         "appreciation_available": False,
+        **({"images_by_top_level_folder": by_folder} if include_folders else {}),
     }
 
 
@@ -109,8 +120,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("index", type=Path)
+    parser.add_argument("--include-folders", action="store_true", help="include private folder names in the report")
     args = parser.parse_args()
-    print(json.dumps(refresh(args.checkpoint, args.index), sort_keys=True))
+    print(json.dumps(refresh(args.checkpoint, args.index, args.include_folders), sort_keys=True))
 
 
 if __name__ == "__main__":
