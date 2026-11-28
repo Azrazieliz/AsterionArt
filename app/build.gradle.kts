@@ -5,6 +5,8 @@ plugins {
     kotlin("plugin.serialization")
 }
 
+val buildAnima = providers.gradleProperty("asterionNativeAnima").map(String::toBoolean).orElse(false)
+
 android {
     namespace = "com.asterion.art"
     compileSdk = 36
@@ -16,6 +18,22 @@ android {
         versionCode = 13
         versionName = "0.3.0-dev"
         ndk { abiFilters += "arm64-v8a" }
+        if (buildAnima.get()) {
+            externalNativeBuild.cmake {
+                arguments += "-DANDROID_STL=c++_shared"
+                if (providers.gradleProperty("asterionAnimaVulkan").orNull == "true") {
+                    arguments += "-DSD_VULKAN=ON"
+                }
+            }
+        }
+    }
+
+    if (buildAnima.get()) {
+        ndkVersion = "27.2.12479018"
+        externalNativeBuild.cmake {
+            version = "3.22.1"
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
     }
 
     signingConfigs {

@@ -1,0 +1,101 @@
+diff --git a/src/dgl/models/dit.cpp b/src/dgl/models/dit.cpp
+index 206d40c..0208c8a 100644
+--- a/src/dgl/models/dit.cpp
++++ b/src/dgl/models/dit.cpp
+@@ -381 +381,2 @@ namespace sd::dgl::models {
+-            params.extra = AnimaDiffusionExtra{present(condition.c_t5_ids), present(condition.c_t5_weights)};
++            params.extra = AnimaDiffusionExtra{present(condition.c_t5_ids), present(condition.c_t5_weights),
++                                               &condition.extra_c_crossattns};
+diff --git a/src/model/diffusion/anima.hpp b/src/model/diffusion/anima.hpp
+index 201a82f..994d38d 100644
+--- a/src/model/diffusion/anima.hpp
++++ b/src/model/diffusion/anima.hpp
+@@ -7,0 +8 @@
++#include <stdexcept>
+@@ -19,0 +21,2 @@ namespace Anima {
++    using ReferenceAttention = std::vector<std::pair<ggml_tensor*, ggml_tensor*>>;
++
+@@ -204 +207,2 @@ namespace Anima {
+-                             ggml_tensor* pe_k                  = nullptr) {
++                             ggml_tensor* pe_k                  = nullptr,
++                             const ReferenceAttention& references = {}) {
+@@ -259,0 +264,12 @@ namespace Anima {
++                for (const auto& [features, weights] : references) {
++                    const int64_t length = features->ne[1];
++                    auto ref_k = k_proj->forward(ctx, features);
++                    ref_k = ggml_reshape_4d(ctx->ggml_ctx, ref_k, head_dim, num_heads, length, N);
++                    ref_k = k_norm->forward(ctx, ref_k);
++                    ref_k = ggml_reshape_3d(ctx->ggml_ctx, ref_k, head_dim * num_heads, length, N);
++                    auto ref_v = v_proj->forward(ctx, features);
++                    auto contribution = ggml_ext_attention_ext(ctx, q_flat, ref_k, ref_v, num_heads,
++                                                               nullptr, false, ctx->flash_attn_enabled);
++                    attn_out = ggml_add(ctx->ggml_ctx, attn_out,
++                                        ggml_mul(ctx->ggml_ctx, contribution, weights));
++                }
+@@ -411 +427,2 @@ namespace Anima {
+-                             ggml_tensor* image_pe) {
++                             ggml_tensor* image_pe,
++                             const ReferenceAttention& references) {
+@@ -424 +441 @@ namespace Anima {
+-            h                     = attn2->forward(ctx, normed2, encoder_hidden_states, nullptr, nullptr);
++            h                     = attn2->forward(ctx, normed2, encoder_hidden_states, nullptr, nullptr, references);
+@@ -491 +508,2 @@ namespace Anima {
+-                             std::vector<ggml_tensor*> ref_latents = {}) {
++                             const std::vector<ggml_tensor*>& ref_latents = {},
++                             const ReferenceAttention& references = {}) {
+@@ -539,2 +556,0 @@ namespace Anima {
+-                } else if (adapted_context->ne[1] > 512) {
+-                    adapted_context = ggml_ext_slice(ctx, adapted_context, 1, 0, 512);
+@@ -548,0 +565,4 @@ namespace Anima {
++            for (size_t i = 0; i < references.size(); ++i) {
++                sd::ggml_graph_cut::mark_graph_cut(references[i].first, "anima.prelude", "reference." + std::to_string(i));
++                sd::ggml_graph_cut::mark_graph_cut(references[i].second, "anima.prelude", "region." + std::to_string(i));
++            }
+@@ -552 +572 @@ namespace Anima {
+-                x          = block->forward(ctx, x, encoder_hidden_states, embedded_timestep, temb, image_pe);
++                x          = block->forward(ctx, x, encoder_hidden_states, embedded_timestep, temb, image_pe, references);
+@@ -644 +664,2 @@ namespace Anima {
+-                                 const std::vector<sd::Tensor<float>>& ref_latents_tensor = {}) {
++                                 const std::vector<sd::Tensor<float>>& ref_latents_tensor = {},
++                                 const std::vector<sd::Tensor<float>>& attention_tensors = {}) {
+@@ -656,2 +676,0 @@ namespace Anima {
+-            ggml_cgraph* gf = new_graph_custom(ANIMA_GRAPH_SIZE);
+-
+@@ -661,0 +681,16 @@ namespace Anima {
++            const int64_t patches = (h_pad / config.patch_size) * (w_pad / config.patch_size);
++            if (attention_tensors.size() % 2 != 0 || (!attention_tensors.empty() && !ref_latents.empty())) {
++                throw std::invalid_argument("Anima expects feature/region pairs on an independently generated canvas");
++            }
++            ReferenceAttention references;
++            for (size_t i = 0; i < attention_tensors.size(); i += 2) {
++                const auto& features = attention_tensors[i];
++                const auto& weights = attention_tensors[i + 1];
++                if (features.empty() || features.shape().size() != 2 ||
++                    features.shape()[0] != config.text_embed_dim ||
++                    weights.shape().size() != 2 || weights.shape()[0] != 1 || weights.shape()[1] != patches) {
++                    throw std::invalid_argument("Anima reference features or spatial weights have an incompatible shape");
++                }
++                references.emplace_back(make_input(features), make_input(weights));
++            }
++            ggml_cgraph* gf = new_graph_custom(ANIMA_GRAPH_SIZE + config.num_layers * 48 * references.size());
+@@ -709 +744,2 @@ namespace Anima {
+-                                          ref_latents);
++                                          ref_latents,
++                                          references);
+@@ -721 +757,2 @@ namespace Anima {
+-                                  const std::vector<sd::Tensor<float>>& ref_latents = {}) {
++                                  const std::vector<sd::Tensor<float>>& ref_latents = {},
++                                  const std::vector<sd::Tensor<float>>& attention_tensors = {}) {
+@@ -723 +760 @@ namespace Anima {
+-                return build_graph(x, timesteps, context, t5_ids, t5_weights, ref_latents);
++                return build_graph(x, timesteps, context, t5_ids, t5_weights, ref_latents, attention_tensors);
+@@ -740 +777,2 @@ namespace Anima {
+-                           diffusion_params.ref_latents ? *diffusion_params.ref_latents : empty_ref_latents);
++                           diffusion_params.ref_latents ? *diffusion_params.ref_latents : empty_ref_latents,
++                           extra->reference_attention ? *extra->reference_attention : empty_ref_latents);
+diff --git a/src/model/diffusion/model.hpp b/src/model/diffusion/model.hpp
+index 993624b..63664cb 100644
+--- a/src/model/diffusion/model.hpp
++++ b/src/model/diffusion/model.hpp
+@@ -58,0 +59 @@ struct AnimaDiffusionExtra {
++    const std::vector<sd::Tensor<float>>* reference_attention = nullptr;

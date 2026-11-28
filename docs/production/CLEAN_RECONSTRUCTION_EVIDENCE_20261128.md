@@ -66,3 +66,25 @@ The real MiaoMiao denoiser consumed a `[1, 513, 1024]` conditioning tensor and r
 The unchanged Rin checkpoint rendered the Orchid × Moth Outfit case at 384 × 512, seed 1457 and 30 steps. The ivory garment, violet orchid motifs and translucent sleeves were visible. The image cropped the head and legs, so it fails the requested full-length presentation. CPU denoising and decoding took about 768 seconds after a sequential model-residency change. An earlier concurrent-load attempt exited with code 137 before an image was produced.
 
 MiaoMiao v1.6 rendered the same case, seed, resolution, scheduler and step count. Its baseline preserved the full silhouette, the complete draped garment and the plain studio backdrop. Orchid detailing was clear, while the moth influence was mostly limited to the sleeve silhouette. Denoising and decoding took about 572 seconds. The Rin and MiaoMiao timing runs used five and eight CPU threads respectively. The matched visual result is one Outfit case. A production selection requires a broader set of real creations.
+
+## Native continuation
+
+The Windows Control worker copied both Turbo QNN archives and verified their digests on D:. It later reported 62.7 GB free on D: and Intel UHD graphics. No NVIDIA GPU was reported.
+
+Bounded header reads found 2,514 FP16 tensors in each publisher checkpoint for Animagine XL 4.0 and 4.0 Opt. Keys, shapes and types agree. Both originals are about 6.94 GB. Opt is the publisher's additional training checkpoint. Artistic performance and on-device acceleration still need actual comparisons. [Publisher](https://huggingface.co/cagliostrolab/animagine-xl-4.0/blob/2b7c1b397761bf5bd3cc42e5b39ec99314a75a96/README.md)
+
+The pinned stable-diffusion.cpp bridge rendered and decoded a 24-step MiaoMiao v1.6 Outfit at 384 × 512 on Linux CPU. It reused the historical Orchid × Moth request before the owner's change to upcoming examples. The run took 652.792 seconds at peak RSS 4,188,740 KiB. The separate Q8 conversion produced 2,239,321,568 bytes with SHA-256 `065b350062de20c3888497c96695bd212c478012c09f0dded3804c8a3e693269`. The 18-step 320 × 416 indigo opera coat Q8 case took 422.052 seconds at peak RSS 2,290,836 KiB. It shows the specified wrap and silk drape but crops the head and fails the full-length composition. These two measurements use different requests and canvases.
+
+The native patch keeps one separate cross-attention bank and spatial weights per reference and removes the adapted-context slice at 512. In the Anima route, Qwen3-0.6B-Base is the checkpoint's frozen text encoder. No shared artist was selected. The Android ARM64 renderer was cross-compiled. The diagnostic Outfit study stages model files through the Nexus document provider and verifies their checksums and Anime training receipt. The production creation-session path, GPU/NPU and live Samsung rendering remain open. [Technical specification](../architecture/ART_TRAINING_AND_INFERENCE_20261128.md)
+
+### Shared artist comparisons on CPU
+
+| Candidate | Actual input and timing with three CPU threads | Observation |
+| --- | --- | --- |
+| SmolLM2-360M | 75 text tokens and 96 generated tokens in 11.55 s | Repeated enumeration on an Anime opera coat brief, with no useful silhouette alternatives. |
+| SmolVLM-256M | Two owner-supplied Anime sheets, 1,776 input positions and 96 generated tokens in 49.36 s | Misidentified the second subject's silver hair and invented additional boards. |
+| DINOv2-S/14 | Two sheets plus horizontal mirrors encoded in 0.54 s. Output shape `[4,257,384]`. Between-board cosine 0.670, mirror cosines 0.980 and 0.964. | Candidate for spatial feature encoding. This small proxy does not establish style/identity separation or creative reasoning. |
+
+Before the Anime-only correction, a network-disabled training process learned two role heads from 132 CC0 works and evaluated 32 held-out and 23 unseen-motif works. Held-out motif retrieval was 5/32 against 1/32 for the constant baseline. Unseen motif retrieval remained 1/23 and cosine declined. Surface held-out retrieval rose from 1/32 to 7/32 and unseen retrieval from 1/23 to 7/23. PyTorch and the independent ONNX evaluator agreed within 0.0000002. This is historical compatibility evidence with no Anime promotion. The active Anime loader verifies grouped Anime samples and rights. Substantial training awaits the requested sample review.
+
+The owner's live Nexus library inventory remains unavailable. The device reported the legacy Core and Rounder apps. The metadata-only index supports a granted Nexus/Core SQLite snapshot. It handles explicit manual ratings of zero separately from unrated images, preserves source hashes and does not open original media. [Anime curriculum](../architecture/ANIME_TRAINING_CURRICULUM_20261128.md)

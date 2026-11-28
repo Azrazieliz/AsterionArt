@@ -9,7 +9,6 @@ from pathlib import Path
 
 import numpy as np
 import onnx
-import onnxruntime as ort
 import torch
 from onnx import TensorProto, helper, numpy_helper
 from PIL import Image, ImageOps
@@ -133,6 +132,8 @@ def export(path, weights, offset, output_name="ip_adapter_image_embeds", sequenc
 
 
 def main():
+    import onnxruntime as ort
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--compact-encoder", type=Path, required=True)

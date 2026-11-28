@@ -8,7 +8,6 @@ import sys
 import time
 
 import numpy as np
-import onnxruntime as ort
 from PIL import Image
 from safetensors import safe_open
 import torch
@@ -17,6 +16,8 @@ from fit_reference_projection import evaluate, export, fit, normalise, pixel_val
 
 
 def visual_features(rows, manifest, encoder, options):
+    import onnxruntime as ort
+
     vision = ort.InferenceSession(encoder, options, providers=["CPUExecutionProvider"])
     features = []
     for row in rows:
@@ -30,6 +31,11 @@ def visual_features(rows, manifest, encoder, options):
 
 
 def native_targets(rows, comfy_source, text_encoder, checkpoint):
+    captions = [f"illustration of {row['term']}, {row['title']}" for row in rows]
+    return native_context_targets(captions, comfy_source, text_encoder, checkpoint, 1)[:, 0]
+
+
+def native_context_targets(captions, comfy_source, text_encoder, checkpoint, token_slots):
     sys.path.insert(0, str(comfy_source.resolve()))
     sys.argv = [sys.argv[0], "--cpu", "--disable-all-custom-nodes"]
     import comfy.options
@@ -44,13 +50,12 @@ def native_targets(rows, comfy_source, text_encoder, checkpoint):
     clip, = nodes.CLIPLoader().load_clip(text_encoder.name, device="cpu")
     encoded = []
     with torch.inference_mode():
-        for i, row in enumerate(rows):
-            caption = f"illustration of {row['term']}, {row['title']}"
+        for i, caption in enumerate(captions):
             conditions, = nodes.CLIPTextEncode().encode(clip, caption)
             hidden, metadata = conditions[0]
             encoded.append((hidden.to(dtype=torch.bfloat16), metadata["t5xxl_ids"].long().unsqueeze(0)))
             if (i + 1) % 20 == 0:
-                print(f"Encoded {i + 1}/{len(rows)} native captions", flush=True)
+                print(f"Encoded {i + 1}/{len(captions)} native captions", flush=True)
     comfy.model_management.unload_all_models()
     del clip
     gc.collect()
@@ -70,10 +75,17 @@ def native_targets(rows, comfy_source, text_encoder, checkpoint):
     adapter.load_state_dict(adapter_weights, strict=True)
     del adapter_weights
     with torch.inference_mode():
-        return np.stack([adapter(hidden, tokens).float().mean(dim=1)[0].numpy() for hidden, tokens in encoded])
+        contexts = []
+        for hidden, tokens in encoded:
+            adapted = adapter(hidden, tokens).float()
+            slots = torch.nn.functional.adaptive_avg_pool1d(adapted.transpose(1, 2), token_slots)
+            contexts.append(slots[0].T.contiguous().numpy())
+        return np.stack(contexts)
 
 
 def main():
+    import onnxruntime as ort
+
     parser = argparse.ArgumentParser(description=__doc__)
     for key in ("manifest", "compact-encoder", "comfy-source", "text-encoder", "checkpoint", "out"):
         parser.add_argument(f"--{key}", type=Path, required=True)

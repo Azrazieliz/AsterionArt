@@ -141,3 +141,11 @@ Both the artistic inference/design model and each applicable generation model mu
 - Evaluate compatible merging, specialization, training and architecture adaptation on actual artistic results. The historical 70/30 Fusion B ratio is research evidence. Production selection depends on the quality and authority fidelity of finished creations.
 - Use these preferences to inform the Anime foundation, shared artistic inference, specialist capabilities, aesthetic evaluation, trained inter-model conditioning, and training. Preserve the requirements for effective context and conditioning capacity and efficient local execution.
 - Continue the active clean reconstruction. Keep settled owner decisions in force and limit Local Dream work to the necessary comparative acceptance evidence.
+
+## Owner continuation — model comparison and Anime training
+
+- Include Animagine XL 3.1, Animagine XL 4.0 and 4.0 Opt alongside Rin, MiaoMiao, Hassaku, NoobAI and independently justified alternatives. Study the actual artistic results and adaptation potential.
+- Compare compact language, multimodal and specialized visual-semantic foundations before choosing a shared artist. If a Qwen variant is considered for that role, demonstrate better artistic performance, specialization, reference understanding and native performance against alternatives. The previous Qwen prompt compiler is excluded.
+- Use high-quality Anime evidence for the principal artist and Anime generation. Use separate appropriate sources for Cosplay and Realistic generation. Museum material remains historical compatibility evidence. Broaden visual examples beyond the early moth studies.
+- The owner has an approximately 500,000-image collection for potential use. Access is planned through the in-development Asterion Nexus app and its TeraBox library. Inspect on actual availability and use measured competency-specific subsets with provenance and permission. Preserve originals.
+- Show representative visual training examples and the actual supervision, weights, objectives, evaluation and production handoffs before substantial training. Pair original methodology and taxonomy with visual preparation, approved results and failure/correction evidence. [Curriculum](../architecture/ANIME_TRAINING_CURRICULUM_20261128.md) · [Technical specification](../architecture/ART_TRAINING_AND_INFERENCE_20261128.md)

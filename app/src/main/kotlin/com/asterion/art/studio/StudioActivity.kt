@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
+import androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,14 +38,18 @@ import coil.compose.AsyncImage
 import com.asterion.art.BuildConfig
 import com.asterion.art.creation.*
 import com.asterion.art.runtime.ArtWorkspace
+import com.asterion.art.runtime.AnimaStudy
 import com.asterion.art.runtime.CreationService
 import com.asterion.art.runtime.NEXUS_DOCUMENTS
+import com.asterion.art.runtime.NativeAnima
 import com.asterion.art.runtime.ProjectionProbe
 import com.asterion.art.runtime.familyName
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -912,6 +917,87 @@ private fun Models(workspace: ArtWorkspace) {
             }
         }
         if (BuildConfig.DEBUG) item { ProjectionCheck(workspace) }
+        if (BuildConfig.DEBUG && NativeAnima.available) item { AnimaOutfitStudy(workspace) }
+    }
+}
+
+@Composable
+private fun AnimaOutfitStudy(workspace: ArtWorkspace) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val study = remember(workspace) { AnimaStudy(context, workspace) }
+    var ready by remember { mutableStateOf(study.isStaged()) }
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("") }
+    var direction by rememberSaveable { mutableStateOf(Drafts(context).load(Mode.OUTFIT).direction) }
+    var selectedRole by rememberSaveable { mutableStateOf(RefRole.ELEMENT) }
+    var references by remember { mutableStateOf(emptyList<Reference>()) }
+    var image by remember { mutableStateOf<File?>(null) }
+    val chooseModels = rememberLauncherForActivityResult(OpenDocumentTree()) { directory ->
+        if (directory != null) scope.launch {
+            busy = true
+            status = "Checking model files"
+            status = runCatching {
+                withContext(Dispatchers.IO) {
+                    val operation = currentCoroutineContext()
+                    study.stage(directory, ExecutionSignal { operation.ensureActive() })
+                }
+                "Model kit verified"
+            }.getOrElse { it.message ?: "Model import failed" }
+            ready = study.isStaged()
+            busy = false
+        }
+    }
+    val chooseReference = rememberLauncherForActivityResult(OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            busy = true
+            val role = selectedRole
+            runCatching { withContext(Dispatchers.IO) { workspace.references.import(uri) } }.fold(
+                onSuccess = { asset -> references = references + Reference(role, asset) },
+                onFailure = { status = it.message ?: "Reference import failed" },
+            )
+            busy = false
+        }
+    }
+    Surface(color = Panel, shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Anima Outfit study", style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(enabled = !busy, onClick = { chooseModels.launch(null) }) {
+                Text(if (ready) "Change Nexus model kit" else "Choose Nexus model kit")
+            }
+            Field("Outfit direction", direction, { direction = it }, singleLine = false)
+            for ((role, label) in listOf(RefRole.ELEMENT to "motif", RefRole.OUTFIT to "surface")) {
+                OutlinedButton(enabled = !busy, onClick = {
+                    selectedRole = role
+                    chooseReference.launch(arrayOf("image/*"))
+                }) { Text("Add $label reference") }
+            }
+            for (reference in references) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(reference.asset.name, Modifier.weight(1f))
+                    TextButton(enabled = !busy, onClick = { references = references - reference }) { Text("Remove") }
+                }
+            }
+            Button(enabled = ready && !busy && direction.isNotBlank(), onClick = {
+                scope.launch {
+                    busy = true
+                    status = "Rendering on this device"
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            val operation = currentCoroutineContext()
+                            study.render(direction, references, ExecutionSignal { operation.ensureActive() })
+                        }
+                    }.fold(
+                        onSuccess = { result -> image = result; status = "Outfit study saved" },
+                        onFailure = { status = it.message ?: "Outfit study failed" },
+                    )
+                    busy = false
+                }
+            }) { Text("Render Outfit study") }
+            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (status.isNotBlank()) Text(status)
+            image?.let { AsyncImage(it, "Rendered Outfit study", Modifier.fillMaxWidth().heightIn(max = 420.dp)) }
+        }
     }
 }
 

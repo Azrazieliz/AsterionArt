@@ -6,7 +6,9 @@
     "NoobAI XL v11"
   ],
   "preference_source": "ASTERION_ART_COMPLETE_CONTINUATION_2026-10-26.zip / ASTERION_ART_CONTINUATION/05_FUSION_AND_MODEL_SOURCES.md",
-  "previously_disliked": ["Animayume"],
+  "previously_disliked": [
+    "Animayume"
+  ],
   "sources": [
     {
       "label": "Rin Flanime Anima v1.4",
@@ -14,7 +16,9 @@
       "historical_pin": "rin",
       "family": "Anima",
       "tensor_count": 685,
-      "precision": ["F16"]
+      "precision": [
+        "F16"
+      ]
     },
     {
       "label": "MiaoMiao Harem Anima v1.6",
@@ -22,14 +26,19 @@
       "historical_pin": "miaomiao",
       "family": "Anima",
       "tensor_count": 685,
-      "precision": ["BF16"]
+      "precision": [
+        "BF16"
+      ]
     },
     {
       "label": "Hassaku XL Illustrious v3.4",
       "historical_pin": "hassaku",
       "family": "Illustrious SDXL",
       "tensor_count": 2526,
-      "precision": ["BF16", "F16"]
+      "precision": [
+        "BF16",
+        "F16"
+      ]
     },
     {
       "label": "Rin Flanime v1 Turbo",
@@ -39,7 +48,7 @@
       "archive_sha256": "e99dc63e7f2d6c125a44dbf0a347c011395fc60adc9a796cc5d02f1ee9e75b8c",
       "original_variant_page": "https://civitai.com/models/2713283?modelVersionId=3048292",
       "family": "Anima QNN",
-      "status": "Installed variant recorded in v0.2.3 device audit. Archive repository digest matches a second mirror. Installed bytes unverified."
+      "status": "Archive checksum-verified on D: through the existing Windows worker. Installed phone bytes remain unverified."
     },
     {
       "label": "MiaoMiao v14 Turbo",
@@ -47,7 +56,7 @@
       "archive_source": "https://huggingface.co/xororz/anima-qnn/blob/69016e97f681a6de9aa34e55222c2ba697b7ec8e/miaomiao_v1.4_turbo_qnn2.28_8gen3.zip",
       "archive_sha256": "2e8f5b8f26f03486a3eba8d7b1e81b73975525a7113166cee484db8fe2d251f1",
       "family": "Anima QNN",
-      "status": "Archive repository digest matches a second mirror. Installed bytes unverified."
+      "status": "Archive checksum-verified on D: through the existing Windows worker. Installed phone bytes remain unverified."
     },
     {
       "label": "noob-ai-xl v11 QNN",
@@ -56,11 +65,45 @@
       "original_v11_sha256": "6681e8e4b134c81f16533acedb0d406d7e5e366e1624b4105178c64d00b05d51",
       "related_archive": "https://huggingface.co/xororz/sdxl-qnn/blob/ead90f4635e21e7412b8200a5efd220b0193beeb/noobai_vpred_qnn2.28_8gen3.zip",
       "status": "Owner reported prior installation. Exact compiled variants and digests under verification."
+    },
+    {
+      "label": "Animagine XL 3.1",
+      "family": "SDXL",
+      "source": "https://huggingface.co/cagliostrolab/animagine-xl-3.1/blob/483f0c322568ed13697ed01dd0be07204746d12b/animagine-xl-3.1.safetensors",
+      "source_sha256": "e3c47aedb06418c6c331443cd89f2b3b3b34b7ed2102a3d4c4408a8d35aad6b0",
+      "source_bytes": 6938325776
+    },
+    {
+      "label": "Animagine XL 4.0",
+      "family": "SDXL",
+      "source": "https://huggingface.co/cagliostrolab/animagine-xl-4.0/blob/2b7c1b397761bf5bd3cc42e5b39ec99314a75a96/animagine-xl-4.0.safetensors",
+      "source_sha256": "1d5b43ff75b6ab598502d4c779d2fbfa3dceca51c60c3b609640a60772333916",
+      "source_bytes": 6938434056,
+      "tensor_count": 2514,
+      "precision": [
+        "F16"
+      ]
+    },
+    {
+      "label": "Animagine XL 4.0 Opt",
+      "family": "SDXL",
+      "source": "https://huggingface.co/cagliostrolab/animagine-xl-4.0/blob/2b7c1b397761bf5bd3cc42e5b39ec99314a75a96/animagine-xl-4.0-opt.safetensors",
+      "source_sha256": "6327eca98bfb6538dd7a4edce22484a1bbc57a8cff6b11d075d40da1afb847ac",
+      "source_bytes": 6938350040,
+      "tensor_count": 2514,
+      "precision": [
+        "F16"
+      ]
     }
   ],
   "verified_header_comparison": {
     "rin_and_miaomiao_have_identical_keys_and_shapes": true,
     "rin_and_miaomiao_have_identical_storage_dtype": false,
     "rin_and_hassaku_have_identical_keys_and_shapes": false
-  }
+  },
+  "additional_owner_candidates": [
+    "Animagine XL 3.1",
+    "Animagine XL 4.0",
+    "Animagine XL 4.0 Opt"
+  ]
 }
