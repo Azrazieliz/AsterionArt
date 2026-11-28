@@ -16,3 +16,7 @@ Original methodology Git blobs were relocated to `spec/methodologies/` so they c
 The old implementation and test scaffolding remain available in the two explicit archive branches documented in README. Existing signed user identity evidence is retained; no private key was committed.
 
 **Checkpoint (2026-11-28):** active repo cleaned; no trained model or tested app exists in this branch; implementation not started. Do not infer completion from historical releases.
+
+## Source recovery and open proposals
+
+[`REMAINING_DEFINITIONS_AND_THEME_SOURCE_20261128.md`](REMAINING_DEFINITIONS_AND_THEME_SOURCE_20261128.md) records independently verified historical Theme source hashes, clause reconciliation, delegated engineering choices and taxonomy/layout proposals awaiting approval. It is not a new owner authority and cannot override the latest owner decisions.
