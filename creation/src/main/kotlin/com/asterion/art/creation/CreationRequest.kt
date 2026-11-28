@@ -269,9 +269,10 @@ data class VideoInput(
 ) : DesignInput {
     init {
         require(mode in setOf(Mode.CLIP, Mode.ANIMATION))
-        require(shots.isNotEmpty() && (mode != Mode.CLIP || shots.size == 1))
+        require(mode != Mode.CLIP || shots.size == 1)
+        require(shots.isNotEmpty() || direction.isNotBlank()) { "Describe the scene or add a shot" }
         require(shots.map { it.id }.distinct().size == shots.size)
-        require(shots.first().previousShotId == null)
+        require(shots.firstOrNull()?.previousShotId == null)
         require(shots.zipWithNext().all { (first, second) -> second.previousShotId == first.id })
     }
 }

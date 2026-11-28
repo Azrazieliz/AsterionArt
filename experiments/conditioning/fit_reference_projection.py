@@ -108,17 +108,24 @@ def evaluate(predictions, targets):
     }
 
 
-def export(path, weights, offset):
+def export(path, weights, offset, output_name="ip_adapter_image_embeds", sequence_axis=False):
+    nodes = [
+        helper.make_node("LpNormalization", ["image_embeds"], ["normalised"], axis=1, p=2),
+        helper.make_node("MatMul", ["normalised", "weights"], ["linear"]),
+        helper.make_node("Add", ["linear", "offset"], ["vector" if sequence_axis else output_name]),
+    ]
+    initializers = [numpy_helper.from_array(weights, "weights"), numpy_helper.from_array(offset, "offset")]
+    shape = ["images", weights.shape[1]]
+    if sequence_axis:
+        initializers.append(numpy_helper.from_array(np.array([1], dtype=np.int64), "token_axis"))
+        nodes.append(helper.make_node("Unsqueeze", ["vector", "token_axis"], [output_name]))
+        shape.insert(1, 1)
     graph = helper.make_graph(
-        [
-            helper.make_node("LpNormalization", ["image_embeds"], ["normalised"], axis=1, p=2),
-            helper.make_node("MatMul", ["normalised", "weights"], ["linear"]),
-            helper.make_node("Add", ["linear", "offset"], ["ip_adapter_image_embeds"]),
-        ],
+        nodes,
         "ReferenceProjection",
         [helper.make_tensor_value_info("image_embeds", TensorProto.FLOAT, ["images", weights.shape[0]])],
-        [helper.make_tensor_value_info("ip_adapter_image_embeds", TensorProto.FLOAT, ["images", weights.shape[1]])],
-        [numpy_helper.from_array(weights, "weights"), numpy_helper.from_array(offset, "offset")],
+        [helper.make_tensor_value_info(output_name, TensorProto.FLOAT, shape)],
+        initializers,
     )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9)
     onnx.checker.check_model(model)

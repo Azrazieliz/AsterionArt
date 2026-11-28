@@ -17,6 +17,8 @@ The existing Control worker reached SM-S948B running Android 17. It reported app
 
 The current Nexus source declares `com.asterion.nexus.library` and the TeraBox documents provider `com.asterion.nexus.terabox.documents`. Art's import accepts the granted content URI and checks the immutable original's hash when the URI contains it. The phone app inventory showed Core and Rounder. Nexus rating and remote asset exchange require live provider verification. Sound synthesis, Writer canon exchange, Foundry geometry handoffs and NoWorld import authority remain independent provider integration work.
 
+Writer's existing Android text and Markdown sharing can enter Art as a retained animation-scene draft. Art outputs use a scoped read-only Android share grant after byte verification. The project timeline stores source frames, audio timings and dialogue marks. Execution persists a learned shot plan and gives each subsequent shot the prior shot's actual ending frame. Device-level media handoff and temporal quality remain to be measured.
+
 The Android debug package builds under the separate ID `com.asterion.art.reconstruction`. The JVM suite tests the selector, cast authority, selection of fifteen Artwork candidates over five phases, recovery, and the Character design-first bridge. The signed-caller Control diagnostics provider was brought across from the separate, independently build-checked provider branch. Live invocation of that provider in the new APK remains untested.
 
 ## CPU reference-conditioning experiment
@@ -50,3 +52,11 @@ The owner continuation archive gives the preference order Rin Flanime, MiaoMiao,
 Rin Flanime v1 Turbo is recorded under `rin_flanime_v1_turbo_qnn228_8gen3` in the archived Samsung audit. The corresponding Rin and MiaoMiao v1.4 Turbo QNN 2.28 packages were found by archive name and matching file digest on two mirrors. Their archive digests and the separate unverified NoobAI v-pred candidate are recorded in the comparison inventory. The exact previously installed NoobAI XL v11 QNN files remain unresolved.
 
 The authenticated Windows worker verified the full Hassaku v3.4 file on D: against its original SHA-256 pin. The full Rin v1.4 file was verified against its pin in the CPU benchmark environment.
+
+Rin v1.4 was also verified on D:. MiaoMiao v1.6 was verified in the CPU benchmark environment.
+
+## Anima-native projection experiment
+
+The Rin-specific projection was fitted against the exact checkpoint's 118 learned text-adapter tensors. Its target space is the adapted cross-attention sequence. It transfers an additional image-reference token without shortening the existing design context. The experiment binds the source checkpoint, text encoder, compact vision encoder and projection by SHA-256.
+
+Both checkpoint-specific fits improved held-out retrieval from 1/32 to 9/32. Unseen-motif retrieval rose from 1/9 to 2/9 for each. Unseen-motif cosine moved from 0.725 to 0.674 for Rin and from 0.724 to 0.673 for MiaoMiao. The measured tradeoff keeps the projections experimental. Further visual validation and region-specific preservation remain necessary before any production change.

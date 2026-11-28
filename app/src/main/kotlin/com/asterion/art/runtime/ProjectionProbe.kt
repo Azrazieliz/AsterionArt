@@ -15,9 +15,12 @@ internal class ProjectionProbe(context: Context, private val workspace: ArtWorks
     private val modelFiles = AssetFiles(File(workspace.directory, "projection-study"))
     private val budget = DeviceBudget(app)
 
-    enum class Part(val label: String, val checksum: String) {
+    enum class Part(val label: String, val checksum: String, val output: String = "", val shape: List<Int> = emptyList()) {
         ENCODER("Compact visual encoder", "583fd1110a514667812fee7d684952aaf82a99b959760c8d7dca7e0ab9839299"),
-        PROJECTION("Learned reference projection", "700af9c61bd0e116a561284e0b30ac79da6817b2114762243e68dd40894c9b29"),
+        IP_ADAPTER("SD 1.5 reference projection", "700af9c61bd0e116a561284e0b30ac79da6817b2114762243e68dd40894c9b29",
+            "ip_adapter_image_embeds", listOf(1, 1024)),
+        RIN_ANIMA("Rin Anima reference projection", "790bf54a0a3bcd28b34aff02730d3a148ce4e642597feb8c1afc12fbf8d805b2",
+            "anima_reference_tokens", listOf(1, 1, 1024)),
     }
 
     fun stage(part: Part, asset: Uri) {
@@ -30,22 +33,27 @@ internal class ProjectionProbe(context: Context, private val workspace: ArtWorks
 
     fun stagedParts(): Set<Part> = Part.entries.filter { modelFiles.file(it.checksum).isFile }.toSet()
 
+    fun canCheck(parts: Set<Part>): Boolean = Part.ENCODER in parts && parts.any { it.output.isNotEmpty() }
+
     fun check(referenceUri: Uri): String {
-        require(stagedParts().size == Part.entries.size) { "Both model files are required for the projection check" }
+        val staged = stagedParts()
+        require(canCheck(staged)) { "Stage the visual encoder and at least one trained projection" }
         val reference = workspace.references.path(workspace.references.import(referenceUri))
         val input = readImage(reference)
         val signal = ExecutionSignal { budget.check() }
         val threads = budget.threads()
-        var shape: List<Int> = emptyList()
-        val elapsed = measureTimeMillis {
-            NativeGraph(modelFiles.file(Part.ENCODER.checksum), ComputeBackend.CPU, threads).use { encoder ->
-                NativeGraph(modelFiles.file(Part.PROJECTION.checksum), ComputeBackend.CPU, threads).use { projector ->
-                    shape = ReferenceProjection(encoder, projector).project(input, signal).dimensions
+        return NativeGraph(modelFiles.file(Part.ENCODER.checksum), ComputeBackend.CPU, threads).use { encoder ->
+            staged.filter { it.output.isNotEmpty() }.joinToString("\n") { part ->
+                var shape: List<Int> = emptyList()
+                val elapsed = measureTimeMillis {
+                    NativeGraph(modelFiles.file(part.checksum), ComputeBackend.CPU, threads).use { projector ->
+                        shape = ReferenceProjection(encoder, projector, part.output).project(input, signal).dimensions
+                    }
                 }
+                check(shape == part.shape) { "The result does not match the expected reference tensor" }
+                "${part.label} · CPU · ${shape.joinToString(" × ")} features · $elapsed ms"
             }
         }
-        check(shape == listOf(1, 1024)) { "The result does not match the expected reference tensor" }
-        return "CPU · ${shape.joinToString(" × ")} features · $elapsed ms"
     }
 
     @Suppress("DEPRECATION")

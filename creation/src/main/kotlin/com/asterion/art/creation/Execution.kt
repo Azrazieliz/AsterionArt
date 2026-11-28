@@ -96,6 +96,7 @@ data class CreationRun(
     val independentImages: List<EvaluatedImage> = emptyList(),
     val finalImage: EvaluatedImage? = null,
     val themes: List<ThemeDesign> = emptyList(),
+    val plannedShots: List<Shot> = emptyList(),
     val segments: List<VideoSegment> = emptyList(),
     val video: ContentArtifact? = null,
 ) {
@@ -154,6 +155,7 @@ interface CreationSession : AutoCloseable {
         input: ThemeInput, references: List<Reference>, draw: AtomDraw,
         heavyAtoms: List<HeavyAtom>, signal: ExecutionSignal,
     ): List<ThemeDesign>
+    fun planShots(creation: CreationRequest, signal: ExecutionSignal): List<Shot>
     fun renderShot(
         creation: CreationRequest, shot: Shot, continuation: ContentArtifact?, signal: ExecutionSignal,
     ): VideoSegment
@@ -384,8 +386,16 @@ class CreationExecutor(private val journal: RunJournal, private val taxonomy: Ch
     }
 
     private fun video(run: CreationRun, session: CreationSession, signal: ExecutionSignal): CreationRun {
-        val timeline = run.request.input as VideoInput
+        val input = run.request.input as VideoInput
         var current = run
+        if (current.plannedShots.isEmpty()) {
+            signal.check()
+            val shots = input.shots.ifEmpty { session.planShots(run.request, signal) }
+            require(shots.isNotEmpty()) { "The animation has no shots" }
+            run.request.copy(input = input.copy(shots = shots)).validateForStart()
+            current = checkpoint(run.id) { it.copy(plannedShots = shots) }
+        }
+        val timeline = input.copy(shots = current.plannedShots)
         timeline.shots.drop(current.segments.size).forEach { shot ->
             signal.check()
             val segment = session.renderShot(run.request, shot, current.segments.lastOrNull()?.lastFrame, signal)

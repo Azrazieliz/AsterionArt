@@ -94,12 +94,12 @@ internal class NativeGraph(
 internal class ReferenceProjection(
     private val compactEncoder: NativeGraph,
     private val projector: NativeGraph,
+    private val outputName: String,
 ) {
     fun project(pixels: FloatTensor, signal: ExecutionSignal): FloatTensor {
         require(pixels.dimensions.size == 4 && pixels.dimensions.drop(1) == listOf(3, 224, 224))
         val source = compactEncoder.execute(mapOf("pixel_values" to pixels), setOf("image_embeds"), signal)
-        return projector.execute(source, setOf("ip_adapter_image_embeds"), signal)
-            .getValue("ip_adapter_image_embeds")
+        return projector.execute(source, setOf(outputName), signal).getValue(outputName)
     }
 }
 

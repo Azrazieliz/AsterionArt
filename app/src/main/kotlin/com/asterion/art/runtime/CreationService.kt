@@ -20,6 +20,7 @@ import com.asterion.art.creation.Family
 import com.asterion.art.creation.RuntimeUnavailable
 import com.asterion.art.studio.StudioActivity
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.Executors
 
 internal class ArtWorkspace(context: Context) {
@@ -28,6 +29,11 @@ internal class ArtWorkspace(context: Context) {
     val journal = DurableWorkspace(directory)
     val references = ReferenceFiles(application, directory)
     val taxonomy by lazy(CharacterTaxonomy::load)
+
+    fun outputFiles(runId: String): AssetFiles {
+        require(UUID.fromString(runId).toString() == runId)
+        return AssetFiles(File(directory, "outputs/$runId"))
+    }
 
     companion object {
         @Volatile private var active: ArtWorkspace? = null

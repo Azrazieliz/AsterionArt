@@ -101,15 +101,37 @@ class CreationExecutorTest {
         assertEquals(null, chosen.last().clothingOverride)
     }
 
+    @Test
+    fun animationUsesAndPersistsTheActualPreviousLastFrame() {
+        val workspace = DurableWorkspace(folder.newFolder())
+        val request = CreationRequest(
+            VideoInput(Mode.ANIMATION, "A quiet scene followed by a reveal", emptyList()),
+            seed = 2026,
+        )
+        val first = Shot("arrival", 3000, "An orchid-lined doorway")
+        val second = Shot("reveal", 6000, "The heroine turns toward the stage", previousShotId = first.id)
+        val session = RecordingSession(animationPlan = listOf(first, second))
+        val queued = workspace.create(request)
+        val completed = CreationExecutor(workspace, taxonomy).execute(queued.id, ExecutionSignal {}) { _, _ -> session }
+        assertEquals(RunStatus.COMPLETE, completed.status)
+        assertEquals(listOf(first, second), completed.plannedShots)
+        assertEquals(listOf(null, completed.segments.first().lastFrame), session.continuations)
+        assertEquals("video/mp4", completed.video?.mediaType)
+    }
+
     private fun reference(role: RefRole, id: String = role.name) =
         Reference(role, AssetRef(id, AssetSource.DOCUMENT, "content://references/$id", "$id.png"))
 }
 
-private class RecordingSession(private var interruptAfter: Int? = null) : CreationSession {
+private class RecordingSession(
+    private var interruptAfter: Int? = null,
+    private val animationPlan: List<Shot>? = null,
+) : CreationSession {
     override val model = ModelIdentity("1".repeat(64), "2".repeat(64), "3".repeat(64))
     var prepared = 0
     val rendered = mutableListOf<ImageRenderRequest>()
     val removed = mutableSetOf<ContentArtifact>()
+    val continuations = mutableListOf<ContentArtifact?>()
     override fun close() = Unit
 
     override fun prepare(request: PreparationRequest, signal: ExecutionSignal): List<PreparedDesign> {
@@ -146,6 +168,22 @@ private class RecordingSession(private var interruptAfter: Int? = null) : Creati
     override fun synthesizeThemes(
         input: ThemeInput, references: List<Reference>, draw: AtomDraw, heavyAtoms: List<HeavyAtom>, signal: ExecutionSignal,
     ) = error("Unexpected Theme synthesis")
-    override fun renderShot(creation: CreationRequest, shot: Shot, continuation: ContentArtifact?, signal: ExecutionSignal) = error("Unexpected video shot")
-    override fun finishVideo(timeline: VideoInput, segments: List<VideoSegment>, signal: ExecutionSignal) = error("Unexpected video encoding")
+    override fun renderShot(
+        creation: CreationRequest, shot: Shot, continuation: ContentArtifact?, signal: ExecutionSignal,
+    ): VideoSegment {
+        checkNotNull(animationPlan)
+        continuations += continuation
+        val index = continuations.size.toString(16)
+        return VideoSegment(
+            ContentArtifact(index.padStart(64, 'a'), "video/mp4", 125),
+            ContentArtifact(index.padStart(64, 'b'), "image/png", 100),
+        )
+    }
+    override fun planShots(creation: CreationRequest, signal: ExecutionSignal) = checkNotNull(animationPlan)
+    override fun finishVideo(
+        timeline: VideoInput, segments: List<VideoSegment>, signal: ExecutionSignal,
+    ): ContentArtifact {
+        require(segments.size == timeline.shots.size)
+        return ContentArtifact("c".repeat(64), "video/mp4", 250)
+    }
 }

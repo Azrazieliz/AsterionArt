@@ -1,6 +1,7 @@
 package com.asterion.art.studio
 
 import android.content.Intent
+import android.content.ClipData
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -59,6 +61,7 @@ private val Palette = darkColorScheme(
 
 class StudioActivity : ComponentActivity() {
     private var incoming by mutableStateOf<Uri?>(null)
+    private var incomingScene by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,7 +69,10 @@ class StudioActivity : ComponentActivity() {
         receive(intent)
         setContent {
             MaterialTheme(colorScheme = Palette) {
-                Studio(ArtWorkspace.get(this), incoming) { incoming = null }
+                Studio(ArtWorkspace.get(this), incoming, incomingScene) {
+                    incoming = null
+                    incomingScene = null
+                }
             }
         }
     }
@@ -78,6 +84,10 @@ class StudioActivity : ComponentActivity() {
 
     private fun receive(intent: Intent) {
         if (intent.action != Intent.ACTION_SEND) return
+        if (intent.type == "text/plain" || intent.type == "text/markdown") {
+            incomingScene = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf(String::isNotBlank)
+            return
+        }
         incoming = if (Build.VERSION.SDK_INT >= 33) {
             intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
         } else {
@@ -93,7 +103,7 @@ private val Mode.isVideo get() = this == Mode.CLIP || this == Mode.ANIMATION
 private val Mode.canReview get() = !isVideo && this != Mode.THEME
 
 @Composable
-private fun Studio(workspace: ArtWorkspace, incoming: Uri?, handled: () -> Unit) {
+private fun Studio(workspace: ArtWorkspace, incoming: Uri?, incomingScene: String?, handled: () -> Unit) {
     val context = LocalContext.current
     val drafts = remember { Drafts(context) }
     val scope = rememberCoroutineScope()
@@ -140,6 +150,13 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, handled: () -> Unit)
             pendingUri = incoming
             handled()
             if (activeMode == null) select(Mode.CHARACTER_SHEET)
+        }
+    }
+    LaunchedEffect(incomingScene) {
+        if (incomingScene != null) {
+            select(Mode.ANIMATION)
+            update(StudioDraft(Mode.ANIMATION, direction = incomingScene))
+            handled()
         }
     }
     LaunchedEffect(workspace) {
@@ -234,6 +251,25 @@ private fun Studio(workspace: ArtWorkspace, incoming: Uri?, handled: () -> Unit)
                         }
                     },
                     onCancel = { id -> scope.launch { withContext(Dispatchers.IO) { workspace.journal.cancel(id) } } },
+                    onShare = { run, asset ->
+                        scope.launch {
+                            runCatching {
+                                val file = withContext(Dispatchers.IO) {
+                                    workspace.outputFiles(run.id).verified(asset)
+                                }
+                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.outputs", file)
+                                val share = Intent(Intent.ACTION_SEND).apply {
+                                    type = asset.mediaType
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    clipData = ClipData.newRawUri(run.request.mode.title, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(share, null))
+                            }.onFailure {
+                                messages.showSnackbar(it.message ?: "The output could not be opened")
+                            }
+                        }
+                    },
                     onSaveCandidate = { id, sha ->
                         scope.launch {
                             runCatching { withContext(Dispatchers.IO) { workspace.journal.retainCandidate(id, sha) } }
@@ -384,7 +420,12 @@ private fun CreationEditor(
                 draft.theme?.let { Text(it.title) }
             }
         }
-        if (draft.mode.isVideo) item { Timeline(draft, change) }
+        if (draft.mode.isVideo) item {
+            if (draft.mode == Mode.ANIMATION) {
+                Field("Scene specification", draft.direction, { change(draft.copy(direction = it)) }, false)
+            }
+            Timeline(draft, change)
+        }
         else item {
             Field(
                 if (draft.mode == Mode.THEME) "Visual direction" else "Direction",
@@ -672,6 +713,7 @@ private fun Projects(
     onOpen: (String?) -> Unit,
     onResume: (CreationRun) -> Unit,
     onCancel: (String) -> Unit,
+    onShare: (CreationRun, ContentArtifact) -> Unit,
     onSaveCandidate: (String, String) -> Unit,
     onTheme: (ThemeDesign) -> Unit,
     onUseImage: (CreationRun, ContentArtifact, Mode) -> Unit,
@@ -722,14 +764,19 @@ private fun Projects(
             .distinctBy { it.artifact.sha256 }
         items(finished.withIndex().toList(), key = { "${it.index}-${it.value.artifact.sha256}" }) { image ->
             OutputCard(run, image.value.artifact, workspace) {
-                when (run.request.mode) {
-                    Mode.CHARACTER, Mode.ARTWORK, in OriginalInput.ORIGINALS -> {
-                        SheetMenu { onUseImage(run, image.value.artifact, it) }
+                Column {
+                    when (run.request.mode) {
+                        Mode.CHARACTER, Mode.ARTWORK, in OriginalInput.ORIGINALS -> {
+                            SheetMenu { onUseImage(run, image.value.artifact, it) }
+                        }
+                        Mode.THEME_SHEET -> {
+                            TextButton(onClick = { onUseImage(run, image.value.artifact, Mode.ARTWORK) }) {
+                                Text("Use Theme Sheet in Artwork")
+                            }
+                        }
+                        else -> Unit
                     }
-                    Mode.THEME_SHEET -> {
-                        TextButton(onClick = { onUseImage(run, image.value.artifact, Mode.ARTWORK) }) { Text("Use Theme Sheet in Artwork") }
-                    }
-                    else -> Unit
+                    TextButton(onClick = { onShare(run, image.value.artifact) }) { Text("Share") }
                 }
             }
         }
@@ -747,6 +794,9 @@ private fun Projects(
             OutputCard(run, pending.artifact, workspace) {
                 TextButton(onClick = { onSaveCandidate(run.id, pending.artifact.sha256) }) { Text("Keep candidate") }
             }
+        }
+        run.video?.let { video ->
+            item { OutlinedButton(onClick = { onShare(run, video) }) { Text("Share video") } }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -890,7 +940,7 @@ private fun ProjectionCheck(workspace: ArtWorkspace) {
                     pick.launch(arrayOf("application/octet-stream", "application/x-onnx"))
                 }) { Text(if (part in staged) "${part.label} · staged" else "Select ${part.label.lowercase()}") }
             }
-            Button(enabled = !busy && staged.size == ProjectionProbe.Part.entries.size, onClick = {
+            Button(enabled = !busy && probe.canCheck(staged), onClick = {
                 target = null
                 pick.launch(arrayOf("image/*"))
             }) { Text("Check a reference") }

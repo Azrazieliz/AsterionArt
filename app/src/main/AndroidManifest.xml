@@ -25,6 +25,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+            </intent-filter>
         </activity>
         <service
             android:name=".runtime.CreationService"
@@ -35,5 +41,14 @@
             android:authorities="${applicationId}.asterion.bridge"
             android:exported="true"
             android:grantUriPermissions="false" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.outputs"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/output_paths" />
+        </provider>
     </application>
 </manifest>
