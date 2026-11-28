@@ -5,7 +5,7 @@
 ## What is retained
 
 - Binding owner product architecture: `docs/architecture/ASTERION_ART_MASTER_ARCHITECTURE_CANONICAL_WITH_ADDENDUMS_20261030.md`.
-- Latest owner corrections and selections: `docs/production/OWNER_*.md`. Later decisions supersede contradictory historical implementation assumptions.
+- Latest controlling owner decisions: [November 28 reconstruction decisions](docs/production/OWNER_RECONSTRUCTION_DECISIONS_20261128.md); [authority order](docs/rebuild/AUTHORITY_AND_RESET.md). Other owner corrections: `docs/production/OWNER_*.md`. Later decisions supersede contradictory historical implementation assumptions.
 - Original methodology material, byte-for-byte Git blobs copied from the former app assets into `spec/methodologies/`. **Development and validation inputs only; they must never be shipped as runtime instruction prompts.**
 - Recovered Artwork five phases and reference authority: `docs/owner_recovered/`.
 - Original signing identity evidence and public identity material, not private keys: `docs/production/ASTERION_ART_PERSISTENT_SIGNING_20261030.md`, `spec/signing/`.
@@ -21,11 +21,11 @@ These branches retain the old Android project, native libraries and historical t
 ## Non-negotiable direction
 
 - Native, mode-specific executable creative intelligence; learned design and visual conditioning, not generic reasoning over methodology documents or deterministic creative templates.
-- Three distinct trained visual model families (Anime, Cosplay, Realistic), local Android inference, real reference control, complete source/image editing, one cohesive Character Sheet instead of crude panel collage.
-- Artwork-only five phases, independent Originals workflows, Sheet Creation, video including dialogue/music/sound/lip-sync, durable background execution, integrated enhancement, grading, learning, and Core/Control/Downloader compatibility.
+- Three distinct trained visual model families (Anime first, Cosplay and Realistic secondary), local Android inference, real reference control, predominantly automatic creation, one coherent Character Sheet instead of crude panel collage.
+- Artwork-only five phases, independent Originals workflows, Sheet Creation, video with Sound-owned dialogue/music/SFX and Art-owned visual timing/lip-sync, durable background execution, automatic best-chain enhancement, Nexus shared rating and learning. Models and assets streamed from TeraBox through Nexus and cached locally. Integrate with Nexus, Sound, Writer, 3D, NoWorld and Control; Core, Downloader and Rounder are Nexus donors, not separate targets.
 - Original references and creative methodology semantics are authoritative. Owner questions are to be consolidated once before new implementation. No invented user approvals.
 - Do not claim completion until signed device deployment and real visual quality/function acceptance. Verify any free GPU allocation before using it. No paid compute.
 
 ## Build status
 
-The active branch is intentionally specification-only while owner inputs are consolidated; **there is no runnable app yet**. The clean Android and training implementation will be committed after those inputs are received.
+The active branch is intentionally specification-only while owner inputs are consolidated; **there is no runnable app yet**. The latest owner response is recorded; open methodology details and delegated technical decisions must be reconciled without delaying independent implementation.
